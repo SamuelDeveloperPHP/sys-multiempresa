@@ -73,7 +73,19 @@ class CompanyController extends Controller
 
     public function select(Request $request)
     {
-        $companies = $request->user()->companies()->orderBy('name')->get();
+        $user = $request->user();
+        
+        if (in_array($user->type, ['super_admin', 'admin'])) {
+            $companies = Company::with(['obras' => function($q) {
+                $q->withoutGlobalScope(\App\Models\Scopes\CompanyScope::class);
+            }])->orderBy('name')->get();
+        } else {
+            // Carrega empresas vinculadas e APENAS as obras vinculadas a esse usuário ignorando o escopo atual
+            $companies = $user->companies()->with(['obras' => function($q) use ($user) {
+                $q->withoutGlobalScope(\App\Models\Scopes\CompanyScope::class)
+                  ->whereIn('obras.id', $user->obras()->pluck('obras.id'));
+            }])->orderBy('name')->get();
+        }
 
         return Inertia::render('Admin/Companies/Select', [
             'companies' => $companies
@@ -84,11 +96,18 @@ class CompanyController extends Controller
     {
         $request->validate([
             'company_id' => 'required|exists:companies,id',
+            'obra_id'    => 'nullable|exists:obras,id',
         ]);
 
         session(['current_company_id' => $request->company_id]);
+        
+        if ($request->filled('obra_id')) {
+            session(['current_obra_id' => $request->obra_id]);
+        } else {
+            session()->forget('current_obra_id');
+        }
 
-        return redirect('/')->with('message', 'Empresa selecionada!');
+        return redirect('/')->with('message', 'Ambiente selecionado com sucesso!');
     }
 
     public function show(Company $company)

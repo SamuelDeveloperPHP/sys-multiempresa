@@ -111,8 +111,10 @@ class UserController extends Controller
                 ->get();
 
             // 🔹 Agrupa por módulo base (id_modulo_relacionamento ou id)
+            // Agrupa filhos sob o pai (parent_id); raízes ficam sob o próprio id.
+            // parent_id é a fonte canônica usada pelo sidebar (ViewServiceProvider).
             $groupedModules = $modules->groupBy(function ($module) {
-                return $module->id_modulo_relacionamento ?: $module->id;
+                return $module->parent_id ?: $module->id;
             });
 
             return Inertia::render('Admin/Users/Create', [
@@ -212,8 +214,10 @@ class UserController extends Controller
                 ->orderBy('name')
                 ->get();
 
+            // Agrupa filhos sob o pai (parent_id); raízes ficam sob o próprio id.
+            // parent_id é a fonte canônica usada pelo sidebar (ViewServiceProvider).
             $groupedModules = $modules->groupBy(function ($module) {
-                return $module->id_modulo_relacionamento ?: $module->id;
+                return $module->parent_id ?: $module->id;
             });
 
             // Permissões existentes do USUÁRIO que está sendo editado
@@ -478,17 +482,8 @@ class UserController extends Controller
             return;
         }
 
-        $moduleIdsFromForm = array_map('intval', array_keys($permissionsInput));
-
-        $existing = ModulePermission::where('user_id', $user->id)
-            ->whereIn('company_id', $companyIds)
-            ->whereIn('module_id', $moduleIdsFromForm)
-            ->get()
-            ->groupBy('company_id');
-
         foreach ($companyIds as $companyId) {
-            $companyId   = (int) $companyId;
-            $companyPerms = $existing->get($companyId, collect())->keyBy('module_id');
+            $companyId = (int) $companyId;
 
             foreach ($permissionsInput as $moduleId => $perm) {
                 $moduleId = (int) $moduleId;
@@ -501,26 +496,27 @@ class UserController extends Controller
 
                 $hasAny = $canList || $canView || $canCreate || $canEdit || $canDelete;
 
-                $record = $companyPerms->get($moduleId);
+                $existing = ModulePermission::where('company_id', $companyId)
+                    ->where('user_id', $user->id)
+                    ->where('module_id', $moduleId)
+                    ->first();
 
+                // Se não marcou nenhuma habilidade: remove registro existente
                 if (!$hasAny) {
-                    if ($record) {
+                    if ($existing) {
                         log_activity('permission_revoked', [
                             'module' => Module::find($moduleId)?->slug,
-                            'before' => $record->toArray(),
+                            'before' => $existing->toArray(),
                             'after'  => [],
                             'model_type' => ModulePermission::class,
-                            'model_id'   => $record->id,
+                            'model_id'   => $existing->id,
                         ]);
-                        $record->delete();
+                        $existing->delete();
                     }
                     continue;
                 }
 
-                $payload = [
-                    'company_id' => $companyId,
-                    'user_id'    => $user->id,
-                    'module_id'  => $moduleId,
+                $abilities = [
                     'can_list'   => $canList,
                     'can_view'   => $canView,
                     'can_create' => $canCreate,
@@ -528,28 +524,25 @@ class UserController extends Controller
                     'can_delete' => $canDelete,
                 ];
 
-                if ($record) {
-                    $before = $record->toArray();
-                    $record->update($payload);
+                $before = $existing?->toArray() ?? [];
 
-                    log_activity('permission_updated', [
-                        'module' => Module::find($moduleId)?->slug,
-                        'before' => $before,
-                        'after'  => $record->fresh()->toArray(),
-                        'model_type' => ModulePermission::class,
-                        'model_id'   => $record->id,
-                    ]);
-                } else {
-                    $new = ModulePermission::create($payload);
+                // Idempotente: atualiza se existe, cria se não existe (sem race condition)
+                $record = ModulePermission::updateOrCreate(
+                    [
+                        'company_id' => $companyId,
+                        'user_id'    => $user->id,
+                        'module_id'  => $moduleId,
+                    ],
+                    $abilities
+                );
 
-                    log_activity('permission_granted', [
-                        'module' => Module::find($moduleId)?->slug,
-                        'before' => [],
-                        'after'  => $new->toArray(),
-                        'model_type' => ModulePermission::class,
-                        'model_id'   => $new->id,
-                    ]);
-                }
+                log_activity($existing ? 'permission_updated' : 'permission_granted', [
+                    'module'     => Module::find($moduleId)?->slug,
+                    'before'     => $before,
+                    'after'      => $record->fresh()->toArray(),
+                    'model_type' => ModulePermission::class,
+                    'model_id'   => $record->id,
+                ]);
             }
         }
     }

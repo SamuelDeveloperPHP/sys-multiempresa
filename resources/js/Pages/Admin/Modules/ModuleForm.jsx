@@ -97,17 +97,20 @@ export default function ModuleForm({ moduleData, parentModules, isEdit = false }
                     </div>
 
                     <div>
-                        <InputLabel value="ID Relacionamento PAI (Para menus)" />
+                        <InputLabel value="Módulo Pai (agrupador no menu)" />
                         <select
                             value={data.id_modulo_relacionamento || ''}
                             onChange={(e) => setData('id_modulo_relacionamento', e.target.value)}
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
                         >
-                            <option value="">Nenhum (Módulo Raiz)</option>
+                            <option value="">— Nenhum (módulo raiz) —</option>
                             {parentModules?.map(m => (
                                 <option key={m.id} value={m.id}>{m.name}</option>
                             ))}
                         </select>
+                        <p className="text-xs text-gray-400 mt-1">
+                            Deixe vazio para criar um item raiz no menu. Selecione um pai para criar um sub-item.
+                        </p>
                         <InputError message={errors.id_modulo_relacionamento} className="mt-1" />
                     </div>
                 </div>

@@ -15,6 +15,9 @@ class Funcionario extends Model
     protected $fillable = [
         'company_id', 'id_obra', 'id_funcao', 'id_setor',
         'nome', 'matricula', 'cpf', 'status', 'imagem_usuario',
+        'rg', 'cep', 'endereco', 'numero', 'bairro', 'cidade', 'estado', 
+        'email', 'celular', 'nome_mae', 'genero', 'pis', 'estado_civil', 
+        'dependentes', 'data_adminssao', 'data_demissao', 'situacao', 'afastado'
     ];
 
     public function obra() { return $this->belongsTo(Obra::class, 'id_obra'); }

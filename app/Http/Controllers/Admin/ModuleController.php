@@ -78,10 +78,14 @@ public function index(Request $request)
     public function create()
     {
         try {
-            $allModules = Module::orderBy('name')->get();
+            // Só módulos raiz podem ser pais — evita hierarquia profunda/ciclos
+            $parentModules = Module::whereNull('parent_id')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug']);
 
             return Inertia::render('Admin/Modules/Create', [
-                'parentModules' => $allModules
+                'parentModules' => $parentModules
             ]);
         } catch (Throwable $e) {
             Log::error('Erro ao carregar formulário de criação de módulo', [
@@ -101,10 +105,13 @@ public function index(Request $request)
 
     public function store(Request $request)
     {
-
-        //dd($request->all());
-
         try {
+            // Normaliza strings vazias do form para null (Inertia envia '' por padrão)
+            $request->merge([
+                'parent_id'                 => $request->input('parent_id')                ?: null,
+                'id_modulo_relacionamento'  => $request->input('id_modulo_relacionamento') ?: null,
+            ]);
+
             $data = $request->validate([
                 'name'                  => 'required|string|max:255',
                 'slug'                  => 'nullable|string|max:255|unique:modules,slug',
@@ -122,6 +129,24 @@ public function index(Request $request)
             if (empty($data['slug'])) {
                 $data['slug'] = Str::slug($data['name']);
             }
+
+            // Sincroniza parent_id <-> id_modulo_relacionamento (o sidebar usa parent_id;
+            // o form atual só envia id_modulo_relacionamento → espelha um no outro)
+            $parent = $data['parent_id'] ?? $data['id_modulo_relacionamento'] ?? null;
+
+            // Hierarquia plana de 2 níveis: o pai precisa ser raiz (parent_id IS NULL)
+            if ($parent && Module::where('id', $parent)->whereNotNull('parent_id')->exists()) {
+                return back()->withInput()->withErrors([
+                    'id_modulo_relacionamento' => 'O módulo pai deve ser um módulo raiz.',
+                ]);
+            }
+
+            $data['parent_id']                = $parent;
+            $data['id_modulo_relacionamento'] = $parent;
+
+            // Colunas NOT NULL no banco — usa o próximo valor da ordem caso vazio
+            $data['ordem']      = $data['ordem']      ?? (int) Module::max('ordem') + 1;
+            $data['sort_order'] = $data['sort_order'] ?? (int) Module::max('sort_order') + 1;
 
             $data['is_active']   = $request->boolean('is_active');
             $data['show_in_menu'] = $request->boolean('show_in_menu');
@@ -174,11 +199,16 @@ public function index(Request $request)
     public function edit(Module $module)
     {
         try {
-            $allModules = Module::where('id', '!=', $module->id)->orderBy('name')->get();
+            // Pais possíveis: só raízes, excluindo o próprio módulo (evita auto-referência)
+            $parentModules = Module::whereNull('parent_id')
+                ->where('id', '!=', $module->id)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name', 'slug']);
 
             return Inertia::render('Admin/Modules/Edit', [
                 'module' => $module,
-                'parentModules' => $allModules
+                'parentModules' => $parentModules
             ]);
         } catch (Throwable $e) {
             Log::error('Erro ao carregar formulário de edição de módulo', [
@@ -200,6 +230,12 @@ public function index(Request $request)
     public function update(Request $request, Module $module)
     {
         try {
+            // Normaliza strings vazias do form para null
+            $request->merge([
+                'parent_id'                 => $request->input('parent_id')                ?: null,
+                'id_modulo_relacionamento'  => $request->input('id_modulo_relacionamento') ?: null,
+            ]);
+
             $data = $request->validate([
                 'name'                  => 'required|string|max:255',
                 'slug'                  => 'nullable|string|max:255|unique:modules,slug,' . $module->id,
@@ -217,6 +253,40 @@ public function index(Request $request)
             if (empty($data['slug'])) {
                 $data['slug'] = Str::slug($data['name']);
             }
+
+            // Sincroniza parent_id <-> id_modulo_relacionamento
+            $parent = $data['parent_id'] ?? $data['id_modulo_relacionamento'] ?? null;
+
+            // Validações de integridade da hierarquia
+            if ($parent) {
+                // Não pode ser pai de si mesmo
+                if ((int) $parent === (int) $module->id) {
+                    return back()->withInput()->withErrors([
+                        'id_modulo_relacionamento' => 'Um módulo não pode ser pai de si mesmo.',
+                    ]);
+                }
+
+                // Pai precisa ser raiz (parent_id IS NULL)
+                if (Module::where('id', $parent)->whereNotNull('parent_id')->exists()) {
+                    return back()->withInput()->withErrors([
+                        'id_modulo_relacionamento' => 'O módulo pai deve ser um módulo raiz.',
+                    ]);
+                }
+
+                // Se este módulo já tem filhos, ele é uma raiz — não pode virar filho
+                if (Module::where('parent_id', $module->id)->exists()) {
+                    return back()->withInput()->withErrors([
+                        'id_modulo_relacionamento' => 'Este módulo já tem filhos vinculados — remova-os antes de movê-lo.',
+                    ]);
+                }
+            }
+
+            $data['parent_id']                = $parent;
+            $data['id_modulo_relacionamento'] = $parent;
+
+            // Mantém valor atual se não vier no request (coluna é NOT NULL)
+            $data['ordem']      = $data['ordem']      ?? $module->ordem;
+            $data['sort_order'] = $data['sort_order'] ?? $module->sort_order;
 
             $data['is_active']   = $request->boolean('is_active');
             $data['show_in_menu'] = $request->boolean('show_in_menu');

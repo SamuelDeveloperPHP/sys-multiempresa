@@ -10,8 +10,19 @@ class FuncionarioSetor extends Model
 {
     use HasFactory, SoftDeletes, Traits\Tenantable;
 
-    protected $table = 'funcionario_setores';
-    protected $fillable = ['company_id', 'nome'];
+    // Tabela legada (singular). Coluna do nome também é diferente.
+    protected $table = 'funcionarios_setor';
 
-    public function funcionarios() { return $this->hasMany(Funcionario::class, 'id_setor'); }
+    protected $fillable = ['company_id', 'nome_setor'];
+
+    public function funcionarios()
+    {
+        return $this->hasMany(Funcionario::class, 'id_setor');
+    }
+
+    /** Acessor de compatibilidade: $setor->nome continua funcionando. */
+    public function getNomeAttribute(): ?string
+    {
+        return $this->nome_setor;
+    }
 }

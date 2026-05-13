@@ -256,6 +256,27 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             Route::post('configuracao/users/{user}/toggle-status', [AdminUserController::class, 'toggleStatus'])
                 ->name('users.toggle-status');
 
+            /*
+            |------------------------------------------------------------------
+            | Funcionários (admin) - Cadastros > Departamento Pessoal
+            |------------------------------------------------------------------
+            */
+            Route::get('cadastros/funcionarios',                 [\App\Http\Controllers\Admin\FuncionarioController::class, 'index'])->name('admin.funcionarios.index');
+            Route::get('cadastros/funcionarios/revisao-onedrive', [\App\Http\Controllers\Admin\FuncionarioController::class, 'revisaoOnedrive'])->name('admin.funcionarios.revisao-onedrive');
+            Route::get('cadastros/funcionarios/create',          [\App\Http\Controllers\Admin\FuncionarioController::class, 'create'])->name('admin.funcionarios.create');
+            Route::post('cadastros/funcionarios/store',          [\App\Http\Controllers\Admin\FuncionarioController::class, 'store'])->name('admin.funcionarios.store');
+            Route::get('cadastros/funcionarios/show/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'show'])->name('admin.funcionarios.show');
+            Route::get('cadastros/funcionarios/edit/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'edit'])->name('admin.funcionarios.edit');
+            Route::put('cadastros/funcionarios/update/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'update'])->name('admin.funcionarios.update');
+            Route::delete('cadastros/funcionarios/destroy/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'destroy'])->name('admin.funcionarios.destroy');
+            
+            // Documentos / Anexos
+            Route::post('cadastros/funcionarios/anexos/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'anexos'])->name('admin.funcionarios.anexos');
+            Route::post('cadastros/funcionarios/adicionar_anexos', [\App\Http\Controllers\Admin\FuncionarioController::class, 'adicionarAnexos'])->name('admin.funcionarios.adicionar_anexos');
+            Route::post('cadastros/funcionarios/aprovar_documentos/{anexoId}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'aprovarDocumentos'])->name('admin.funcionarios.aprovar_documentos');
+            Route::delete('cadastros/funcionarios/documentos/{anexoId}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'excluirDocumento'])->name('admin.funcionarios.excluir_documento');
+
+
             Route::prefix('configuracao/blog')->group(function () {
                 // -----------------------------------------------------------------
                 // POSTS  (admin.posts.*)
