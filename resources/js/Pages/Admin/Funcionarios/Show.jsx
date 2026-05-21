@@ -29,7 +29,7 @@ export default function Show({ funcionario, linkedUser, auth }) {
             {/* Cabeçalho de Perfil Turbinado */}
             <div className="bg-[#003f5c] text-white relative overflow-hidden">
                 <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+                <div className="w-full px-4 sm:px-6 lg:px-8 py-8 relative z-10">
                     <div className="flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
                         <div className="flex items-center gap-6">
                             <div className="relative">
@@ -38,7 +38,7 @@ export default function Show({ funcionario, linkedUser, auth }) {
                                     alt={funcionario.nome}
                                     className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white shadow-xl object-cover"
                                 />
-                                <span className={`absolute bottom-2 right-2 w-5 h-5 border-2 border-white rounded-full ${funcionario.status === 'Ativo' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                <span className={`absolute bottom-2 right-2 w-5 h-5 border-2 border-white rounded-full ${funcionario.status === 'Ativo' ? 'bg-rise-500' : 'bg-rose-500'}`}></span>
                             </div>
                             <div>
                                 <h1 className="text-3xl font-extrabold tracking-tight mb-1">{funcionario.nome}</h1>
@@ -67,7 +67,7 @@ export default function Show({ funcionario, linkedUser, auth }) {
                             </a>
                             <Link
                                 href={route('admin.funcionarios.edit', funcionario.id)}
-                                className="inline-flex items-center justify-center px-4 py-2 bg-[#00b393] hover:bg-[#008f75] text-white text-sm font-bold rounded-lg shadow-md transition-all"
+                                className="inline-flex items-center justify-center px-4 py-2 bg-[#557bbb] hover:bg-[#3a5a8c] text-white text-sm font-bold rounded-lg shadow-md transition-all"
                             >
                                 <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                 Editar Cadastro
@@ -77,7 +77,7 @@ export default function Show({ funcionario, linkedUser, auth }) {
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
                 {/* Abas */}
                 <div className="bg-white rounded-t-xl shadow-sm border-b border-gray-200">
                     <nav className="flex overflow-x-auto" aria-label="Tabs">
@@ -88,7 +88,7 @@ export default function Show({ funcionario, linkedUser, auth }) {
                                 className={`
                                     whitespace-nowrap flex items-center gap-2 py-4 px-6 border-b-2 font-semibold text-sm transition-colors min-w-max
                                     ${activeTab === tab.id 
-                                        ? 'border-[#00b393] text-[#00b393] bg-[#f0f9f8]' 
+                                        ? 'border-[#557bbb] text-[#557bbb] bg-[#eef2f9]' 
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                     }
                                 `}

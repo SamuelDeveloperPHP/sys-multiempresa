@@ -6,6 +6,11 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 /**
+ * @deprecated Modulos Frota foram consolidados em ModulesPermissionsSeeder
+ *             (seeder canonico rodado pelo DatabaseSeeder). Mantido aqui
+ *             apenas para SMS e Sincronizacao, ate que tambem sejam
+ *             migrados para o canonico.
+ *
  * Cria/atualiza modulos Frota + SMS + Sincronizacao no menu do sistema.
  * Ideompotente — pode rodar varias vezes.
  *

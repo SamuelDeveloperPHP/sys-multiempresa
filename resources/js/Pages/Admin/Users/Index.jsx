@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { safeLabel } from '@/utils/sanitize';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
@@ -57,7 +58,7 @@ export default function Index({ users, companies, filters, auth }) {
         >
             <Head title="Gerenciar Usuários" />
 
-            <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+            <div className="w-full py-8 px-4 sm:px-6 lg:px-8">
                 {/* Header Área */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                     <div>
@@ -67,7 +68,7 @@ export default function Index({ users, companies, filters, auth }) {
 
                     <Link
                         href={route('admin.users.create')}
-                        className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-md hover:shadow-lg text-white bg-[#00b393] hover:bg-[#008f75] transition-all transform hover:-translate-y-0.5"
+                        className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-md hover:shadow-lg text-white bg-[#557bbb] hover:bg-[#3a5a8c] transition-all transform hover:-translate-y-0.5"
                     >
                         <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -91,7 +92,7 @@ export default function Index({ users, companies, filters, auth }) {
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         placeholder="Busque por nome ou e-mail..."
-                                        className="pl-9 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm transition-colors"
+                                        className="pl-9 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm transition-colors"
                                     />
                                     <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -108,7 +109,7 @@ export default function Index({ users, companies, filters, auth }) {
                                         setType(e.target.value);
                                         applyFilters({ type: e.target.value });
                                     }}
-                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm transition-colors"
+                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm transition-colors"
                                 >
                                     <option value="">Todos</option>
                                     <option value="user">Usuário Padrão</option>
@@ -126,7 +127,7 @@ export default function Index({ users, companies, filters, auth }) {
                                         setStatus(e.target.value);
                                         applyFilters({ status: e.target.value });
                                     }}
-                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm transition-colors"
+                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm transition-colors"
                                 >
                                     <option value="">Todos</option>
                                     <option value="active">Ativos</option>
@@ -143,7 +144,7 @@ export default function Index({ users, companies, filters, auth }) {
                                         setCompanyId(e.target.value);
                                         applyFilters({ company_id: e.target.value });
                                     }}
-                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm transition-colors"
+                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm transition-colors"
                                 >
                                     <option value="">Todas</option>
                                     {companies?.map(c => (
@@ -221,13 +222,13 @@ export default function Index({ users, companies, filters, auth }) {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex flex-col gap-1.5 items-start">
-                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${user.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${user.is_active ? 'bg-rise-100 text-rise-800' : 'bg-rose-100 text-rose-800'}`}>
                                                         {user.is_active ? 'Conta Ativa' : 'Bloqueado'}
                                                     </span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div className="flex border rounded-lg overflow-hidden shadow-sm shadow-[#00b393]/5 w-fit ml-auto divide-x divide-gray-100">
+                                                <div className="flex border rounded-lg overflow-hidden shadow-sm shadow-[#557bbb]/5 w-fit ml-auto divide-x divide-gray-100">
                                                     <Link
                                                         href={route('admin.users.edit', user.id)}
                                                         className="px-3 py-1.5 bg-white hover:bg-blue-50 text-blue-600 hover:text-blue-700 transition items-center justify-center"
@@ -243,7 +244,7 @@ export default function Index({ users, companies, filters, auth }) {
                                                         {user.is_active ? (
                                                             <svg className="w-4 h-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                                         ) : (
-                                                            <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                                                            <svg className="w-4 h-4 text-rise-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
                                                         )}
                                                     </button>
                                                     <button
@@ -277,10 +278,10 @@ export default function Index({ users, companies, filters, auth }) {
                                             <Link
                                                 key={k}
                                                 href={link.url || '#'}
-                                                dangerouslySetInnerHTML={{ __html: link.label }}
+                                                dangerouslySetInnerHTML={safeLabel(link.label)}
                                                 className={`
                                                     relative inline-flex items-center px-4 py-2 border text-sm font-medium
-                                                    ${link.active ? 'z-10 bg-[#f0f9f8] border-[#00b393] text-[#00b393] font-bold' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}
+                                                    ${link.active ? 'z-10 bg-[#eef2f9] border-[#557bbb] text-[#557bbb] font-bold' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}
                                                     ${!link.url ? 'opacity-50 cursor-not-allowed hidden md:inline-flex' : ''}
                                                     ${k === 0 ? 'rounded-l-md' : ''}
                                                     ${k === users.links.length - 1 ? 'rounded-r-md' : ''}

@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { safeLabel } from '@/utils/sanitize';
 import { Head, Link, usePage, useForm } from '@inertiajs/react';
 
 export default function Index({ posts, categories, filters }) {
@@ -19,12 +20,12 @@ export default function Index({ posts, categories, filters }) {
             <Head title="Posts" />
 
             {flash.success && (
-                <div className="mb-6 bg-[#f0f9f8] border border-[#c1ede5] text-[#008f75] px-4 py-3 rounded-xl text-sm font-medium shadow-sm">
+                <div className="mb-6 bg-[#eef2f9] border border-[#bccae7] text-[#3a5a8c] px-4 py-3 rounded-xl text-sm font-medium shadow-sm">
                     {flash.success}
                 </div>
             )}
             {flash.message && (
-                <div className="mb-6 bg-[#f0f9f8] border border-[#c1ede5] text-[#008f75] px-4 py-3 rounded-xl text-sm font-medium shadow-sm">
+                <div className="mb-6 bg-[#eef2f9] border border-[#bccae7] text-[#3a5a8c] px-4 py-3 rounded-xl text-sm font-medium shadow-sm">
                     {flash.message}
                 </div>
             )}
@@ -38,7 +39,7 @@ export default function Index({ posts, categories, filters }) {
                                 placeholder="Buscar posts..."
                                 value={data.q}
                                 onChange={e => setData('q', e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#00b393] focus:border-[#00b393] shadow-sm transition-colors"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#557bbb] focus:border-[#557bbb] shadow-sm transition-colors"
                             />
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
@@ -49,7 +50,7 @@ export default function Index({ posts, categories, filters }) {
                         <select
                             value={data.category_id}
                             onChange={e => setData('category_id', e.target.value)}
-                            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#00b393] focus:border-[#00b393] p-2.5 shadow-sm transition-colors"
+                            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#557bbb] focus:border-[#557bbb] p-2.5 shadow-sm transition-colors"
                         >
                             <option value="">Todas as Categorias</option>
                             {categories.map(cat => (
@@ -59,7 +60,7 @@ export default function Index({ posts, categories, filters }) {
                         <select
                             value={data.status}
                             onChange={e => setData('status', e.target.value)}
-                            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#00b393] focus:border-[#00b393] p-2.5 shadow-sm transition-colors"
+                            className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-[#557bbb] focus:border-[#557bbb] p-2.5 shadow-sm transition-colors"
                         >
                             <option value="">Todos os status</option>
                             <option value="published">Publicados</option>
@@ -69,7 +70,7 @@ export default function Index({ posts, categories, filters }) {
                             Filtrar
                         </button>
                     </form>
-                    <Link href={route('admin.posts.create')} className="px-4 py-2 bg-[#00b393] text-white text-sm font-semibold rounded-lg hover:bg-[#009b80] transition-colors shadow-sm whitespace-nowrap flex items-center">
+                    <Link href={route('admin.posts.create')} className="px-4 py-2 bg-[#557bbb] text-white text-sm font-semibold rounded-lg hover:bg-[#009b80] transition-colors shadow-sm whitespace-nowrap flex items-center">
                         <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                         Novo Post
                     </Link>
@@ -148,8 +149,8 @@ export default function Index({ posts, categories, filters }) {
                                 <Link
                                     key={i}
                                     href={link.url || '#'}
-                                    className={`px-3 py-1.5 text-sm rounded ${link.active ? 'bg-[#00b393] text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-100'} ${!link.url && 'opacity-50 cursor-not-allowed'} border border-gray-200 transition-colors inline-block`}
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                    className={`px-3 py-1.5 text-sm rounded ${link.active ? 'bg-[#557bbb] text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-100'} ${!link.url && 'opacity-50 cursor-not-allowed'} border border-gray-200 transition-colors inline-block`}
+                                    dangerouslySetInnerHTML={safeLabel(link.label)}
                                 />
                             ))}
                         </div>

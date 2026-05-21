@@ -1,3 +1,6 @@
+/* Font Awesome 6 (hospedado localmente para evitar Tracking Prevention de browsers) */
+@import '@fortawesome/fontawesome-free/css/all.min.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

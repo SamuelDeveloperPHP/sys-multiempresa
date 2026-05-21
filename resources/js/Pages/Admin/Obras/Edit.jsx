@@ -70,7 +70,7 @@ export default function Edit({ obra, statuses, companies }) {
         }
     };
 
-    const inputClasses = "mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] px-3 py-2 text-sm";
+    const inputClasses = "mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] px-3 py-2 text-sm";
 
     return (
         <AuthenticatedLayout header={`Editar Obra - ${obra.nome_fantasia}`}>
@@ -107,7 +107,7 @@ export default function Edit({ obra, statuses, companies }) {
                                         value={data.cnpj}
                                         unmask={false}
                                         onAccept={(value) => setData('cnpj', value)}
-                                        className="flex-1 block w-full border border-gray-300 rounded-l-lg focus:ring-[#00b393] focus:border-[#00b393] px-3 py-2 text-sm"
+                                        className="flex-1 block w-full border border-gray-300 rounded-l-lg focus:ring-[#557bbb] focus:border-[#557bbb] px-3 py-2 text-sm"
                                         placeholder="00.000.000/0000-00"
                                     />
                                     <button 

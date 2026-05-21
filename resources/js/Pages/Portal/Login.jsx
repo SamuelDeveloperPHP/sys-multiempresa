@@ -35,14 +35,14 @@ export default function Login() {
                         </div>
                         
                         <div className="pt-2">
-                            <button disabled={processing} className="w-full bg-[#6690f4] hover:bg-[#5a80d9] text-white font-medium py-3 rounded shadow-sm transition-colors text-sm">
+                            <button disabled={processing} className="w-full bg-[#557bbb] hover:bg-[#5a80d9] text-white font-medium py-3 rounded shadow-sm transition-colors text-sm">
                                 {processing ? 'Autenticando...' : 'Sign in'}
                             </button>
                         </div>
                         
                         <div className="flex flex-col space-y-3 pt-4 text-sm text-gray-500">
-                            <a href="#" className="text-[#6690f4] hover:underline">Forgot password?</a>
-                            <div>You don't have an account? <a href="#" className="text-[#6690f4] hover:underline">Sign up</a></div>
+                            <a href="#" className="text-[#557bbb] hover:underline">Forgot password?</a>
+                            <div>You don't have an account? <a href="#" className="text-[#557bbb] hover:underline">Sign up</a></div>
                         </div>
                     </form>
                 </div>
@@ -53,12 +53,12 @@ export default function Login() {
                <div className="text-center font-medium mb-4 text-gray-800">Sign in as</div>
                <div className="flex justify-between border-b pb-2 mb-2">
                    <span>Admin</span>
-                   <span className="text-[#6690f4] cursor-pointer hover:underline">admin@demo.com</span>
+                   <span className="text-[#557bbb] cursor-pointer hover:underline">admin@demo.com</span>
                    <span>riseDemo</span>
                </div>
                <div className="flex justify-between border-b pb-2 mb-4">
                    <span>Client</span>
-                   <span className="text-[#6690f4] cursor-pointer hover:underline">client@demo.com</span>
+                   <span className="text-[#557bbb] cursor-pointer hover:underline">client@demo.com</span>
                    <span>riseDemo</span>
                </div>
                <p className="text-xs text-gray-400 text-center leading-relaxed">

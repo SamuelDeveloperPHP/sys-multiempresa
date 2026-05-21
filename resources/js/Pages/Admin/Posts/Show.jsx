@@ -1,5 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import { safeHtml } from '@/utils/sanitize';
 
 export default function Show({ post }) {
     return (
@@ -38,7 +39,7 @@ export default function Show({ post }) {
                         ) : (
                             <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold uppercase tracking-wide">Rascunho</span>
                         )}
-                        <Link href={route('admin.posts.edit', post.id)} className="text-sm font-medium text-[#00b393] hover:text-[#009b80] hover:underline flex items-center">
+                        <Link href={route('admin.posts.edit', post.id)} className="text-sm font-medium text-[#557bbb] hover:text-[#009b80] hover:underline flex items-center">
                             Editar
                             <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                         </Link>
@@ -47,11 +48,11 @@ export default function Show({ post }) {
 
                 <div className="p-6 prose max-w-none prose-indigo prose-img:rounded-xl">
                     {post.description && (
-                        <p className="lead text-gray-500 italic border-l-4 border-[#00b393] pl-4 mb-8">
+                        <p className="lead text-gray-500 italic border-l-4 border-[#557bbb] pl-4 mb-8">
                             {post.description}
                         </p>
                     )}
-                    <div dangerouslySetInnerHTML={{ __html: post.content }} />
+                    <div dangerouslySetInnerHTML={safeHtml(post.content)} />
                 </div>
 
                 {post.images && post.images.length > 0 && (

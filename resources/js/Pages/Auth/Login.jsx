@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import AuthLayout from '../../Layouts/AuthLayout';
 
@@ -6,8 +6,24 @@ export default function Login({ status, canResetPassword }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
-        remember: false,
+        remember: true,  // Default true — bom para app mobile (sessão longa)
     });
+
+    // Detecta online/offline (não usa useOnlineStatus do offline/ para manter a
+    // página de login leve e independente do bundle do app mobile).
+    const [online, setOnline] = useState(
+        typeof navigator !== 'undefined' ? navigator.onLine : true
+    );
+    useEffect(() => {
+        const on = () => setOnline(true);
+        const off = () => setOnline(false);
+        window.addEventListener('online', on);
+        window.addEventListener('offline', off);
+        return () => {
+            window.removeEventListener('online', on);
+            window.removeEventListener('offline', off);
+        };
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -17,6 +33,11 @@ export default function Login({ status, canResetPassword }) {
 
     const submit = (e) => {
         e.preventDefault();
+        if (!online) {
+            // Não tenta postar offline (vai falhar com erro feio de rede).
+            // Mostra mensagem amigável e mantém o form.
+            return;
+        }
         post('/login');
     };
 
@@ -32,6 +53,21 @@ export default function Login({ status, canResetPassword }) {
             </div>
 
             {status && <div className="mt-4 font-medium text-sm text-green-600">{status}</div>}
+
+            {/* Banner de status offline (PWA em campo) */}
+            {!online && (
+                <div className="mt-4 flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3">
+                    <i className="fa-solid fa-wifi-slash text-amber-600 mt-0.5" />
+                    <div className="text-xs">
+                        <p className="font-semibold mb-0.5">Você está offline</p>
+                        <p className="text-amber-700 leading-relaxed">
+                            Para fazer login pela primeira vez você precisa de internet.
+                            Se já entrou aqui antes e está em modo offline, abra direto o
+                            aplicativo a partir do ícone na tela inicial.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <form onSubmit={submit} className="mt-8 space-y-6">
                 <div className="space-y-4">
@@ -77,9 +113,11 @@ export default function Login({ status, canResetPassword }) {
                 </div>
 
                 <div>
-                    <button type="submit" disabled={processing}
-                        className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-50">
-                        {processing ? 'Autenticando...' : 'Acessar o Painel'}
+                    <button type="submit" disabled={processing || !online}
+                        className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        {!online ? (
+                            <><i className="fa-solid fa-wifi-slash mr-2" /> Sem internet</>
+                        ) : processing ? 'Autenticando...' : 'Acessar o Painel'}
                     </button>
                 </div>
             </form>

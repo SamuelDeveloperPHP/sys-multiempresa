@@ -40,7 +40,7 @@ export default function RevisaoOneDrive({ funcionarios, auth }) {
         >
             <Head title="Revisão OneDrive - Funcionários" />
 
-            <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+            <div className="w-full py-8 px-4 sm:px-6 lg:px-8">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                     <div className="flex items-center gap-3">
@@ -67,7 +67,7 @@ export default function RevisaoOneDrive({ funcionarios, auth }) {
                         {isScanning ? (
                             <svg className="w-6 h-6 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         ) : (
-                            <svg className="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <svg className="w-6 h-6 text-rise-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         )}
                         <span className="font-semibold text-blue-900">
                             {isScanning ? 'Iniciando verificação com a API do Microsoft Graph...' : 'Verificação do OneDrive concluída!'}
@@ -127,7 +127,7 @@ export default function RevisaoOneDrive({ funcionarios, auth }) {
                                                         <h6 className="text-sm font-bold text-gray-900 mb-1">{f.nome}</h6>
                                                         <div className="mt-1">
                                                             {isChecked ? (
-                                                                <span className="text-xs font-medium text-emerald-600 flex items-center gap-1">
+                                                                <span className="text-xs font-medium text-rise-600 flex items-center gap-1">
                                                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                                                                     Verificado em {new Date().toLocaleTimeString()}
                                                                 </span>
@@ -163,7 +163,7 @@ export default function RevisaoOneDrive({ funcionarios, auth }) {
                                                             Divergência de Pasta
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                                        <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-rise-100 text-rise-800 border border-rise-200">
                                                             Pasta Sincronizada
                                                         </span>
                                                     )}

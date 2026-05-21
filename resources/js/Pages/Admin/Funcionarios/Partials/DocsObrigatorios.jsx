@@ -104,7 +104,7 @@ export default function DocsObrigatorios({ funcionario }) {
                                             </td>
                                             <td className="px-3 py-3 text-center">
                                                 {qualificacao.tempo_validade === 0 ? (
-                                                    <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-bold">Permanente</span>
+                                                    <span className="px-2 py-1 bg-rise-100 text-rise-800 rounded text-xs font-bold">Permanente</span>
                                                 ) : (
                                                     <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs font-bold">{qualificacao.tempo_validade} meses</span>
                                                 )}
@@ -143,7 +143,7 @@ export default function DocsObrigatorios({ funcionario }) {
                                                 {qualificacao.situacao_doc === 1 ? (
                                                     <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs font-bold">Pendente</span>
                                                 ) : qualificacao.situacao_doc === 2 ? (
-                                                    <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-bold">Sim</span>
+                                                    <span className="px-2 py-1 bg-rise-100 text-rise-800 rounded text-xs font-bold">Sim</span>
                                                 ) : qualificacao.situacao_doc === 18 ? (
                                                     <span className="px-2 py-1 bg-rose-100 text-rose-800 rounded text-xs font-bold">Não</span>
                                                 ) : (
@@ -153,7 +153,7 @@ export default function DocsObrigatorios({ funcionario }) {
                                             <td className="px-3 py-3 text-center">
                                                 {qualificacao.nome_arquivo ? (
                                                     qualificacao.arquivo_sincronizado ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded text-xs font-semibold">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-rise-50 text-rise-600 border border-rise-200 rounded text-xs font-semibold">
                                                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
                                                             OneDrive OK
                                                         </span>
@@ -169,7 +169,7 @@ export default function DocsObrigatorios({ funcionario }) {
                                             </td>
                                             <td className="px-3 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-1">
-                                                    <button onClick={(e) => handleSubmit(e, qualificacao)} className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded transition" title="Fazer Upload">
+                                                    <button onClick={(e) => handleSubmit(e, qualificacao)} className="p-1.5 bg-rise-50 text-rise-600 hover:bg-rise-100 rounded transition" title="Fazer Upload">
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                     </button>
                                                     {qualificacao.id_anexo && (

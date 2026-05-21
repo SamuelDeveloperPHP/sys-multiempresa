@@ -86,7 +86,7 @@ export default function GeolocationForm({ className = '', user }) {
                         type="button"
                         onClick={captureLocation}
                         disabled={loadingLocal || processing}
-                        className="inline-flex justify-center items-center rounded-md border border-gray-300 bg-white py-2 px-4 shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#00b393] focus:ring-offset-2 disabled:opacity-50"
+                        className="inline-flex justify-center items-center rounded-md border border-gray-300 bg-white py-2 px-4 shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#557bbb] focus:ring-offset-2 disabled:opacity-50"
                     >
                         {loadingLocal ? (
                             <>
@@ -108,7 +108,7 @@ export default function GeolocationForm({ className = '', user }) {
                     <a 
                         target="_blank" rel="noreferrer"
                         href={`https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`} 
-                        className={`text-sm font-medium text-[#6690f4] hover:underline ${!data.latitude && 'hidden'}`}
+                        className={`text-sm font-medium text-[#557bbb] hover:underline ${!data.latitude && 'hidden'}`}
                     >
                         Ver no Google Maps
                     </a>
@@ -122,7 +122,7 @@ export default function GeolocationForm({ className = '', user }) {
                             type="text"
                             value={data.latitude}
                             onChange={(e) => setData('latitude', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring focus:ring-[#00b393] focus:ring-opacity-50 font-mono text-sm bg-gray-50"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring focus:ring-[#557bbb] focus:ring-opacity-50 font-mono text-sm bg-gray-50"
                             readOnly
                         />
                         {errors.latitude && <p className="text-sm text-red-600 mt-2">{errors.latitude}</p>}
@@ -135,7 +135,7 @@ export default function GeolocationForm({ className = '', user }) {
                             type="text"
                             value={data.longitude}
                             onChange={(e) => setData('longitude', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring focus:ring-[#00b393] focus:ring-opacity-50 font-mono text-sm bg-gray-50"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring focus:ring-[#557bbb] focus:ring-opacity-50 font-mono text-sm bg-gray-50"
                             readOnly
                         />
                         {errors.longitude && <p className="text-sm text-red-600 mt-2">{errors.longitude}</p>}
@@ -145,7 +145,7 @@ export default function GeolocationForm({ className = '', user }) {
                 <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
                     <button 
                         disabled={processing || !data.latitude || !data.longitude} 
-                        className="inline-flex justify-center rounded-md border border-transparent bg-[#00b393] py-2 px-6 text-sm font-medium text-white shadow-sm hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-[#00b393] disabled:opacity-50"
+                        className="inline-flex justify-center rounded-md border border-transparent bg-[#557bbb] py-2 px-6 text-sm font-medium text-white shadow-sm hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-[#557bbb] disabled:opacity-50"
                     >
                         Gravar no Perfil
                     </button>

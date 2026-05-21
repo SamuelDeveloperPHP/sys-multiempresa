@@ -1,5 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const fmtDT = (d) => d ? new Date(d).toLocaleString('pt-BR') : '—';
 
@@ -10,7 +11,7 @@ const cicloCor = {
 const syncLabel = (s) => ({ 0:'Pendente', 1:'Sincronizado', 2:'Enviando', 3:'Erro', 99:'Abandonado' }[s] ?? s);
 const syncCor   = (s) => ({
   0: 'bg-blue-100 text-blue-700',
-  1: 'bg-emerald-100 text-emerald-700',
+  1: 'bg-rise-100 text-rise-700',
   2: 'bg-amber-100 text-amber-700',
   3: 'bg-red-100 text-red-700',
   99:'bg-red-200 text-red-900 font-bold',
@@ -31,9 +32,9 @@ export default function ExecucoesIndex({ execucoes, veiculos, obras, filtros }) 
   };
 
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title="Execuções de checklist" />
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 w-full">
         <header className="mb-6">
           <h1 className="text-2xl font-bold">Execuções de checklist (mobile)</h1>
           <p className="text-sm text-gray-500">Aberturas e fechamentos registrados no app</p>
@@ -103,7 +104,7 @@ export default function ExecucoesIndex({ execucoes, veiculos, obras, filtros }) 
                   </td>
                   <td className="px-4 py-3 text-right">{e.itens_realizados_count}</td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={route('admin.frota.checklist-execucoes.show', e.id)} className="text-blue-600 hover:underline">Detalhes</Link>
+                    <Link href={route('admin.frota.checklist-execucoes.show', e.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Detalhes</Link>
                   </td>
                 </tr>
               ))}
@@ -111,6 +112,6 @@ export default function ExecucoesIndex({ execucoes, veiculos, obras, filtros }) 
           </table>
         </div>
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }

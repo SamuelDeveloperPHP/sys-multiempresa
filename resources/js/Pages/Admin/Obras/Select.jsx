@@ -16,7 +16,7 @@ export default function Select({ obras }) {
             <Head title="Selecione uma Obra" />
             
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
-                <div className="w-12 h-12 mx-auto rounded-full bg-gradient-to-tr from-[#00b393] via-teal-400 to-blue-500"></div>
+                <div className="w-12 h-12 mx-auto rounded-full bg-gradient-to-tr from-[#557bbb] via-teal-400 to-blue-500"></div>
                 <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 tracking-tight">
                     Selecionar Obra
                 </h2>
@@ -26,9 +26,9 @@ export default function Select({ obras }) {
             </div>
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-                <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 sm:rounded-xl sm:px-10 border border-t-4 border-t-[#00b393] border-gray-100">
+                <div className="bg-white py-8 px-4 shadow-xl shadow-gray-200/50 sm:rounded-xl sm:px-10 border border-t-4 border-t-[#557bbb] border-gray-100">
                     {flash.message && (
-                         <div className="mb-4 bg-[#f0f9f8] border border-[#c1ede5] text-[#008f75] px-4 py-3 rounded-lg text-sm font-medium">
+                         <div className="mb-4 bg-[#eef2f9] border border-[#bccae7] text-[#3a5a8c] px-4 py-3 rounded-lg text-sm font-medium">
                             {flash.message}
                          </div>
                     )}
@@ -47,7 +47,7 @@ export default function Select({ obras }) {
                                 <div className="mt-2">
                                     <select
                                         id="obra"
-                                        className="appearance-none block w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00b393] focus:border-transparent sm:text-sm font-medium bg-gray-50 text-gray-900 transition-colors"
+                                        className="appearance-none block w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#557bbb] focus:border-transparent sm:text-sm font-medium bg-gray-50 text-gray-900 transition-colors"
                                         value={data.obra_id}
                                         onChange={e => setData('obra_id', e.target.value)}
                                         required
@@ -73,7 +73,7 @@ export default function Select({ obras }) {
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className="w-full sm:w-auto flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-[#00b393] hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00b393] transition-colors disabled:opacity-50"
+                                    className="w-full sm:w-auto flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-[#557bbb] hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#557bbb] transition-colors disabled:opacity-50"
                                 >
                                     Continuar
                                 </button>

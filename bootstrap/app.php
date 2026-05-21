@@ -39,10 +39,12 @@ return Application::configure(basePath: dirname(__DIR__))
             EncryptCookies::class,
             AddQueuedCookiesToResponse::class,
             StartSession::class,
-            ShareErrorsFromSession::class, 
+            ShareErrorsFromSession::class,
             VerifyCsrfToken::class,
             SubstituteBindings::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
+            // Redireciona motoristas que tentam acessar URLs desktop para /mobile/veiculos
+            \App\Http\Middleware\RedirectMotoristaToMobile::class,
         ]);
 
         // 🔹 aliases de middlewares de rota
@@ -54,7 +56,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'jarvis.access' => EnsureJarvisAccess::class,
             'module.access' => ModuleAccess::class,
             'lastseen'      => UpdateLastSeen::class,
-            'activity'      => RequestActivityLogger::class
+            'activity'      => RequestActivityLogger::class,
+            'mobile.access' => \App\Http\Middleware\EnsureCanAccessMobile::class,
         ]);
 
         // redirects padrão

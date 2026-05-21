@@ -43,7 +43,7 @@ export default function Edit({ category, parents }) {
                                 id="name"
                                 value={data.name}
                                 onChange={e => setData('name', e.target.value)}
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] sm:text-sm"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] sm:text-sm"
                                 required
                             />
                             {errors.name && <div className="mt-1 text-sm text-red-600">{errors.name}</div>}
@@ -57,7 +57,7 @@ export default function Edit({ category, parents }) {
                                 id="parent_id"
                                 value={data.parent_id}
                                 onChange={e => setData('parent_id', e.target.value)}
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] sm:text-sm"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] sm:text-sm"
                             >
                                 <option value="">Nenhuma</option>
                                 {parents.map(parent => (
@@ -76,7 +76,7 @@ export default function Edit({ category, parents }) {
                                 id="slug"
                                 value={data.slug}
                                 onChange={e => setData('slug', e.target.value)}
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] sm:text-sm"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] sm:text-sm"
                                 placeholder="Gerado automaticamente se em branco"
                             />
                             {errors.slug && <div className="mt-1 text-sm text-red-600">{errors.slug}</div>}
@@ -93,7 +93,7 @@ export default function Edit({ category, parents }) {
                         <button
                             type="submit"
                             disabled={processing}
-                            className="px-5 py-2.5 bg-[#00b393] text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-[#009b80] transition-colors disabled:opacity-50"
+                            className="px-5 py-2.5 bg-[#557bbb] text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-[#009b80] transition-colors disabled:opacity-50"
                         >
                             Atualizar
                         </button>

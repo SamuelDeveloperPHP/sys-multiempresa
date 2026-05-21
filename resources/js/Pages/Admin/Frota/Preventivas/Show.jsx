@@ -1,13 +1,14 @@
 import { Head, Link } from '@inertiajs/react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const fmtData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const fmtMoney = (v) => Number(v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default function PreventivaShow({ preventiva, historico }) {
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title={preventiva.nome_preventiva} />
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-6 w-full">
         <header className="mb-6">
           <h1 className="text-2xl font-bold">{preventiva.nome_preventiva}</h1>
           <p className="text-gray-600">
@@ -58,7 +59,7 @@ export default function PreventivaShow({ preventiva, historico }) {
           </table>
         </div>
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }
 

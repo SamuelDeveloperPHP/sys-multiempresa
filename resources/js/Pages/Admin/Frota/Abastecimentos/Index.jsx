@@ -1,5 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { safeLabel } from '@/utils/sanitize';
 import { useState } from 'react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const fmtMoney = (v) => Number(v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtNum   = (v) => Number(v ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
@@ -24,13 +26,13 @@ export default function AbastecimentosIndex({ abastecimentos, veiculos, obras, t
   };
 
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title="Abastecimentos" />
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 w-full">
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Abastecimentos</h1>
           <Link href={route('admin.frota.abastecimentos.create')}
-                className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">+ Novo abastecimento</Link>
+                className="bg-rise-600 text-white px-4 py-2 rounded-lg hover:bg-rise-700">+ Novo abastecimento</Link>
         </header>
 
         {flash?.success && <div className="bg-green-50 border border-green-200 text-green-800 p-3 rounded mb-4">{flash.success}</div>}
@@ -87,8 +89,8 @@ export default function AbastecimentosIndex({ abastecimentos, veiculos, obras, t
                   <td className="px-4 py-3 text-right">{fmtMoney(a.valor_do_litro)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{fmtMoney(a.valor_total)}</td>
                   <td className="px-4 py-3 text-right space-x-2">
-                    <Link href={route('admin.frota.abastecimentos.edit', a.id)} className="text-blue-600 hover:underline">Editar</Link>
-                    <button onClick={() => excluir(a)} className="text-red-600 hover:underline">Excluir</button>
+                    <Link href={route('admin.frota.abastecimentos.edit', a.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</Link>
+                    <button onClick={() => excluir(a)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
                 </tr>
               ))}
@@ -101,15 +103,15 @@ export default function AbastecimentosIndex({ abastecimentos, veiculos, obras, t
             {abastecimentos.links.map((link, i) => (
               <Link key={i} href={link.url ?? '#'} preserveScroll
                     className={`px-3 py-1 rounded text-sm ${
-                      link.active ? 'bg-emerald-600 text-white'
+                      link.active ? 'bg-rise-600 text-white'
                                   : link.url ? 'bg-white border hover:bg-gray-50' : 'opacity-30 cursor-not-allowed'
                     }`}
-                    dangerouslySetInnerHTML={{ __html: link.label }} />
+                    dangerouslySetInnerHTML={safeLabel(link.label)} />
             ))}
           </nav>
         )}
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }
 

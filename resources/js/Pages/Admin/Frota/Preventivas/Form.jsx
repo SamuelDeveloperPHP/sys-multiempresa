@@ -1,4 +1,5 @@
 import { Head, Link, useForm } from '@inertiajs/react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 export default function PreventivaForm({ preventiva, veiculos }) {
   const editando = !!preventiva?.id;
@@ -31,7 +32,7 @@ export default function PreventivaForm({ preventiva, veiculos }) {
   );
 
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title={editando ? 'Editar preventiva' : 'Nova preventiva'} />
       <div className="p-6 max-w-3xl mx-auto">
         <header className="mb-6">
@@ -68,12 +69,12 @@ export default function PreventivaForm({ preventiva, veiculos }) {
           <div className="mt-6 flex gap-2 justify-end">
             <Link href={route('admin.frota.preventivas.index')} className="px-4 py-2 border rounded hover:bg-gray-50">Cancelar</Link>
             <button type="submit" disabled={processing}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">
+                    className="px-4 py-2 bg-rise-600 text-white rounded hover:bg-rise-700 disabled:opacity-50">
               {processing ? 'Salvando...' : (editando ? 'Atualizar' : 'Cadastrar')}
             </button>
           </div>
         </form>
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }

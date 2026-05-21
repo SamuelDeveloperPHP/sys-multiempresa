@@ -70,7 +70,7 @@ export default function Create({ statuses, companies }) {
         }
     };
 
-    const inputClasses = "mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] px-3 py-2 text-sm";
+    const inputClasses = "mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] px-3 py-2 text-sm";
     
     return (
         <AuthenticatedLayout header="Nova Obra">
@@ -107,7 +107,7 @@ export default function Create({ statuses, companies }) {
                                         value={data.cnpj}
                                         unmask={false}
                                         onAccept={(value) => setData('cnpj', value)}
-                                        className="flex-1 block w-full border border-gray-300 rounded-l-lg focus:ring-[#00b393] focus:border-[#00b393] px-3 py-2 text-sm"
+                                        className="flex-1 block w-full border border-gray-300 rounded-l-lg focus:ring-[#557bbb] focus:border-[#557bbb] px-3 py-2 text-sm"
                                         placeholder="00.000.000/0000-00"
                                     />
                                     <button 
@@ -241,7 +241,7 @@ export default function Create({ statuses, companies }) {
                         <button
                             type="submit"
                             disabled={processing}
-                            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold text-white bg-[#00b393] rounded-lg hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00b393] shadow-sm transition-colors disabled:opacity-50"
+                            className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-semibold text-white bg-[#557bbb] rounded-lg hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#557bbb] shadow-sm transition-colors disabled:opacity-50"
                         >
                             {processing ? 'Salvando...' : 'Criar Obra'}
                         </button>

@@ -15,7 +15,7 @@ export default function Create({ parentModules, auth }) {
                 <div className="mb-6">
                     <Link
                         href={route('admin.modules.index')}
-                        className="text-sm text-gray-500 hover:text-[#00b393] flex items-center gap-1 w-fit mb-2 transition-colors"
+                        className="text-sm text-gray-500 hover:text-[#557bbb] flex items-center gap-1 w-fit mb-2 transition-colors"
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />

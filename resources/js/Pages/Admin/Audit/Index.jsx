@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { safeLabel } from '@/utils/sanitize';
 import { Head, Link, usePage, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -43,7 +44,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                         <select
                             value={data.user_id}
                             onChange={e => setData('user_id', e.target.value)}
-                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#00b393] focus:border-[#00b393] text-sm"
+                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] text-sm"
                         >
                             <option value="">Todos</option>
                             {users.map(user => (
@@ -57,7 +58,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                         <select
                             value={data.company_id}
                             onChange={e => setData('company_id', e.target.value)}
-                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#00b393] focus:border-[#00b393] text-sm"
+                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] text-sm"
                         >
                             <option value="">Todas</option>
                             {companies.map(company => (
@@ -71,7 +72,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                         <select
                             value={data.module}
                             onChange={e => setData('module', e.target.value)}
-                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#00b393] focus:border-[#00b393] text-sm"
+                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] text-sm"
                         >
                             <option value="">Todos</option>
                             {modules.filter(Boolean).map((m, idx) => (
@@ -85,7 +86,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                         <select
                             value={data.action}
                             onChange={e => setData('action', e.target.value)}
-                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#00b393] focus:border-[#00b393] text-sm"
+                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] text-sm"
                         >
                             <option value="">Todas</option>
                             {actions.map((a, idx) => (
@@ -100,7 +101,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                             type="text"
                             value={data.route_name}
                             onChange={e => setData('route_name', e.target.value)}
-                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#00b393] focus:border-[#00b393] text-sm"
+                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] text-sm"
                             placeholder="admin.users.index"
                         />
                     </div>
@@ -111,7 +112,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                             type="date"
                             value={data.date_from}
                             onChange={e => setData('date_from', e.target.value)}
-                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#00b393] focus:border-[#00b393] text-sm"
+                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] text-sm"
                         />
                     </div>
 
@@ -121,7 +122,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                             type="date"
                             value={data.date_to}
                             onChange={e => setData('date_to', e.target.value)}
-                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#00b393] focus:border-[#00b393] text-sm"
+                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] text-sm"
                         />
                     </div>
 
@@ -131,7 +132,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                             type="text"
                             value={data.q}
                             onChange={e => setData('q', e.target.value)}
-                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#00b393] focus:border-[#00b393] text-sm"
+                            className="w-full border-gray-300 rounded-lg p-2.5 shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] text-sm"
                             placeholder="descrição, módulo, rota..."
                         />
                     </div>
@@ -147,7 +148,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                         <button
                             type="submit"
                             disabled={processing}
-                            className="px-5 py-2.5 bg-[#00b393] text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-[#009b80] transition-colors"
+                            className="px-5 py-2.5 bg-[#557bbb] text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-[#009b80] transition-colors"
                         >
                             Filtrar
                         </button>
@@ -207,7 +208,7 @@ export default function Index({ logs, users, companies, actions, modules, filter
                                                 {(log.before || log.after) ? (
                                                     <button
                                                         type="button"
-                                                        className="text-[#00b393] hover:text-[#009b80] text-[11px] font-medium underline"
+                                                        className="text-[#557bbb] hover:text-[#009b80] text-[11px] font-medium underline"
                                                         onClick={() => setSelectedAudit(log)}
                                                     >
                                                         Ver JSON
@@ -237,8 +238,8 @@ export default function Index({ logs, users, companies, actions, modules, filter
                                 <Link
                                     key={i}
                                     href={link.url || '#'}
-                                    className={`px-3 py-1.5 text-sm rounded ${link.active ? 'bg-[#00b393] text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-100'} ${!link.url && 'opacity-50 cursor-not-allowed'} border border-gray-200 transition-colors inline-block`}
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                    className={`px-3 py-1.5 text-sm rounded ${link.active ? 'bg-[#557bbb] text-white font-medium' : 'bg-white text-gray-500 hover:bg-gray-100'} ${!link.url && 'opacity-50 cursor-not-allowed'} border border-gray-200 transition-colors inline-block`}
+                                    dangerouslySetInnerHTML={safeLabel(link.label)}
                                 />
                             ))}
                         </div>

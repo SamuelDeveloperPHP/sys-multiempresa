@@ -60,6 +60,7 @@ class FuncionarioController extends Controller
                 'funcionarios' => $funcionarios,
                 'companies'    => $companies,
                 'filters'      => $request->only(['q', 'status', 'company_id']),
+                'can'          => $this->abilitiesForCurrentUser('funcionarios'),
             ]);
             
         } catch (Throwable $e) {
@@ -380,12 +381,111 @@ class FuncionarioController extends Controller
     public function destroy(Funcionario $funcionario)
     {
         try {
+            // Defesa em profundidade: o middleware module.access já bloqueia,
+            // mas reforçamos no controller caso alguém chame por outra via.
+            $abilities = $this->abilitiesForCurrentUser('funcionarios');
+            if (! $abilities['delete']) {
+                abort(403, 'Você não tem permissão para excluir funcionários.');
+            }
+
             $funcionario->delete();
             return redirect()->route('admin.funcionarios.index')->with('success', 'Funcionário removido com sucesso.');
         } catch (Throwable $e) {
             Log::error('Erro ao remover funcionario', ['msg' => $e->getMessage()]);
             return back()->withErrors(['error' => 'Falha ao remover funcionário.']);
         }
+    }
+
+    /**
+     * Salva uma imagem editada (PNG em base64) como foto do funcionário.
+     * Origem: editor de crachá (Fabric.js canvas exportado).
+     * Destino: public/uploads/usuarios/{id}/foto.png + coluna imagem_usuario.
+     */
+    public function salvarFotoPerfil(Request $request, Funcionario $funcionario)
+    {
+        try {
+            $request->validate([
+                'image' => 'required|string',  // data URL: data:image/png;base64,...
+            ]);
+
+            $abilities = $this->abilitiesForCurrentUser('funcionarios');
+            if (! $abilities['edit']) {
+                abort(403, 'Sem permissão para alterar fotos de funcionário.');
+            }
+
+            $dataUrl = $request->input('image');
+
+            // Aceita 'data:image/png;base64,XXX' ou já apenas o base64
+            if (preg_match('/^data:image\/(png|jpe?g|webp);base64,(.+)$/i', $dataUrl, $matches)) {
+                $ext     = strtolower($matches[1]) === 'jpg' ? 'jpeg' : strtolower($matches[1]);
+                $payload = $matches[2];
+            } else {
+                $ext     = 'png';
+                $payload = $dataUrl;
+            }
+
+            $binary = base64_decode($payload, true);
+            if ($binary === false) {
+                return back()->withErrors(['error' => 'Imagem em formato inválido.']);
+            }
+
+            // Limita ~5 MB para evitar abuso
+            if (strlen($binary) > 5 * 1024 * 1024) {
+                return back()->withErrors(['error' => 'Imagem maior que 5 MB.']);
+            }
+
+            $filename  = 'foto.' . $ext;
+            $relPath   = "uploads/usuarios/{$funcionario->id}/{$filename}";
+            $publicDir = public_path("uploads/usuarios/{$funcionario->id}");
+
+            if (! is_dir($publicDir)) {
+                mkdir($publicDir, 0775, true);
+            }
+
+            file_put_contents(public_path($relPath), $binary);
+
+            $funcionario->update(['imagem_usuario' => $relPath]);
+
+            return back()->with('success', 'Foto do funcionário atualizada com sucesso.');
+        } catch (Throwable $e) {
+            Log::error('Erro ao salvar foto do funcionario', [
+                'funcionario_id' => $funcionario->id,
+                'msg' => $e->getMessage(),
+            ]);
+            return back()->withErrors(['error' => 'Falha ao salvar foto: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Retorna abilidades CRUD do usuário logado para o módulo informado.
+     * super_admin sempre pode tudo. Outros usuários consultam module_permissions
+     * na empresa atual.
+     */
+    protected function abilitiesForCurrentUser(string $moduleSlug): array
+    {
+        $user      = Auth::user();
+        $companyId = \App\Helpers\CompanyContext::id();
+
+        $defaults = ['list' => false, 'view' => false, 'create' => false, 'edit' => false, 'delete' => false];
+
+        if (! $user) {
+            return $defaults;
+        }
+
+        if ($user->type === 'super_admin') {
+            return array_fill_keys(array_keys($defaults), true);
+        }
+
+        if (! $companyId) {
+            return $defaults;
+        }
+
+        $abilities = $defaults;
+        foreach (array_keys($defaults) as $ability) {
+            $abilities[$ability] = $user->hasModulePermission($companyId, $moduleSlug, $ability);
+        }
+
+        return $abilities;
     }
 
     public function adicionarAnexos(Request $request)
