@@ -12,18 +12,28 @@ use ZipArchive;
 
 class FileUploadHelper
 {
-    /** TODO: mova estes IDs/segredos para .env */
-    private static string $siteId = '4ca1f317-1e25-4523-ad97-3e244d17e63e';
+    /** Lê credenciais de config('services.onedrive.*') — definidas via .env */
+    private static function siteId(): string
+    {
+        return config('services.onedrive.site_id', '4ca1f317-1e25-4523-ad97-3e244d17e63e');
+    }
+
+    private static function rootFolder(): string
+    {
+        return config('services.onedrive.root_folder', 'SGA-Engeativos');
+    }
 
     /* ==============================
      * TOKEN
      * ============================== */
     public static function getToken(): string
     {
-        $clientID    = '58f96824-8212-4e33-979e-31dbaf9f50b7';
-        $clientSecret= 'U-J8Q~LPMiOTxdZ3OKukdaIR3U_QMRj-~.GiYcXF';
+        $clientID     = config('services.onedrive.client_id',     '58f96824-8212-4e33-979e-31dbaf9f50b7');
+        $clientSecret = config('services.onedrive.client_secret', 'U-J8Q~LPMiOTxdZ3OKukdaIR3U_QMRj-~.GiYcXF');
+        $tenantId     = config('services.onedrive.tenant_id',     '3e11ccfe-ac2d-406b-9305-0f217a096f66');
+
         $scope       = 'https://graph.microsoft.com/.default';
-        $tokenUrl    = 'https://login.microsoftonline.com/3e11ccfe-ac2d-406b-9305-0f217a096f66/oauth2/v2.0/token';
+        $tokenUrl    = "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token";
         $tokenFile   = storage_path('app/public/token/token.json');
 
         if (is_file($tokenFile)) {
@@ -74,7 +84,7 @@ class FileUploadHelper
      * ============================== */
     public static function uploadFilesToFolder(string $folderName, $files, string $folderPath): array
     {
-        $siteId      = self::$siteId;
+        $siteId      = self::siteId();
         $accessToken = self::getToken();
 
         if (!is_array($files)) $files = [$files];
@@ -177,7 +187,7 @@ class FileUploadHelper
      * ============================== */
     public static function downloadFileByPath(string $folderPath, string $fileName)
     {
-        $siteId = self::$siteId;
+        $siteId = self::siteId();
         $client = new Client(['verify' => false]);
         $downloadUrl = "https://graph.microsoft.com/v1.0/sites/{$siteId}/drive/root:/SGA-Engeativos/{$folderPath}/{$fileName}:/content";
         try {
@@ -203,7 +213,7 @@ class FileUploadHelper
 
     public static function viewFilePdfByPath(string $folderPath, string $fileName)
     {
-        $siteId = self::$siteId;
+        $siteId = self::siteId();
         $client = new Client(['verify' => false]);
         $downloadUrl = "https://graph.microsoft.com/v1.0/sites/{$siteId}/drive/root:/SGA-Engeativos/{$folderPath}/{$fileName}:/content";
         try {
@@ -230,7 +240,7 @@ class FileUploadHelper
     {
       //  
         
-        $siteId = self::$siteId;
+        $siteId = self::siteId();
         $client = new Client(['verify' => false]);
         $headers = ['Authorization' => 'Bearer '.self::getToken()];
         $baseUrl = "https://graph.microsoft.com/v1.0/sites/{$siteId}/drive/root:/SGA-Engeativos/".rawurlencode($folderPath).":/children";
@@ -274,7 +284,7 @@ class FileUploadHelper
     
     public static function listFilesInFolder(string $folderPath, bool $recursive = false): array
     {
-        $siteId = self::$siteId;
+        $siteId = self::siteId();
         $client = new Client(['verify' => false]);
         $headers = ['Authorization' => 'Bearer '.self::getToken()];
     
@@ -327,7 +337,7 @@ class FileUploadHelper
      */
     public static function downloadFolderAsZip(string $folderPath)
     {
-        $siteId  = self::$siteId;
+        $siteId  = self::siteId();
         $client  = new Client(['verify' => false]);
         $headers = ['Authorization' => 'Bearer '.self::getToken()];
 
@@ -380,7 +390,7 @@ class FileUploadHelper
         ZipArchive $zip,
         string $relativePathInZip
     ): void {
-        $siteId = self::$siteId;
+        $siteId = self::siteId();
 
         $url = "https://graph.microsoft.com/v1.0/sites/{$siteId}/drive/root:/SGA-Engeativos/".rawurlencode($folderPath).":/children";
 
@@ -440,7 +450,7 @@ class FileUploadHelper
     /** Abre stream binário do arquivo (para salvar local/zip). */
     public static function openFileStream(string $path): ?StreamInterface
     {
-        $siteId = self::$siteId;
+        $siteId = self::siteId();
         $client = new Client(['verify' => false]);
         $downloadUrl = "https://graph.microsoft.com/v1.0/sites/{$siteId}/drive/root:/SGA-Engeativos/{$path}:/content";
         try {
@@ -480,7 +490,7 @@ class FileUploadHelper
      * ============================== */
     public static function deleteFile(string $encodedPath): array
     {
-        $siteId = self::$siteId;
+        $siteId = self::siteId();
         $url    = "https://graph.microsoft.com/v1.0/sites/{$siteId}/drive/root:/SGA-Engeativos/{$encodedPath}:";
         $client = new Client(['verify' => false]);
         try {
@@ -498,7 +508,7 @@ class FileUploadHelper
     /** Renomeia arquivo (PATCH) — precisa do novo nome! */
     public static function updateFileName(string $encodedPath, string $newName): array
     {
-        $siteId = self::$siteId;
+        $siteId = self::siteId();
         $url    = "https://graph.microsoft.com/v1.0/sites/{$siteId}/drive/root:/SGA-Engeativos/{$encodedPath}:";
         $client = new Client(['verify' => false]);
 

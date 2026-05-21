@@ -67,7 +67,7 @@ return new class extends Migration {
             $t->dateTime('data_sincronizacao')->nullable();
             $t->timestamps();
             $t->softDeletes();
-            $t->index(['id_veiculo', 'data_de_execucao']);
+            $t->index(['id_veiculo', 'data_de_execucao'], 'vp_realizadas_veic_exec_idx');
         });
     }
 

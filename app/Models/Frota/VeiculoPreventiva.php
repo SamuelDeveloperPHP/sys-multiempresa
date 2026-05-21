@@ -24,5 +24,6 @@ class VeiculoPreventiva extends Model
     protected $casts = ['data_sincronizacao' => 'datetime'];
 
     public function veiculo() { return $this->belongsTo(Veiculo::class, 'id_veiculo'); }
+    public function itens()   { return $this->hasMany(VeiculoPreventivaItem::class, 'id_preventiva'); }
     public function itensRealizados() { return $this->hasMany(VeiculoPreventivaItemRealizada::class, 'id_preventiva'); }
 }

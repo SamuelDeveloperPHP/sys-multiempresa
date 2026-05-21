@@ -44,7 +44,7 @@ class ModulesPermissionsSeeder extends Seeder
                 'id_mod_rel_slug'  => 'user-config',
                 'name'             => 'Lista',
                 'route_name'       => 'admin.users.index',
-                'icon'             => null,
+                'icon'             => 'fa-solid fa-list',
                 'url'              => null,
                 'ordem'            => 1,
                 'is_active'        => 1,
@@ -119,7 +119,7 @@ class ModulesPermissionsSeeder extends Seeder
                 'id_mod_rel_slug'  => 'system-config',
                 'name'             => 'Módulos',
                 'route_name'       => 'admin.modules.index',
-                'icon'             => null,
+                'icon'             => 'fa-solid fa-cubes',
                 'url'              => null,
                 'ordem'            => 0,
                 'is_active'        => 1,
@@ -134,7 +134,7 @@ class ModulesPermissionsSeeder extends Seeder
                 'id_mod_rel_slug'  => 'system-config',
                 'name'             => 'Backups',
                 'route_name'       => 'admin.backups.index',
-                'icon'             => null,
+                'icon'             => 'fa-solid fa-database',
                 'url'              => null,
                 'ordem'            => 0,
                 'is_active'        => 0,
@@ -403,6 +403,442 @@ class ModulesPermissionsSeeder extends Seeder
                 'is_active'        => 1,
                 'show_in_menu'     => 1,
                 'sort_order'       => 130,
+            ],
+
+            // ==========================================================
+            // FROTA — pai + sub-modulos
+            // ----------------------------------------------------------
+            // ATIVOS: ja possuem Controller + Model + React pages em
+            // app/Http/Controllers/Admin/Frota/ e Pages/Admin/Frota/.
+            //
+            // PLACEHOLDERS (is_active=0, show_in_menu=0): correspondem
+            // aos sub-modulos do VeiculoController legado (engeativos2)
+            // que ainda nao foram migrados. Mantidos no banco para
+            // documentar o escopo e facilitar futura ativacao.
+            // ==========================================================
+
+            // Fornecedores (cadastro compartilhado entre módulos)
+            [
+                'slug'             => 'fornecedores',
+                'parent_slug'      => null,
+                'id_mod_rel_slug'  => null,
+                'name'             => 'Fornecedores',
+                'route_name'       => 'admin.fornecedores.index',
+                'icon'             => 'fa-solid fa-truck-fast',
+                'url'              => 'admin/fornecedores',
+                'ordem'            => 150,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 150,
+            ],
+
+            // 28 - Frota (pai)
+            [
+                'slug'             => 'frota',
+                'parent_slug'      => null,
+                'id_mod_rel_slug'  => null,
+                'name'             => 'Frota',
+                'route_name'       => null,
+                'icon'             => 'fa-solid fa-truck',
+                'url'              => null,
+                'ordem'            => 200,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 200,
+            ],
+
+            // --- Filhos ATIVOS (controllers existem) ---
+
+            // 29 - Veiculos
+            [
+                'slug'             => 'frota.veiculos',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Veiculos',
+                'route_name'       => 'admin.frota.veiculos.index',
+                'icon'             => 'fa-solid fa-car',
+                'url'              => 'admin/frota/veiculos',
+                'ordem'            => 210,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 210,
+            ],
+
+            // 30 - Locacoes
+            [
+                'slug'             => 'frota.locacoes',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Locacoes',
+                'route_name'       => 'admin.frota.locacoes.index',
+                'icon'             => 'fa-solid fa-link',
+                'url'              => 'admin/frota/locacoes',
+                'ordem'            => 220,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 220,
+            ],
+
+            // 31 - Checklists
+            [
+                'slug'             => 'frota.checklists',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Checklists',
+                'route_name'       => 'admin.frota.checklists.index',
+                'icon'             => 'fa-solid fa-clipboard-check',
+                'url'              => 'admin/frota/checklists',
+                'ordem'            => 230,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 230,
+            ],
+
+            // 32 - Abastecimentos
+            [
+                'slug'             => 'frota.abastecimentos',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Abastecimentos',
+                'route_name'       => 'admin.frota.abastecimentos.index',
+                'icon'             => 'fa-solid fa-gas-pump',
+                'url'              => 'admin/frota/abastecimentos',
+                'ordem'            => 240,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 240,
+            ],
+
+            // 33 - Diario de Bordo
+            [
+                'slug'             => 'frota.diario',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Diario de Bordo',
+                'route_name'       => 'admin.frota.diario.index',
+                'icon'             => 'fa-solid fa-book',
+                'url'              => 'admin/frota/diario',
+                'ordem'            => 250,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 250,
+            ],
+
+            // 34 - Horimetros
+            [
+                'slug'             => 'frota.horimetros',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Horimetros',
+                'route_name'       => 'admin.frota.horimetros.index',
+                'icon'             => 'fa-solid fa-clock',
+                'url'              => 'admin/frota/horimetros',
+                'ordem'            => 260,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 260,
+            ],
+
+            // 35 - Hodometros (quilometragem)
+            [
+                'slug'             => 'frota.quilometragem',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Hodometros',
+                'route_name'       => 'admin.frota.quilometragem.index',
+                'icon'             => 'fa-solid fa-gauge-high',
+                'url'              => 'admin/frota/quilometragem',
+                'ordem'            => 270,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 270,
+            ],
+
+            // 36 - Preventivas
+            [
+                'slug'             => 'frota.preventivas',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Preventivas',
+                'route_name'       => 'admin.frota.preventivas.index',
+                'icon'             => 'fa-solid fa-wrench',
+                'url'              => 'admin/frota/preventivas',
+                'ordem'            => 280,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 280,
+            ],
+
+            // --- Filhos PLACEHOLDER (controllers ainda nao migrados) ---
+
+            // 37 - Manutencao Corretiva
+            [
+                'slug'             => 'frota.manutencao_corretiva',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Manutencao Corretiva',
+                'route_name'       => 'admin.frota.manutencao-corretiva.index',
+                'icon'             => 'fa-solid fa-screwdriver-wrench',
+                'url'              => null,
+                'ordem'            => 290,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 290,
+            ],
+
+            // 38 - Tipos de Veiculo
+            [
+                'slug'             => 'frota.tipos',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Tipos de Veiculo',
+                'route_name'       => 'admin.frota.tipos.index',
+                'icon'             => 'fa-solid fa-list',
+                'url'              => 'admin/frota/tipos',
+                'ordem'            => 300,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 300,
+            ],
+
+            // 39 - Categorias
+            [
+                'slug'             => 'frota.categorias',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Categorias',
+                'route_name'       => 'admin.frota.categorias.index',
+                'icon'             => 'fa-solid fa-tags',
+                'url'              => 'admin/frota/categorias',
+                'ordem'            => 310,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 310,
+            ],
+
+            // 40 - Subcategorias
+            [
+                'slug'             => 'frota.subcategorias',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Subcategorias',
+                'route_name'       => 'admin.frota.subcategorias.index',
+                'icon'             => 'fa-solid fa-tag',
+                'url'              => 'admin/frota/subcategorias',
+                'ordem'            => 320,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 320,
+            ],
+
+            // 41 - Marcas
+            [
+                'slug'             => 'frota.marcas',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Marcas',
+                'route_name'       => 'admin.frota.marcas.index',
+                'icon'             => 'fa-solid fa-trademark',
+                'url'              => 'admin/frota/marcas',
+                'ordem'            => 330,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 330,
+            ],
+
+            // 42 - Modelos
+            [
+                'slug'             => 'frota.modelos',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Modelos',
+                'route_name'       => 'admin.frota.modelos.index',
+                'icon'             => 'fa-solid fa-cube',
+                'url'              => 'admin/frota/modelos',
+                'ordem'            => 340,
+                'is_active'        => 1,
+                'show_in_menu'     => 1,
+                'sort_order'       => 340,
+            ],
+
+            // 43 - IPVA
+            [
+                'slug'             => 'frota.ipva',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'IPVA',
+                'route_name'       => 'admin.frota.ipva.index',
+                'icon'             => 'fa-solid fa-file-invoice-dollar',
+                'url'              => null,
+                'ordem'            => 350,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 350,
+            ],
+
+            // 44 - Seguros
+            [
+                'slug'             => 'frota.seguros',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Seguros',
+                'route_name'       => 'admin.frota.seguros.index',
+                'icon'             => 'fa-solid fa-shield-halved',
+                'url'              => null,
+                'ordem'            => 360,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 360,
+            ],
+
+            // 45 - Docs Legais
+            [
+                'slug'             => 'frota.docs_legais',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Docs. Legais',
+                'route_name'       => 'admin.frota.docs-legais.index',
+                'icon'             => 'fa-solid fa-file-contract',
+                'url'              => null,
+                'ordem'            => 370,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 370,
+            ],
+
+            // 46 - Docs Tecnicos
+            [
+                'slug'             => 'frota.docs_tecnicos',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Docs. Tecnicos',
+                'route_name'       => 'admin.frota.docs-tecnicos.index',
+                'icon'             => 'fa-solid fa-file-lines',
+                'url'              => null,
+                'ordem'            => 380,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 380,
+            ],
+
+            // 47 - Imagens / Galeria
+            [
+                'slug'             => 'frota.imagens',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Imagens',
+                'route_name'       => 'admin.frota.imagens.index',
+                'icon'             => 'fa-solid fa-images',
+                'url'              => null,
+                'ordem'            => 390,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 390,
+            ],
+
+            // 48 - Acessorios
+            [
+                'slug'             => 'frota.acessorios',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Acessorios',
+                'route_name'       => 'admin.frota.acessorios.index',
+                'icon'             => 'fa-solid fa-puzzle-piece',
+                'url'              => null,
+                'ordem'            => 400,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 400,
+            ],
+
+            // 49 - Tacografo
+            [
+                'slug'             => 'frota.tacografo',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Tacografo',
+                'route_name'       => 'admin.frota.tacografo.index',
+                'icon'             => 'fa-solid fa-stopwatch',
+                'url'              => null,
+                'ordem'            => 410,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 410,
+            ],
+
+            // 50 - Depreciacao
+            [
+                'slug'             => 'frota.depreciacao',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Depreciacao',
+                'route_name'       => 'admin.frota.depreciacao.index',
+                'icon'             => 'fa-solid fa-chart-line',
+                'url'              => null,
+                'ordem'            => 420,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 420,
+            ],
+
+            // 51 - Composicao Valor Locacao
+            [
+                'slug'             => 'frota.composicao_valor_locacao',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Composicao Valor Locacao',
+                'route_name'       => 'admin.frota.composicao-valor-locacao.index',
+                'icon'             => 'fa-solid fa-coins',
+                'url'              => null,
+                'ordem'            => 430,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 430,
+            ],
+
+            // 52 - Veiculos Alugados
+            [
+                'slug'             => 'frota.veiculos_alugados',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Veiculos Alugados',
+                'route_name'       => 'admin.frota.veiculos-alugados.index',
+                'icon'             => 'fa-solid fa-handshake',
+                'url'              => null,
+                'ordem'            => 440,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 440,
+            ],
+
+            // 53 - Overlays
+            [
+                'slug'             => 'frota.overlays',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Overlays',
+                'route_name'       => 'admin.frota.overlays.index',
+                'icon'             => 'fa-solid fa-layer-group',
+                'url'              => null,
+                'ordem'            => 450,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 450,
+            ],
+
+            // 54 - Relatorios de Veiculos
+            [
+                'slug'             => 'frota.relatorios',
+                'parent_slug'      => 'frota',
+                'id_mod_rel_slug'  => 'frota',
+                'name'             => 'Relatorios',
+                'route_name'       => 'admin.frota.relatorios.index',
+                'icon'             => 'fa-solid fa-chart-pie',
+                'url'              => null,
+                'ordem'            => 460,
+                'is_active'        => 0,
+                'show_in_menu'     => 0,
+                'sort_order'       => 460,
             ],
         ];
 

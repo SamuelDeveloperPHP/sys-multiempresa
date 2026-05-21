@@ -23,6 +23,8 @@ class VeiculoChecklistServico extends Model
         'foto_extra_3', 'desc_extra_3', 'foto_extra_4', 'desc_extra_4',
         'data_cadastro', 'user_create', 'user_edit',
         'id_horimetro', 'id_quilometragem',
+        // Campos adicionados para módulo Mobile (offline-first)
+        'responsavel', 'km_atual', 'hr_atual', 'respostas', 'observacao_geral', 'data_execucao',
         'sync_status', 'data_sincronizacao', 'sync_error', 'sync_attempts', 'synced_at',
     ];
 
@@ -30,8 +32,10 @@ class VeiculoChecklistServico extends Model
         'anomalia_offline' => 'boolean',
         'data_fechamento' => 'datetime',
         'data_cadastro' => 'datetime',
+        'data_execucao' => 'datetime',
         'data_sincronizacao' => 'datetime',
         'synced_at' => 'datetime',
+        'respostas' => 'array',
     ];
 
     public function veiculo() { return $this->belongsTo(Veiculo::class, 'id_veiculo'); }
