@@ -37,8 +37,13 @@ class AuthenticatedSessionController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        // autentica normalmente
-        if (! Auth::attempt($request->only('email', 'password'), $request->boolean('remember'))) {
+        // Verifica o usuário ANTES do attempt para forçar remember=true
+        // em motoristas (sessão longa, ideal para app mobile em campo).
+        $userToCheck = User::where('email', $request->input('email'))->first();
+        $shouldRemember = $request->boolean('remember')
+            || ($userToCheck && $userToCheck->type === 'motorista');
+
+        if (! Auth::attempt($request->only('email', 'password'), $shouldRemember)) {
             throw ValidationException::withMessages([
                 'email' => __('These credentials do not match our records.'),
             ]);
@@ -62,6 +67,12 @@ class AuthenticatedSessionController extends Controller
         $user->update([
             'last_login_at' => now(),
         ]);
+
+        // Motorista: vai SEMPRE para /mobile/veiculos (ignora intended)
+        if ($user->type === 'motorista') {
+            session()->forget('url.intended');
+            return Inertia::location('/mobile/veiculos');
+        }
 
         $url = session()->pull('url.intended', '/dashboard');
         return Inertia::location($url);

@@ -85,7 +85,7 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                             type="text"
                             value={data.name}
                             onChange={(e) => setData('name', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                             required
                         />
                         {errors.name && <div className="text-rose-500 text-xs mt-1">{errors.name}</div>}
@@ -97,7 +97,7 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                             type="email"
                             value={data.email}
                             onChange={(e) => setData('email', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                             required
                         />
                         {errors.email && <div className="text-rose-500 text-xs mt-1">{errors.email}</div>}
@@ -109,7 +109,7 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                             type="password"
                             value={data.password}
                             onChange={(e) => setData('password', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                             {...(!isEdit && { required: true })}
                         />
                         {errors.password && <div className="text-rose-500 text-xs mt-1">{errors.password}</div>}
@@ -121,7 +121,7 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                             type="password"
                             value={data.password_confirmation}
                             onChange={(e) => setData('password_confirmation', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                             {...(data.password && { required: true })}
                         />
                     </div>
@@ -131,12 +131,17 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                         <select
                             value={data.type}
                             onChange={(e) => setData('type', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         >
                             <option value="user">Usuário Padrão</option>
+                            <option value="motorista">Motorista (App Mobile)</option>
+                            <option value="manager">Gestor / Manager</option>
                             <option value="admin">Administrador Sistêmico</option>
                             <option value="super_admin">Super Admin (God Mode)</option>
                         </select>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                            <strong>Motorista</strong>: usa apenas o app mobile (/mobile/*) — sem acesso ao admin desktop.
+                        </p>
                         {errors.type && <div className="text-rose-500 text-xs mt-1">{errors.type}</div>}
                     </div>
 
@@ -149,7 +154,7 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                                     checked={data.is_active}
                                     onChange={(e) => setData('is_active', e.target.checked)}
                                 />
-                                <div className={`block w-10 h-6 rounded-full transition-colors ${data.is_active ? 'bg-[#00b393]' : 'bg-gray-300'}`}></div>
+                                <div className={`block w-10 h-6 rounded-full transition-colors ${data.is_active ? 'bg-[#557bbb]' : 'bg-gray-300'}`}></div>
                                 <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${data.is_active ? 'transform translate-x-4' : ''}`}></div>
                             </div>
                             <span className="text-sm font-semibold text-gray-700">Conta Ativa (Liberar acesso)</span>
@@ -167,12 +172,12 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                     {companies && companies.map((company) => {
                         const isChecked = data.companies.includes(company.id.toString());
                         return (
-                            <label key={company.id} className={`flex items-start p-3 border rounded-lg cursor-pointer transition-colors ${isChecked ? 'bg-[#f0f9f8] border-[#00b393]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                            <label key={company.id} className={`flex items-start p-3 border rounded-lg cursor-pointer transition-colors ${isChecked ? 'bg-[#eef2f9] border-[#557bbb]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
                                 <input
                                     type="checkbox"
                                     onChange={() => handleCompanyToggle(company.id)}
                                     checked={isChecked}
-                                    className="mt-0.5 rounded border-gray-300 text-[#00b393] focus:ring-[#00b393]"
+                                    className="mt-0.5 rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb]"
                                 />
                                 <span className="ml-2 text-sm font-medium text-gray-800">{company.name}</span>
                             </label>
@@ -203,11 +208,11 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                             const routesList = group.map(m => m.route_name).filter(Boolean).join(', ');
 
                             return (
-                                <div key={baseModuleId} className={`border rounded-lg overflow-hidden transition-colors ${isOpen ? 'border-[#00b393]' : 'border-gray-200'}`}>
+                                <div key={baseModuleId} className={`border rounded-lg overflow-hidden transition-colors ${isOpen ? 'border-[#557bbb]' : 'border-gray-200'}`}>
                                     <button
                                         type="button"
                                         onClick={() => togglePanel(baseModuleId)}
-                                        className={`w-full flex items-center justify-between px-4 py-3 text-left font-semibold focus:outline-none transition-colors ${isOpen ? 'bg-[#f0f9f8] text-[#008f75]' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}`}
+                                        className={`w-full flex items-center justify-between px-4 py-3 text-left font-semibold focus:outline-none transition-colors ${isOpen ? 'bg-[#eef2f9] text-[#3a5a8c]' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}`}
                                     >
                                         <div className="flex flex-col">
                                             <span>{moduleLabel}</span>
@@ -242,16 +247,16 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                                                                     {module.route_name && <div className="text-[10px] text-gray-400 font-normal">{module.route_name}</div>}
                                                                 </td>
                                                                 <td className="px-2 py-3 text-center">
-                                                                    <input type="checkbox" checked={!!p.view} onChange={() => handlePermissionToggle(mId, 'view')} className="rounded border-gray-300 text-[#00b393] focus:ring-[#00b393] w-4 h-4 cursor-pointer" />
+                                                                    <input type="checkbox" checked={!!p.view} onChange={() => handlePermissionToggle(mId, 'view')} className="rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb] w-4 h-4 cursor-pointer" />
                                                                 </td>
                                                                 <td className="px-2 py-3 text-center">
-                                                                    <input type="checkbox" checked={!!p.list} onChange={() => handlePermissionToggle(mId, 'list')} className="rounded border-gray-300 text-[#00b393] focus:ring-[#00b393] w-4 h-4 cursor-pointer" />
+                                                                    <input type="checkbox" checked={!!p.list} onChange={() => handlePermissionToggle(mId, 'list')} className="rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb] w-4 h-4 cursor-pointer" />
                                                                 </td>
                                                                 <td className="px-2 py-3 text-center">
-                                                                    <input type="checkbox" checked={!!p.create} onChange={() => handlePermissionToggle(mId, 'create')} className="rounded border-gray-300 text-[#00b393] focus:ring-[#00b393] w-4 h-4 cursor-pointer" />
+                                                                    <input type="checkbox" checked={!!p.create} onChange={() => handlePermissionToggle(mId, 'create')} className="rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb] w-4 h-4 cursor-pointer" />
                                                                 </td>
                                                                 <td className="px-2 py-3 text-center">
-                                                                    <input type="checkbox" checked={!!p.edit} onChange={() => handlePermissionToggle(mId, 'edit')} className="rounded border-gray-300 text-[#00b393] focus:ring-[#00b393] w-4 h-4 cursor-pointer" />
+                                                                    <input type="checkbox" checked={!!p.edit} onChange={() => handlePermissionToggle(mId, 'edit')} className="rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb] w-4 h-4 cursor-pointer" />
                                                                 </td>
                                                                 <td className="px-2 py-3 text-center">
                                                                     <input type="checkbox" checked={!!p.delete} onChange={() => handlePermissionToggle(mId, 'delete')} className="rounded border-gray-300 text-rose-500 focus:ring-rose-500 w-4 h-4 cursor-pointer" />
@@ -281,7 +286,7 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                 <button
                     type="submit"
                     disabled={processing}
-                    className={`px-8 py-2.5 rounded-lg font-bold text-white shadow-md transition-all ${processing ? 'bg-gray-400 cursor-not-allowed hidden' : 'bg-[#00b393] hover:bg-[#008f75] hover:-translate-y-0.5 hover:shadow-lg'}`}
+                    className={`px-8 py-2.5 rounded-lg font-bold text-white shadow-md transition-all ${processing ? 'bg-gray-400 cursor-not-allowed hidden' : 'bg-[#557bbb] hover:bg-[#3a5a8c] hover:-translate-y-0.5 hover:shadow-lg'}`}
                 >
                     {isEdit ? 'Salvar Alterações' : 'Criar Nova Conta'}
                 </button>
