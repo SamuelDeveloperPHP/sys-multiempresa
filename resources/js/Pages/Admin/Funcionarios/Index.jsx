@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
+import { safeLabel } from '@/utils/sanitize';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import CrachaModal from './Partials/CrachaModal';
 import EtiquetaModal from './Partials/EtiquetaModal';
 
-export default function Index({ funcionarios, companies, filters, auth }) {
+export default function Index({ funcionarios, companies, filters, auth, can = {} }) {
+    // Permissões granulares vindas do controller (super_admin → tudo true)
+    const allowEdit   = can.edit   !== false;
+    const allowDelete = can.delete !== false;
+    const allowCreate = can.create !== false;
     const [searchTerm, setSearchTerm] = useState(filters?.q || '');
     const [status, setStatus] = useState(filters?.status || '');
     const [companyId, setCompanyId] = useState(filters?.company_id || '');
@@ -49,7 +54,7 @@ export default function Index({ funcionarios, companies, filters, auth }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Funcionários</h2>}
+            header="Funcionários"
         >
             <Head title="Gerenciar Funcionários" />
 
@@ -63,13 +68,15 @@ export default function Index({ funcionarios, companies, filters, auth }) {
                         <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Funcionários</h1>
                     </div>
 
-                    <Link
-                        href={route('admin.funcionarios.create')}
-                        className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 transition-all gap-2"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                        Novo Registro
-                    </Link>
+                    {allowCreate && (
+                        <Link
+                            href={route('admin.funcionarios.create')}
+                            className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg shadow-sm text-white bg-rise-600 hover:bg-rise-700 transition-all gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                            Novo Registro
+                        </Link>
+                    )}
                 </div>
 
                 {/* Card de Fundo */}
@@ -95,7 +102,7 @@ export default function Index({ funcionarios, companies, filters, auth }) {
                         <div className="inline-flex rounded-md shadow-sm border border-gray-200" role="group">
                             <button
                                 onClick={() => { setStatus('Ativo'); applyFilters({ status: 'Ativo' }); }}
-                                className={`px-4 py-2 text-sm font-medium rounded-l-md border-r border-gray-200 flex items-center gap-2 transition-colors ${status === 'Ativo' || !status ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-white text-emerald-600 hover:bg-emerald-50'}`}
+                                className={`px-4 py-2 text-sm font-medium rounded-l-md border-r border-gray-200 flex items-center gap-2 transition-colors ${status === 'Ativo' || !status ? 'bg-rise-500 text-white border-rise-600' : 'bg-white text-rise-600 hover:bg-rise-50'}`}
                             >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m-3-3v3m6-3v3m-9-3v3m-3-3v3m-3-3v3m12-9h-9a2 2 0 00-2 2v14a2 2 0 002 2h9a2 2 0 002-2V11a2 2 0 00-2-2z" /></svg>
                                 Ativos
@@ -213,7 +220,7 @@ export default function Index({ funcionarios, companies, filters, auth }) {
                                                         {!inativo ? (
                                                             <>
                                                                 {contar_situacao_1 > 0 ? (
-                                                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border text-xs font-bold ${pendentes > 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                                                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border text-xs font-bold ${pendentes > 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-rise-50 border-rise-200 text-rise-700'}`}>
                                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                                         </svg>
@@ -254,20 +261,24 @@ export default function Index({ funcionarios, companies, filters, auth }) {
                                                         </button>
                                                         <button 
                                                             onClick={() => { setSelectedFuncionario(func); setIsEtiquetaModalOpen(true); }} 
-                                                            className="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded" 
+                                                            className="p-1.5 bg-rise-50 text-rise-600 hover:bg-rise-100 rounded" 
                                                             title="Imprimir Etiqueta"
                                                         >
                                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
                                                         </button>
-                                                        <Link href={route('admin.funcionarios.edit', func.id)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded" title="Editar">
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                                        </Link>
+                                                        {allowEdit && (
+                                                            <Link href={route('admin.funcionarios.edit', func.id)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded" title="Editar">
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                            </Link>
+                                                        )}
                                                         <Link href={route('admin.funcionarios.show', func.id)} className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded" title="Visualizar">
                                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                                         </Link>
-                                                        <button onClick={() => handleDelete(func)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded" title="Excluir">
-                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                                        </button>
+                                                        {allowDelete && (
+                                                            <button onClick={() => handleDelete(func)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded" title="Excluir">
+                                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -289,7 +300,7 @@ export default function Index({ funcionarios, companies, filters, auth }) {
                                     <Link
                                         key={k}
                                         href={link.url || '#'}
-                                        dangerouslySetInnerHTML={{ __html: link.label }}
+                                        dangerouslySetInnerHTML={safeLabel(link.label)}
                                         className={`relative inline-flex items-center px-3 py-2 border text-sm font-medium ${link.active ? 'z-10 bg-blue-50 border-blue-500 text-blue-600 font-bold' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`}
                                         preserveState
                                         preserveScroll

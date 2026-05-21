@@ -1,5 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { safeLabel } from '@/utils/sanitize';
 import { useState } from 'react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const fmtDT = (d) => d ? new Date(d).toLocaleString('pt-BR') : '—';
 const minToHm = (m) => {
@@ -23,9 +25,9 @@ export default function DiarioIndex({ diarios, veiculos, obras, filtros }) {
   };
 
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title="Diário de bordo" />
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 w-full">
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Diário de bordo</h1>
           <p className="text-sm text-gray-500">Registros enviados pelo app mobile</p>
@@ -84,7 +86,7 @@ export default function DiarioIndex({ diarios, veiculos, obras, filtros }) {
                     }`}>{d.ciclo_status}</span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={route('admin.frota.diario.show', d.id)} className="text-blue-600 hover:underline">Detalhes</Link>
+                    <Link href={route('admin.frota.diario.show', d.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Detalhes</Link>
                   </td>
                 </tr>
               ))}
@@ -97,14 +99,14 @@ export default function DiarioIndex({ diarios, veiculos, obras, filtros }) {
             {diarios.links.map((link, i) => (
               <Link key={i} href={link.url ?? '#'} preserveScroll
                     className={`px-3 py-1 rounded text-sm ${
-                      link.active ? 'bg-emerald-600 text-white' :
+                      link.active ? 'bg-rise-600 text-white' :
                       link.url ? 'bg-white border hover:bg-gray-50' : 'opacity-30 cursor-not-allowed'
                     }`}
-                    dangerouslySetInnerHTML={{ __html: link.label }} />
+                    dangerouslySetInnerHTML={safeLabel(link.label)} />
             ))}
           </nav>
         )}
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }

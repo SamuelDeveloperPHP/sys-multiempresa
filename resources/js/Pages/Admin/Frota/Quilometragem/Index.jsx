@@ -1,5 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { safeLabel } from '@/utils/sanitize';
 import { useState } from 'react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const fmtDT = (d) => d ? new Date(d).toLocaleString('pt-BR') : '—';
 
@@ -19,9 +21,9 @@ export default function QuilometragemIndex({ registros, veiculos, filtros }) {
   };
 
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title="Hodômetros" />
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-6 w-full">
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Hodômetros (km)</h1>
           <p className="text-sm text-gray-500">Registros gerados pelo app mobile</p>
@@ -65,7 +67,7 @@ export default function QuilometragemIndex({ registros, veiculos, filtros }) {
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{q.user_create ?? '—'}</td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => excluir(q)} className="text-red-600 hover:underline">Excluir</button>
+                    <button onClick={() => excluir(q)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
                 </tr>
               ))}
@@ -78,14 +80,14 @@ export default function QuilometragemIndex({ registros, veiculos, filtros }) {
             {registros.links.map((link, i) => (
               <Link key={i} href={link.url ?? '#'} preserveScroll
                     className={`px-3 py-1 rounded text-sm ${
-                      link.active ? 'bg-emerald-600 text-white' :
+                      link.active ? 'bg-rise-600 text-white' :
                       link.url ? 'bg-white border hover:bg-gray-50' : 'opacity-30 cursor-not-allowed'
                     }`}
-                    dangerouslySetInnerHTML={{ __html: link.label }} />
+                    dangerouslySetInnerHTML={safeLabel(link.label)} />
             ))}
           </nav>
         )}
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }

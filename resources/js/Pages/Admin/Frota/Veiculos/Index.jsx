@@ -1,43 +1,59 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { safeLabel } from '@/utils/sanitize';
 import { useState } from 'react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
-/**
- * Admin/Frota/Veiculos/Index
- * Lista de veiculos com filtro de busca e paginacao Laravel.
- *
- * Props esperadas (vindas do VeiculoController@index):
- *   veiculos: PaginatorJSON { data, links, current_page, last_page, ... }
- *   filtros:  { q: string }
- */
-export default function VeiculosIndex({ veiculos, filtros }) {
+const situacaoCor = {
+  'Ativo':       'bg-green-100 text-green-700',
+  'Inativo':     'bg-gray-200 text-gray-700',
+  'Manutenção':  'bg-amber-100 text-amber-800',
+  'Vendido':     'bg-blue-100 text-blue-700',
+  'Baixado':     'bg-red-100 text-red-700',
+};
+
+export default function VeiculosIndex({ veiculos, obras, categorias, filtros }) {
   const { flash } = usePage().props;
-  const [q, setQ] = useState(filtros?.q ?? '');
+  const [f, setF] = useState({
+    q:            filtros?.q ?? '',
+    situacao:     filtros?.situacao ?? '',
+    obra_id:      filtros?.obra_id ?? '',
+    id_categoria: filtros?.id_categoria ?? '',
+  });
 
   const buscar = (e) => {
-    e.preventDefault();
-    router.get(route('admin.frota.veiculos.index'), { q }, {
+    e?.preventDefault?.();
+    router.get(route('admin.frota.veiculos.index'), f, {
+      preserveState: true, preserveScroll: true,
+    });
+  };
+
+  const limpar = () => {
+    const reset = { q: '', situacao: '', obra_id: '', id_categoria: '' };
+    setF(reset);
+    router.get(route('admin.frota.veiculos.index'), reset, {
       preserveState: true, preserveScroll: true,
     });
   };
 
   const excluir = (v) => {
-    if (!confirm(`Remover o veiculo ${v.prefixo}?`)) return;
-    router.delete(route('admin.frota.veiculos.destroy', v.id), {
-      preserveScroll: true,
-    });
+    if (!confirm(`Remover o veículo ${v.prefixo}?`)) return;
+    router.delete(route('admin.frota.veiculos.destroy', v.id), { preserveScroll: true });
   };
 
   return (
-    <>
-      <Head title="Veiculos" />
-      <div className="p-6 max-w-7xl mx-auto">
+    <AuthenticatedLayout>
+      <Head title="Veículos" />
+      <div className="p-6 w-full">
         <header className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Veiculos</h1>
+          <div>
+            <h1 className="text-2xl font-bold">Veículos</h1>
+            <p className="text-sm text-gray-500">Cadastro completo da frota (veículos, máquinas e equipamentos)</p>
+          </div>
           <Link
             href={route('admin.frota.veiculos.create')}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+            className="bg-rise-600 text-white px-4 py-2 rounded-lg hover:bg-rise-700"
           >
-            + Novo veiculo
+            + Novo veículo
           </Link>
         </header>
 
@@ -47,57 +63,88 @@ export default function VeiculosIndex({ veiculos, filtros }) {
           </div>
         )}
 
-        <form onSubmit={buscar} className="mb-4 flex gap-2">
+        <form onSubmit={buscar} className="bg-white rounded-lg border p-4 mb-4 grid grid-cols-1 md:grid-cols-5 gap-2">
           <input
             type="text"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar por prefixo, placa, modelo..."
-            className="flex-1 border border-gray-300 rounded px-3 py-2"
+            value={f.q}
+            onChange={(e) => setF({ ...f, q: e.target.value })}
+            placeholder="Buscar por prefixo, placa, marca, modelo..."
+            className="md:col-span-2 border border-gray-300 rounded px-3 py-2"
           />
-          <button type="submit" className="px-4 py-2 bg-gray-800 text-white rounded">
-            Buscar
-          </button>
+          <select value={f.situacao} onChange={(e) => setF({ ...f, situacao: e.target.value })}
+                  className="border border-gray-300 rounded px-3 py-2">
+            <option value="">Todas as situações</option>
+            <option>Ativo</option>
+            <option>Inativo</option>
+            <option>Manutenção</option>
+            <option>Vendido</option>
+            <option>Baixado</option>
+          </select>
+          <select value={f.id_categoria} onChange={(e) => setF({ ...f, id_categoria: e.target.value })}
+                  className="border border-gray-300 rounded px-3 py-2">
+            <option value="">Todas as categorias</option>
+            {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome_categoria}</option>)}
+          </select>
+          <select value={f.obra_id} onChange={(e) => setF({ ...f, obra_id: e.target.value })}
+                  className="border border-gray-300 rounded px-3 py-2">
+            <option value="">Todas as obras</option>
+            {obras.map((o) => <option key={o.id} value={o.id}>{o.nome_fantasia}</option>)}
+          </select>
+          <div className="md:col-span-5 flex gap-2 justify-end">
+            <button type="button" onClick={limpar} className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">Limpar</button>
+            <button className="px-4 py-2 bg-gray-800 text-white rounded">Filtrar</button>
+          </div>
         </form>
 
-        <div className="bg-white rounded-lg shadow border overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 text-left text-sm font-semibold text-gray-700">
+        <div className="bg-white rounded-lg shadow border overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-left font-semibold text-gray-700">
               <tr>
-                <th className="px-4 py-3">Prefixo</th>
-                <th className="px-4 py-3">Placa</th>
-                <th className="px-4 py-3">Modelo</th>
-                <th className="px-4 py-3">Obra</th>
-                <th className="px-4 py-3">Tipo</th>
-                <th className="px-4 py-3 text-right">Acoes</th>
+                <th className="px-4 py-1"></th>
+                <th className="px-4 py-1">Prefixo</th>
+                <th className="px-4 py-1">Veículo</th>
+                <th className="px-4 py-1">Placa</th>
+                <th className="px-4 py-1">Categoria</th>
+                <th className="px-4 py-1">Obra</th>
+                <th className="px-4 py-1">Tipo</th>
+                <th className="px-4 py-1">Situação</th>
+                <th className="px-4 py-1 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {veiculos.data.length === 0 ? (
-                <tr><td colSpan={6} className="text-center text-gray-500 py-8">Nenhum veiculo encontrado.</td></tr>
+                <tr><td colSpan={9} className="text-center text-gray-500 py-8">Nenhum veículo encontrado.</td></tr>
               ) : veiculos.data.map((v) => (
                 <tr key={v.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{v.prefixo}</td>
-                  <td className="px-4 py-3">{v.placa || '—'}</td>
-                  <td className="px-4 py-3">{v.modelo || '—'}</td>
-                  <td className="px-4 py-3">{v.obra?.nome_fantasia || '—'}</td>
-                  <td className="px-4 py-3 text-xs">
-                    {v.tipo_hr && <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded mr-1">Horimetro</span>}
-                    {v.tipo_km && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Hodometro</span>}
+                  <td className="px-4 py-1">
+                    {v.imagem ? (
+                      <img src={route('admin.frota.veiculos.imagem-principal', v.id)} alt="" className="w-12 h-12 object-cover rounded border" />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-100 rounded border flex items-center justify-center text-gray-400 text-xs">sem foto</div>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-right space-x-2">
-                    <Link
-                      href={route('admin.frota.veiculos.edit', v.id)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Editar
-                    </Link>
-                    <button
-                      onClick={() => excluir(v)}
-                      className="text-red-600 hover:underline"
-                    >
-                      Excluir
-                    </button>
+                  <td className="px-4 py-1 font-semibold">{v.prefixo}</td>
+                  <td className="px-4 py-1">
+                    <div>{v.marca} {v.modelo}</div>
+                    {v.ano && <div className="text-xs text-gray-500">Ano: {v.ano}</div>}
+                  </td>
+                  <td className="px-4 py-1 font-mono">{v.placa || '—'}</td>
+                  <td className="px-4 py-1">{v.categoria?.nome_categoria ?? '—'}</td>
+                  <td className="px-4 py-1">{v.obra?.nome_fantasia ?? '—'}</td>
+                  <td className="px-4 py-1' text-xs">
+                    {v.tipo_hr && <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded mr-1">Hr</span>}
+                    {v.tipo_km && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded mr-1">Km</span>}
+                    {v.tipo_tempo && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Tempo</span>}
+                  </td>
+                  <td className="px-4 py-1">
+                    <span className={`px-2 py-0.5 rounded text-xs ${situacaoCor[v.situacao] ?? 'bg-gray-100 text-gray-700'}`}>
+                      {v.situacao ?? '—'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-1 text-right space-x-2 whitespace-nowrap">
+                    <Link href={route('admin.frota.veiculos.show', v.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">Ver</Link>
+                    <Link href={route('admin.frota.veiculos.edit', v.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</Link>
+                    <button onClick={() => excluir(v)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
                 </tr>
               ))}
@@ -105,8 +152,7 @@ export default function VeiculosIndex({ veiculos, filtros }) {
           </table>
         </div>
 
-        {/* Paginacao Laravel */}
-        {veiculos.links && veiculos.links.length > 3 && (
+        {veiculos.links?.length > 3 && (
           <nav className="flex justify-center gap-1 mt-4">
             {veiculos.links.map((link, i) => (
               <Link
@@ -115,15 +161,15 @@ export default function VeiculosIndex({ veiculos, filtros }) {
                 preserveScroll
                 className={`px-3 py-1 rounded text-sm ${
                   link.active
-                    ? 'bg-emerald-600 text-white'
+                    ? 'bg-rise-600 text-white'
                     : link.url ? 'bg-white border hover:bg-gray-50' : 'opacity-30 cursor-not-allowed'
                 }`}
-                dangerouslySetInnerHTML={{ __html: link.label }}
+                dangerouslySetInnerHTML={safeLabel(link.label)}
               />
             ))}
           </nav>
         )}
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }
