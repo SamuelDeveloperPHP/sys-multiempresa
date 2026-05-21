@@ -57,7 +57,7 @@ export default function TwoFactorAuthenticationForm({ className = '', user, requ
                     <button
                         onClick={generateSecret}
                         type="button"
-                        className="inline-flex justify-center rounded-md border border-transparent bg-[#00b393] py-2 px-6 text-sm font-medium text-white shadow-sm hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-[#00b393] focus:ring-offset-2"
+                        className="inline-flex justify-center rounded-md border border-transparent bg-[#557bbb] py-2 px-6 text-sm font-medium text-white shadow-sm hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-[#557bbb] focus:ring-offset-2"
                     >
                         Configurar Autenticação de Dois Fatores
                     </button>
@@ -94,7 +94,7 @@ export default function TwoFactorAuthenticationForm({ className = '', user, requ
                             type="text"
                             inputMode="numeric"
                             autoComplete="one-time-code"
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring focus:ring-[#00b393] focus:ring-opacity-50 text-center font-mono text-xl tracking-widest"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring focus:ring-[#557bbb] focus:ring-opacity-50 text-center font-mono text-xl tracking-widest"
                             placeholder="000000"
                             value={data.code}
                             onChange={(e) => setData('code', e.target.value)}

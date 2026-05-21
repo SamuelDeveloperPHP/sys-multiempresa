@@ -1,4 +1,5 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 const fmtDT = (d) => d ? new Date(d).toLocaleString('pt-BR') : '—';
 
@@ -20,7 +21,7 @@ export default function DiarioShow({ diario }) {
   };
 
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title={`Diário #${diario.id}`} />
       <div className="p-6 max-w-4xl mx-auto">
         <header className="mb-6 flex items-start justify-between">
@@ -29,7 +30,7 @@ export default function DiarioShow({ diario }) {
             <p className="text-gray-600">{diario.veiculo?.prefixo} • {diario.obra?.nome_fantasia ?? '—'}</p>
             <Link href={route('admin.frota.diario.index')} className="text-sm text-gray-600 hover:underline">← voltar</Link>
           </div>
-          <button onClick={excluir} className="text-red-600 hover:underline">Excluir</button>
+          <button onClick={excluir} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
         </header>
 
         {flash?.success && <div className="bg-green-50 border border-green-200 text-green-800 p-3 rounded mb-4">{flash.success}</div>}
@@ -82,13 +83,13 @@ export default function DiarioShow({ diario }) {
 
           <div className="flex justify-end">
             <button type="submit" disabled={processing}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">
+                    className="px-4 py-2 bg-rise-600 text-white rounded hover:bg-rise-700 disabled:opacity-50">
               {processing ? 'Salvando...' : 'Salvar alterações'}
             </button>
           </div>
         </form>
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }
 

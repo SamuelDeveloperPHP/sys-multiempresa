@@ -70,7 +70,7 @@ export default function Edit({ company }) {
         }
     };
 
-    const inputClasses = "mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] px-3 py-2 text-sm";
+    const inputClasses = "mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] px-3 py-2 text-sm";
     
     return (
         <AuthenticatedLayout header={`Editar Empresa - ${company.name}`}>
@@ -89,7 +89,7 @@ export default function Edit({ company }) {
                                     id="is_active"
                                     checked={data.is_active}
                                     onChange={e => setData('is_active', e.target.checked)}
-                                    className="w-4 h-4 text-[#00b393] bg-gray-100 border-gray-300 rounded focus:ring-[#00b393] cursor-pointer"
+                                    className="w-4 h-4 text-[#557bbb] bg-gray-100 border-gray-300 rounded focus:ring-[#557bbb] cursor-pointer"
                                 />
                                 <label htmlFor="is_active" className="ml-2 text-sm font-medium text-gray-700 cursor-pointer">
                                     Empresa Ativa
@@ -110,7 +110,7 @@ export default function Edit({ company }) {
                                         value={data.cnpj}
                                         unmask={false}
                                         onAccept={(value) => setData('cnpj', value)}
-                                        className="flex-1 block w-full border border-gray-300 rounded-l-lg focus:ring-[#00b393] focus:border-[#00b393] px-3 py-2 text-sm"
+                                        className="flex-1 block w-full border border-gray-300 rounded-l-lg focus:ring-[#557bbb] focus:border-[#557bbb] px-3 py-2 text-sm"
                                         placeholder="00.000.000/0000-00"
                                     />
                                     <button 

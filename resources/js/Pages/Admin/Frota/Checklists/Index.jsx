@@ -1,5 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 export default function ChecklistsIndex({ checklists, filtros }) {
   const { flash } = usePage().props;
@@ -18,13 +19,13 @@ export default function ChecklistsIndex({ checklists, filtros }) {
   };
 
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title="Modelos de checklist" />
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 w-full">
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Modelos de checklist</h1>
           <Link href={route('admin.frota.checklists.create')}
-                className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">
+                className="bg-rise-600 text-white px-4 py-2 rounded-lg hover:bg-rise-700">
             + Novo modelo
           </Link>
         </header>
@@ -65,11 +66,11 @@ export default function ChecklistsIndex({ checklists, filtros }) {
                     }`}>{c.situacao || '—'}</span>
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
-                    <Link href={route('admin.frota.checklists.itens.index', c.id)} className="text-purple-600 hover:underline">
+                    <Link href={route('admin.frota.checklists.itens.index', c.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">
                       Itens ({c.itens_count})
                     </Link>
-                    <Link href={route('admin.frota.checklists.edit', c.id)} className="text-blue-600 hover:underline">Editar</Link>
-                    <button onClick={() => excluir(c)} className="text-red-600 hover:underline">Excluir</button>
+                    <Link href={route('admin.frota.checklists.edit', c.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</Link>
+                    <button onClick={() => excluir(c)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
                 </tr>
               ))}
@@ -77,6 +78,6 @@ export default function ChecklistsIndex({ checklists, filtros }) {
           </table>
         </div>
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }

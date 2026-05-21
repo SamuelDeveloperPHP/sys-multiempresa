@@ -1,5 +1,6 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 export default function ChecklistsItens({ checklist, itens }) {
   const { flash } = usePage().props;
@@ -28,9 +29,9 @@ export default function ChecklistsItens({ checklist, itens }) {
   };
 
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title={`Itens — ${checklist.nome_checklist}`} />
-      <div className="p-6 max-w-5xl mx-auto">
+      <div className="p-6 w-full">
         <header className="mb-6">
           <h1 className="text-2xl font-bold">Itens do checklist</h1>
           <p className="text-gray-600">{checklist.nome_checklist}</p>
@@ -53,7 +54,7 @@ export default function ChecklistsItens({ checklist, itens }) {
                    onChange={(e) => novo.setData('periodo_dias', e.target.value)}
                    className="border border-gray-300 rounded px-3 py-2" />
             <button type="submit" disabled={novo.processing}
-                    className="bg-emerald-600 text-white rounded px-4 py-2 hover:bg-emerald-700 disabled:opacity-50">
+                    className="bg-rise-600 text-white rounded px-4 py-2 hover:bg-rise-700 disabled:opacity-50">
               {novo.processing ? '...' : 'Adicionar'}
             </button>
           </div>
@@ -84,7 +85,7 @@ export default function ChecklistsItens({ checklist, itens }) {
           </table>
         </div>
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }
 
@@ -114,8 +115,8 @@ function ItemRow({ checklist, item, editingId, setEditingId, onDelete }) {
         <td className="px-4 py-3">{item.periodo_dias ?? '—'}</td>
         <td className="px-4 py-3">{item.situacao || '—'}</td>
         <td className="px-4 py-3 text-right space-x-2">
-          <button onClick={() => setEditingId(item.id)} className="text-blue-600 hover:underline">Editar</button>
-          <button onClick={onDelete} className="text-red-600 hover:underline">Excluir</button>
+          <button onClick={() => setEditingId(item.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
+          <button onClick={onDelete} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
         </td>
       </tr>
     );
@@ -139,7 +140,7 @@ function ItemRow({ checklist, item, editingId, setEditingId, onDelete }) {
         </select>
       </td>
       <td className="px-4 py-3 text-right space-x-2">
-        <button onClick={salvar} disabled={edit.processing} className="text-emerald-600 hover:underline">Salvar</button>
+        <button onClick={salvar} disabled={edit.processing} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rise-700 bg-rise-50 border border-rise-200 rounded-md hover:bg-rise-100 transition">Salvar</button>
         <button onClick={() => setEditingId(null)} className="text-gray-600 hover:underline">Cancelar</button>
       </td>
     </tr>

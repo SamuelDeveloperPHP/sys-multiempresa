@@ -101,7 +101,7 @@ export default function ModuleForm({ moduleData, parentModules, isEdit = false }
                         <select
                             value={data.id_modulo_relacionamento || ''}
                             onChange={(e) => setData('id_modulo_relacionamento', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         >
                             <option value="">— Nenhum (módulo raiz) —</option>
                             {parentModules?.map(m => (
@@ -120,7 +120,7 @@ export default function ModuleForm({ moduleData, parentModules, isEdit = false }
                         <label className="flex items-center cursor-pointer gap-2 w-fit">
                             <div className="relative">
                                 <input type="checkbox" className="sr-only" checked={data.is_active} onChange={(e) => setData('is_active', e.target.checked)} />
-                                <div className={`block w-10 h-6 rounded-full transition-colors ${data.is_active ? 'bg-[#00b393]' : 'bg-gray-300'}`}></div>
+                                <div className={`block w-10 h-6 rounded-full transition-colors ${data.is_active ? 'bg-[#557bbb]' : 'bg-gray-300'}`}></div>
                                 <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${data.is_active ? 'transform translate-x-4' : ''}`}></div>
                             </div>
                             <span className="text-sm font-semibold text-gray-700">Módulo Ativável no Sistema</span>
@@ -146,7 +146,7 @@ export default function ModuleForm({ moduleData, parentModules, isEdit = false }
                         <button
                             type="submit"
                             disabled={processing}
-                            className={`px-8 py-2.5 rounded-lg font-bold text-white shadow-md transition-all ${processing ? 'bg-gray-400 cursor-not-allowed hidden' : 'bg-[#00b393] hover:bg-[#008f75] hover:-translate-y-0.5 hover:shadow-lg'}`}
+                            className={`px-8 py-2.5 rounded-lg font-bold text-white shadow-md transition-all ${processing ? 'bg-gray-400 cursor-not-allowed hidden' : 'bg-[#557bbb] hover:bg-[#3a5a8c] hover:-translate-y-0.5 hover:shadow-lg'}`}
                         >
                             {isEdit ? 'Salvar Configurações' : 'Criar Módulo API'}
                         </button>

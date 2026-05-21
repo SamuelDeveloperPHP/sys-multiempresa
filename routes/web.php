@@ -30,6 +30,80 @@ Route::get('/', function () {
 
 /*
 |--------------------------------------------------------------------------
+| Service Worker (PWA) — servido na raiz para ter escopo global "/"
+|--------------------------------------------------------------------------
+| O Vite gera public/build/sw.js, mas o SW precisa ser servido a partir
+| da raiz para conseguir interceptar requests fora de /build/*.
+*/
+Route::get('/sw.js', function () {
+    $file = public_path('build/sw.js');
+    if (!file_exists($file)) {
+        return response('// service worker ainda não foi gerado (rode `npm run build`)', 200, [
+            'Content-Type' => 'application/javascript',
+            'Service-Worker-Allowed' => '/',
+        ]);
+    }
+
+    // O sw.js gerado pelo Vite usa paths RELATIVOS (./workbox-XXX, assets/Y.js).
+    // Como servimos a partir da raiz "/sw.js", esses paths resolvem para a
+    // raiz pública (404). Reescrevemos cada um para apontar para /build/.
+    $content = file_get_contents($file);
+    $content = preg_replace_callback(
+        '#(["\'])(?:\./)?(workbox-[a-f0-9]+(?:\.js)?)\1#',
+        fn($m) => $m[1] . '/build/' . $m[2] . $m[1],
+        $content
+    );
+    $content = preg_replace(
+        '#(["\'])assets/#',
+        '$1/build/assets/',
+        $content
+    );
+    $content = preg_replace(
+        '#(["\'])manifest\.webmanifest\1#',
+        '$1/manifest.webmanifest$1',
+        $content
+    );
+    // O Workbox gera uma NavigationRoute com createHandlerBoundToURL("index.html")
+    // que assume um SPA com index.html no precache. Nosso Laravel/Inertia não
+    // tem isso — cada navegação retorna HTML diferente do servidor. Remove a
+    // linha inteira (já temos NetworkFirst para /mobile/* e /login/ no runtime).
+    $content = preg_replace(
+        '#,?\s*[a-z]\.registerRoute\(new [a-z]\.NavigationRoute\([a-z]\.createHandlerBoundToURL\([^)]+\),\{denylist:\[[^\]]+\]\}\)\)#',
+        '',
+        $content
+    );
+
+    return response($content, 200, [
+        'Content-Type' => 'application/javascript',
+        'Service-Worker-Allowed' => '/',
+        'Cache-Control' => 'no-cache, no-store, must-revalidate',
+    ]);
+})->name('sw.js');
+
+Route::get('/manifest.webmanifest', function () {
+    $file = public_path('build/manifest.webmanifest');
+    if (!file_exists($file)) {
+        // Fallback inline se o build ainda não rodou
+        return response()->json([
+            'name' => 'SGA Engeativos',
+            'short_name' => 'SGA',
+            'theme_color' => '#557bbb',
+            'background_color' => '#ffffff',
+            'display' => 'standalone',
+            'start_url' => '/mobile/veiculos',
+            'icons' => [
+                ['src' => '/icons/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any maskable'],
+                ['src' => '/icons/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any maskable'],
+            ],
+        ])->header('Content-Type', 'application/manifest+json');
+    }
+    return response(file_get_contents($file), 200, [
+        'Content-Type' => 'application/manifest+json',
+    ]);
+})->name('manifest');
+
+/*
+|--------------------------------------------------------------------------
 | Rotas de autenticação (Breeze)
 |--------------------------------------------------------------------------
 */
@@ -43,6 +117,16 @@ require __DIR__ . '/auth.php';
 */
 require __DIR__ . '/blog.php';
 require __DIR__ . '/jarvis-api.php';
+require __DIR__ . '/mobile.php';
+
+/*
+|--------------------------------------------------------------------------
+| Página pública do funcionário (QR Code do crachá)
+|--------------------------------------------------------------------------
+*/
+Route::get('/detalhes/funcionario/{id}', [\App\Http\Controllers\PublicFuncionarioController::class, 'show'])
+    ->whereNumber('id')
+    ->name('public.funcionario.show');
 
 
 /*
@@ -269,13 +353,148 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             Route::get('cadastros/funcionarios/edit/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'edit'])->name('admin.funcionarios.edit');
             Route::put('cadastros/funcionarios/update/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'update'])->name('admin.funcionarios.update');
             Route::delete('cadastros/funcionarios/destroy/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'destroy'])->name('admin.funcionarios.destroy');
-            
-            // Documentos / Anexos
-            Route::post('cadastros/funcionarios/anexos/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'anexos'])->name('admin.funcionarios.anexos');
-            Route::post('cadastros/funcionarios/adicionar_anexos', [\App\Http\Controllers\Admin\FuncionarioController::class, 'adicionarAnexos'])->name('admin.funcionarios.adicionar_anexos');
-            Route::post('cadastros/funcionarios/aprovar_documentos/{anexoId}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'aprovarDocumentos'])->name('admin.funcionarios.aprovar_documentos');
-            Route::delete('cadastros/funcionarios/documentos/{anexoId}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'excluirDocumento'])->name('admin.funcionarios.excluir_documento');
 
+            // Funcionários Anexos (Arquivos)
+            Route::post('funcionarios/anexos', [\App\Http\Controllers\Admin\FuncionarioController::class, 'adicionarAnexos'])->name('admin.funcionarios.adicionar_anexos');
+            Route::post('funcionarios/{funcionario}/foto', [\App\Http\Controllers\Admin\FuncionarioController::class, 'salvarFotoPerfil'])->name('admin.funcionarios.salvar_foto');
+            Route::get('funcionarios/{funcionario}/anexos', [\App\Http\Controllers\Admin\FuncionarioController::class, 'anexos'])->name('admin.funcionarios.anexos');
+            Route::post('funcionarios/documentos/aprovar', [\App\Http\Controllers\Admin\FuncionarioController::class, 'aprovarDocumentos'])->name('admin.funcionarios.aprovar_documentos');
+            Route::delete('funcionarios/documentos/{id}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'excluirDocumento'])->name('admin.funcionarios.excluir_documento');
+
+            // (removido) Route::resource('funcionarios', ...) — gerava nomes duplicados
+            // com as rotas individuais "cadastros/funcionarios/*" acima. CRUD ja coberto.
+
+            // Fornecedores (cadastro compartilhado entre módulos)
+            Route::resource('fornecedores', \App\Http\Controllers\Admin\FornecedorController::class, ['as' => 'admin'])
+                ->only(['index', 'store', 'update', 'destroy']);
+
+            /*
+            |------------------------------------------------------------------
+            | Frota (admin)
+            |------------------------------------------------------------------
+            | URLs base:  /admin/frota/...
+            | RouteNames: admin.frota.*
+            |
+            | Controllers consolidados em App\Http\Controllers\Admin\Frota.
+            | Substitui o antigo Admin\VeiculoController (que foi removido).
+            |------------------------------------------------------------------
+            */
+            Route::prefix('frota')->name('admin.frota.')->group(function () {
+                // Veiculos — endpoints extra antes do resource (subcategorias AJAX, galeria de imagens)
+                Route::get('veiculos/subcategorias/{categoria}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'pesquisarSubcategoria'])
+                    ->name('veiculos.subcategorias');
+                Route::post('veiculos/{veiculo}/imagens', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeImage'])
+                    ->name('veiculos.imagens.store');
+                Route::delete('veiculos/imagens/{imagem}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'deleteImage'])
+                    ->name('veiculos.imagens.destroy');
+                // Stream proxy do OneDrive (galeria e imagem principal)
+                Route::get('veiculos/{veiculo}/imagens/{imagem}/arquivo', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewImagem'])
+                    ->name('veiculos.imagens.view');
+                Route::get('veiculos/{veiculo}/imagem-principal', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewImagemPrincipal'])
+                    ->name('veiculos.imagem-principal');
+                // OS preventiva: cadastro a partir do Dashboard de Ciclos
+                Route::post('veiculos/{veiculo}/os-preventiva', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeOsPreventiva'])
+                    ->name('veiculos.os-preventiva.store');
+
+                // CRUDs aninhados das abas Show
+                Route::post('veiculos/{veiculo}/manutencoes', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeManutencao'])
+                    ->name('veiculos.manutencoes.store');
+                Route::put('manutencoes/{manutencao}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateManutencao'])
+                    ->name('manutencoes.update');
+                Route::delete('manutencoes/{manutencao}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyManutencao'])
+                    ->name('manutencoes.destroy');
+
+                Route::post('veiculos/{veiculo}/ipvas', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeIpva'])
+                    ->name('veiculos.ipvas.store');
+                Route::put('ipvas/{ipva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateIpva'])
+                    ->name('ipvas.update');
+                Route::delete('ipvas/{ipva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyIpva'])
+                    ->name('ipvas.destroy');
+
+                Route::post('veiculos/{veiculo}/seguros', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeSeguro'])
+                    ->name('veiculos.seguros.store');
+                Route::put('seguros/{seguro}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateSeguro'])
+                    ->name('seguros.update');
+                Route::delete('seguros/{seguro}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroySeguro'])
+                    ->name('seguros.destroy');
+
+                Route::post('veiculos/{veiculo}/docs-legais', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeDocLegal'])
+                    ->name('veiculos.docs-legais.store');
+                Route::put('docs-legais/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateDocLegal'])
+                    ->name('docs-legais.update');
+                Route::delete('docs-legais/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyDocLegal'])
+                    ->name('docs-legais.destroy');
+
+                Route::post('veiculos/{veiculo}/docs-tecnicos', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeDocTecnico'])
+                    ->name('veiculos.docs-tecnicos.store');
+                Route::put('docs-tecnicos/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateDocTecnico'])
+                    ->name('docs-tecnicos.update');
+                Route::delete('docs-tecnicos/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyDocTecnico'])
+                    ->name('docs-tecnicos.destroy');
+
+                // Stream proxy de anexos das abas (PDF/imagem direto do OneDrive)
+                Route::get('anexos/{tipo}/{id}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewAnexo'])
+                    ->where('tipo', 'manutencao|ipva|doc-legal|doc-tecnico')
+                    ->name('anexos.view');
+
+                // Caderno Histórico de Manutenção (timeline read-only)
+                Route::get('veiculos/{veiculo}/historico-mnt', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'historicoMnt'])
+                    ->name('veiculos.historico-mnt');
+
+                // Download de toda a documentação do veículo em ZIP (OneDrive)
+                Route::get('veiculos/{veiculo}/zip-docs', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'downloadZipDocs'])
+                    ->name('veiculos.zip-docs');
+
+                // Veiculos — CRUD completo (com show)
+                Route::resource('veiculos', \App\Http\Controllers\Admin\Frota\VeiculoController::class);
+
+                // Locacoes — vinculo veiculo<->funcionario por obra
+                Route::resource('locacoes', \App\Http\Controllers\Admin\Frota\VeiculoLocacaoController::class)
+                    ->except(['show']);
+
+                // Modelos de checklist (catalogo)
+                Route::resource('checklists', \App\Http\Controllers\Admin\Frota\VeiculoChecklistController::class)
+                    ->except(['show']);
+
+                // Itens de checklist (nested em checklists)
+                Route::resource('checklists.itens', \App\Http\Controllers\Admin\Frota\VeiculoChecklistItemController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
+
+                // Execucoes de checklist (auditoria do que o mobile enviou)
+                Route::resource('checklist-execucoes', \App\Http\Controllers\Admin\Frota\VeiculoChecklistServicoController::class)
+                    ->only(['index', 'show', 'destroy']);
+
+                // Abastecimentos
+                Route::resource('abastecimentos', \App\Http\Controllers\Admin\Frota\VeiculoAbastecimentoController::class)
+                    ->except(['show']);
+
+                // Diario de Bordo — mobile cria, admin lista/edita/remove
+                Route::resource('diario', \App\Http\Controllers\Admin\Frota\VeiculoDiarioBordoController::class)
+                    ->only(['index', 'show', 'update', 'destroy']);
+
+                // Horimetros — somente listagem e remocao (criados pelo mobile)
+                Route::resource('horimetros', \App\Http\Controllers\Admin\Frota\VeiculoHorimetroController::class)
+                    ->only(['index', 'destroy']);
+
+                // Hodometros / Quilometragem — mesma logica de horimetros
+                Route::resource('quilometragem', \App\Http\Controllers\Admin\Frota\VeiculoQuilometragemController::class)
+                    ->only(['index', 'destroy']);
+
+                // Preventivas (catalogo + execucoes)
+                Route::resource('preventivas', \App\Http\Controllers\Admin\Frota\VeiculoPreventivaController::class);
+
+                // Lookups (cadastros auxiliares: categorias, subcategorias, marcas, modelos, tipos)
+                Route::resource('categorias', \App\Http\Controllers\Admin\Frota\VeiculoCategoriaController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
+                Route::resource('subcategorias', \App\Http\Controllers\Admin\Frota\VeiculoSubCategoriaController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
+                Route::resource('marcas', \App\Http\Controllers\Admin\Frota\MarcaMaquinaController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
+                Route::resource('modelos', \App\Http\Controllers\Admin\Frota\ModeloMaquinaController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
+                Route::resource('tipos', \App\Http\Controllers\Admin\Frota\TiposVeiculoController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
+            });
 
             Route::prefix('configuracao/blog')->group(function () {
                 // -----------------------------------------------------------------

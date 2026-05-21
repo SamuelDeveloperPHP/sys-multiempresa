@@ -15,6 +15,36 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+            // Paleta inspirada no Rise CRM (azul corporativo + grafite)
+            colors: {
+                // Azul Rise (#557bbb) como escala
+                rise: {
+                    50:  '#eef2f9',
+                    100: '#dde6f3',
+                    200: '#bccae7',
+                    300: '#9aaedb',
+                    400: '#7892cf',
+                    500: '#557bbb',
+                    600: '#4366a8',
+                    700: '#3a5a8c',
+                    800: '#2e4577',
+                    900: '#1d2632', // mesmo grafite da sidebar
+                },
+                // alias semântico (primary aponta pra Rise)
+                primary: {
+                    50:  '#eef2f9',
+                    100: '#dde6f3',
+                    200: '#bccae7',
+                    300: '#9aaedb',
+                    400: '#7892cf',
+                    500: '#557bbb',
+                    600: '#4366a8',
+                    700: '#3a5a8c',
+                    800: '#2e4577',
+                    900: '#1d2632',
+                    DEFAULT: '#557bbb',
+                },
+            },
         },
     },
 

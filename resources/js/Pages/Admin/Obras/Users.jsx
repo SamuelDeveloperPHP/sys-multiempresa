@@ -21,7 +21,7 @@ export default function Users({ obra, companyUsers }) {
             <Head title={`Equipe da Obra - ${obra.nome_fantasia}`} />
 
             {flash.message && (
-                <div className="mb-6 bg-[#f0f9f8] border border-[#c1ede5] text-[#008f75] px-4 py-3 rounded-xl text-sm font-medium shadow-sm">
+                <div className="mb-6 bg-[#eef2f9] border border-[#bccae7] text-[#3a5a8c] px-4 py-3 rounded-xl text-sm font-medium shadow-sm">
                     {flash.message}
                 </div>
             )}
@@ -34,7 +34,7 @@ export default function Users({ obra, companyUsers }) {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Selecione o Usuário</label>
                                 <select 
-                                    className="mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] px-3 py-2 text-sm"
+                                    className="mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] px-3 py-2 text-sm"
                                     value={data.user_id}
                                     onChange={e => setData('user_id', e.target.value)}
                                 >
@@ -48,7 +48,7 @@ export default function Users({ obra, companyUsers }) {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Nível de Acesso (Cargo na Obra)</label>
                                 <select 
-                                    className="mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] px-3 py-2 text-sm"
+                                    className="mt-2 block w-full border border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] px-3 py-2 text-sm"
                                     value={data.role}
                                     onChange={e => setData('role', e.target.value)}
                                 >
@@ -61,7 +61,7 @@ export default function Users({ obra, companyUsers }) {
                             <button
                                 type="submit"
                                 disabled={processing || !data.user_id}
-                                className="w-full justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-[#00b393] hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00b393] transition-colors disabled:opacity-50 mt-4"
+                                className="w-full justify-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-[#557bbb] hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#557bbb] transition-colors disabled:opacity-50 mt-4"
                             >
                                 {processing ? 'Adicionando...' : 'Adicionar à Obra'}
                             </button>

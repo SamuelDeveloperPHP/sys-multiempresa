@@ -27,7 +27,7 @@ export default function Edit({ mustVerifyEmail, status, requires_2fa_setup, two_
             <Head title="Perfil" />
 
             <div className="py-8">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <div className="w-full sm:px-6 lg:px-8">
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 flex flex-col md:flex-row min-h-[600px]">
                         
                         {/* Sidebar */}
@@ -38,7 +38,7 @@ export default function Edit({ mustVerifyEmail, status, requires_2fa_setup, two_
                                     alt={auth.user.name} 
                                     className="h-20 w-20 rounded-full object-cover border-4 border-white shadow-sm"
                                 />
-                                <h3 className="mt-4 text-center font-bold text-gray-900 border-b-2 border-[#00b393] pb-1">{auth.user.name}</h3>
+                                <h3 className="mt-4 text-center font-bold text-gray-900 border-b-2 border-[#557bbb] pb-1">{auth.user.name}</h3>
                                 <p className="mt-1 text-xs text-gray-500">{auth.user.email}</p>
                             </div>
 
@@ -46,7 +46,7 @@ export default function Edit({ mustVerifyEmail, status, requires_2fa_setup, two_
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-150 ${activeTab === tab.id ? 'bg-[#00b393] text-white shadow-md' : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'}`}
+                                    className={`flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-150 ${activeTab === tab.id ? 'bg-[#557bbb] text-white shadow-md' : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'}`}
                                 >
                                     <svg className="h-5 w-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={tab.icon} />

@@ -1,5 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 export default function PreventivasIndex({ preventivas, veiculos, filtros }) {
   const { flash } = usePage().props;
@@ -18,13 +19,13 @@ export default function PreventivasIndex({ preventivas, veiculos, filtros }) {
   };
 
   return (
-    <>
+    <AuthenticatedLayout>
       <Head title="Preventivas" />
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 w-full">
         <header className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Preventivas</h1>
           <Link href={route('admin.frota.preventivas.create')}
-                className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">+ Nova preventiva</Link>
+                className="bg-rise-600 text-white px-4 py-2 rounded-lg hover:bg-rise-700">+ Nova preventiva</Link>
         </header>
 
         {flash?.success && <div className="bg-green-50 border border-green-200 text-green-800 p-3 rounded mb-4">{flash.success}</div>}
@@ -63,7 +64,7 @@ export default function PreventivasIndex({ preventivas, veiculos, filtros }) {
                   <td className="px-4 py-3">{p.tipo ?? '—'}</td>
                   <td className="px-4 py-3 text-right">{p.periodo ?? '—'}</td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={route('admin.frota.preventivas.show', p.id)} className="text-purple-600 hover:underline">
+                    <Link href={route('admin.frota.preventivas.show', p.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">
                       {p.itens_realizados_count} execuções
                     </Link>
                   </td>
@@ -73,8 +74,8 @@ export default function PreventivasIndex({ preventivas, veiculos, filtros }) {
                     }`}>{p.situacao ?? '—'}</span>
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
-                    <Link href={route('admin.frota.preventivas.edit', p.id)} className="text-blue-600 hover:underline">Editar</Link>
-                    <button onClick={() => excluir(p)} className="text-red-600 hover:underline">Excluir</button>
+                    <Link href={route('admin.frota.preventivas.edit', p.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</Link>
+                    <button onClick={() => excluir(p)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
                 </tr>
               ))}
@@ -82,6 +83,6 @@ export default function PreventivasIndex({ preventivas, veiculos, filtros }) {
           </table>
         </div>
       </div>
-    </>
+    </AuthenticatedLayout>
   );
 }

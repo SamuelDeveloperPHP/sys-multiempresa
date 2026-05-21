@@ -57,7 +57,7 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status, clas
                     />
                 </div>
                 <form onSubmit={(e) => { e.preventDefault(); updatePhoto(); }}>
-                    <label className="block sm:inline-flex justify-center items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#00b393] focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150 cursor-pointer">
+                    <label className="block sm:inline-flex justify-center items-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#557bbb] focus:ring-offset-2 disabled:opacity-25 transition ease-in-out duration-150 cursor-pointer">
                         <span>Nova Foto</span>
                         <input 
                             type="file" 
@@ -82,7 +82,7 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status, clas
                     <input
                         id="name"
                         type="text"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring focus:ring-[#00b393] focus:ring-opacity-50"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring focus:ring-[#557bbb] focus:ring-opacity-50"
                         value={data.name}
                         onChange={(e) => setData('name', e.target.value)}
                         required
@@ -97,7 +97,7 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status, clas
                     <input
                         id="email"
                         type="email"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring focus:ring-[#00b393] focus:ring-opacity-50 bg-gray-50"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring focus:ring-[#557bbb] focus:ring-opacity-50 bg-gray-50"
                         value={data.email}
                         onChange={(e) => setData('email', e.target.value)}
                         required
@@ -115,7 +115,7 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status, clas
                                 href={route('verification.send')}
                                 method="post"
                                 as="button"
-                                className="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00b393] ml-1"
+                                className="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#557bbb] ml-1"
                             >
                                 Clique aqui para reenviar o email de verificação.
                             </Link>
@@ -132,7 +132,7 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status, clas
                 <div className="flex items-center gap-4">
                     <button 
                         disabled={processing} 
-                        className="inline-flex justify-center rounded-md border border-transparent bg-[#00b393] py-2 px-4-sm px-6 text-sm font-medium text-white shadow-sm hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-[#00b393] focus:ring-offset-2 disabled:opacity-50"
+                        className="inline-flex justify-center rounded-md border border-transparent bg-[#557bbb] py-2 px-4-sm px-6 text-sm font-medium text-white shadow-sm hover:bg-[#009b80] focus:outline-none focus:ring-2 focus:ring-[#557bbb] focus:ring-offset-2 disabled:opacity-50"
                     >
                         Salvar Alterações
                     </button>

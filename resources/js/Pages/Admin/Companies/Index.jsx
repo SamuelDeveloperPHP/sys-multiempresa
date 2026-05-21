@@ -9,7 +9,7 @@ export default function Index({ companies, canManage, createRoute }) {
             <Head title="Empresas" />
 
             {flash.message && (
-                <div className="mb-6 bg-[#f0f9f8] border border-[#c1ede5] text-[#008f75] px-4 py-3 rounded-xl text-sm font-medium shadow-sm">
+                <div className="mb-6 bg-[#eef2f9] border border-[#bccae7] text-[#3a5a8c] px-4 py-3 rounded-xl text-sm font-medium shadow-sm">
                     {flash.message}
                 </div>
             )}
@@ -20,7 +20,7 @@ export default function Index({ companies, canManage, createRoute }) {
                         <h3 className="text-lg font-semibold text-gray-800 tracking-tight">Suas Empresas</h3>
                         <p className="text-sm text-gray-500 mt-1">Administre ou acesse os espaços de trabalho vinculados ao seu perfil.</p>
                     </div>
-                    <Link href={route(createRoute)} className="px-4 py-2 bg-[#00b393] text-white text-sm font-semibold rounded-lg hover:bg-[#009b80] transition-colors shadow-sm flex items-center">
+                    <Link href={route(createRoute)} className="px-4 py-2 bg-[#557bbb] text-white text-sm font-semibold rounded-lg hover:bg-[#009b80] transition-colors shadow-sm flex items-center">
                         <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                         Nova Empresa
                     </Link>

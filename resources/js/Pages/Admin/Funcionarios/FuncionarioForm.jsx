@@ -108,13 +108,13 @@ export default function FuncionarioForm({
                     {companies && companies.map((company) => {
                         const isChecked = data.companies.includes(company.id.toString());
                         return (
-                            <label key={company.id} className={`flex items-start p-3 border rounded-lg cursor-pointer transition-colors ${isChecked ? 'bg-[#f0f9f8] border-[#00b393]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                            <label key={company.id} className={`flex items-start p-3 border rounded-lg cursor-pointer transition-colors ${isChecked ? 'bg-[#eef2f9] border-[#557bbb]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
                                 <input
                                     type="radio"
                                     name="company"
                                     onChange={() => handleCompanyToggle(company.id)}
                                     checked={isChecked}
-                                    className="mt-0.5 rounded-full border-gray-300 text-[#00b393] focus:ring-[#00b393]"
+                                    className="mt-0.5 rounded-full border-gray-300 text-[#557bbb] focus:ring-[#557bbb]"
                                 />
                                 <span className="ml-2 text-sm font-medium text-gray-800">{company.name}</span>
                             </label>
@@ -134,7 +134,7 @@ export default function FuncionarioForm({
                             type="text"
                             value={data.nome}
                             onChange={(e) => setData('nome', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                             required
                         />
                         {errors.nome && <div className="text-rose-500 text-xs mt-1">{errors.nome}</div>}
@@ -145,7 +145,7 @@ export default function FuncionarioForm({
                         <select
                             value={data.status}
                             onChange={(e) => setData('status', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         >
                             <option value="Ativo">Ativo</option>
                             <option value="Inativo">Inativo</option>
@@ -161,7 +161,7 @@ export default function FuncionarioForm({
                             type="text"
                             value={data.matricula}
                             onChange={(e) => setData('matricula', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         />
                         {errors.matricula && <div className="text-rose-500 text-xs mt-1">{errors.matricula}</div>}
                     </div>
@@ -171,7 +171,7 @@ export default function FuncionarioForm({
                         <select
                             value={data.id_funcao}
                             onChange={(e) => setData('id_funcao', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         >
                             <option value="">Selecione...</option>
                             {funcoes && funcoes.map(f => <option key={f.id} value={f.id}>{f.funcao}</option>)}
@@ -183,7 +183,7 @@ export default function FuncionarioForm({
                         <select
                             value={data.id_setor}
                             onChange={(e) => setData('id_setor', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         >
                             <option value="">— Sem setor —</option>
                             {setores && setores.map(s => <option key={s.id} value={s.id}>{s.nome_setor || s.nome}</option>)}
@@ -197,7 +197,7 @@ export default function FuncionarioForm({
                         <select
                             value={data.id_obra}
                             onChange={(e) => setData('id_obra', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         >
                             <option value="">— Sem obra —</option>
                             {obras && obras.map(o => <option key={o.id} value={o.id}>{o.nome_fantasia || o.nome}</option>)}
@@ -213,7 +213,7 @@ export default function FuncionarioForm({
                             type="date"
                             value={data.data_adminssao}
                             onChange={(e) => setData('data_adminssao', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         />
                     </div>
 
@@ -223,7 +223,7 @@ export default function FuncionarioForm({
                             type="date"
                             value={data.data_demissao}
                             onChange={(e) => setData('data_demissao', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         />
                     </div>
                 </div>
@@ -239,7 +239,7 @@ export default function FuncionarioForm({
                             type="text"
                             value={data.cpf}
                             onChange={(e) => setData('cpf', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         />
                         {errors.cpf && <div className="text-rose-500 text-xs mt-1">{errors.cpf}</div>}
                     </div>
@@ -250,7 +250,7 @@ export default function FuncionarioForm({
                             type="text"
                             value={data.rg}
                             onChange={(e) => setData('rg', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         />
                     </div>
 
@@ -260,7 +260,7 @@ export default function FuncionarioForm({
                             type="email"
                             value={data.email}
                             onChange={(e) => setData('email', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         />
                     </div>
 
@@ -270,7 +270,7 @@ export default function FuncionarioForm({
                             type="text"
                             value={data.celular}
                             onChange={(e) => setData('celular', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         />
                     </div>
 
@@ -279,7 +279,7 @@ export default function FuncionarioForm({
                         <select
                             value={data.genero}
                             onChange={(e) => setData('genero', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         >
                             <option value="">Selecione...</option>
                             <option value="M">Masculino</option>
@@ -293,7 +293,7 @@ export default function FuncionarioForm({
                         <select
                             value={data.estado_civil}
                             onChange={(e) => setData('estado_civil', e.target.value)}
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         >
                             <option value="">Selecione...</option>
                             <option value="Solteiro(a)">Solteiro(a)</option>
@@ -306,7 +306,7 @@ export default function FuncionarioForm({
             </div>
 
             {/* ACESSO AO SISTEMA (CRIAÇÃO DE USUÁRIO / PERMISSÕES) */}
-            <div className={`bg-white shadow-sm border ${data.create_user ? 'border-[#00b393]' : 'border-gray-100'} rounded-xl p-6 transition-colors duration-300`}>
+            <div className={`bg-white shadow-sm border ${data.create_user ? 'border-[#557bbb]' : 'border-gray-100'} rounded-xl p-6 transition-colors duration-300`}>
                 <div className="flex items-center justify-between mb-4 border-b pb-2">
                     <h3 className="text-lg font-bold text-gray-900">Acesso ao Sistema</h3>
                     <label className="flex items-center cursor-pointer gap-2">
@@ -321,7 +321,7 @@ export default function FuncionarioForm({
                                     if(e.target.checked && !data.user_email) setData('user_email', data.email);
                                 }}
                             />
-                            <div className={`block w-10 h-6 rounded-full transition-colors ${data.create_user ? 'bg-[#00b393]' : 'bg-gray-300'}`}></div>
+                            <div className={`block w-10 h-6 rounded-full transition-colors ${data.create_user ? 'bg-[#557bbb]' : 'bg-gray-300'}`}></div>
                             <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${data.create_user ? 'transform translate-x-4' : ''}`}></div>
                         </div>
                     </label>
@@ -336,7 +336,7 @@ export default function FuncionarioForm({
                                     type="email"
                                     value={data.user_email}
                                     onChange={(e) => setData('user_email', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                                     required={data.create_user}
                                 />
                                 {errors.user_email && <div className="text-rose-500 text-xs mt-1">{errors.user_email}</div>}
@@ -348,7 +348,7 @@ export default function FuncionarioForm({
                                     type="password"
                                     value={data.user_password}
                                     onChange={(e) => setData('user_password', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                                     required={data.create_user && (!isEdit || !linkedUser)}
                                 />
                                 {errors.user_password && <div className="text-rose-500 text-xs mt-1">{errors.user_password}</div>}
@@ -359,7 +359,7 @@ export default function FuncionarioForm({
                                 <select
                                     value={data.user_type}
                                     onChange={(e) => setData('user_type', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring-[#00b393] sm:text-sm"
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                                 >
                                     <option value="user">Usuário Padrão</option>
                                     <option value="admin">Administrador Sistêmico</option>
@@ -378,11 +378,11 @@ export default function FuncionarioForm({
                                             const baseModule = group.find(m => m.id.toString() === baseModuleId) || group[0];
                                             const isOpen = openPanels[baseModuleId] || false;
                                             return (
-                                                <div key={baseModuleId} className={`border rounded-lg overflow-hidden transition-colors ${isOpen ? 'border-[#00b393]' : 'border-gray-200'}`}>
+                                                <div key={baseModuleId} className={`border rounded-lg overflow-hidden transition-colors ${isOpen ? 'border-[#557bbb]' : 'border-gray-200'}`}>
                                                     <button
                                                         type="button"
                                                         onClick={() => togglePanel(baseModuleId)}
-                                                        className={`w-full flex items-center justify-between px-4 py-3 text-left font-semibold focus:outline-none transition-colors ${isOpen ? 'bg-[#f0f9f8] text-[#008f75]' : 'bg-gray-50 hover:bg-gray-100'}`}
+                                                        className={`w-full flex items-center justify-between px-4 py-3 text-left font-semibold focus:outline-none transition-colors ${isOpen ? 'bg-[#eef2f9] text-[#3a5a8c]' : 'bg-gray-50 hover:bg-gray-100'}`}
                                                     >
                                                         <span>{baseModule ? baseModule.name : `Módulo #${baseModuleId}`}</span>
                                                         <svg className={`w-5 h-5 transition-transform duration-200 ${isOpen ? 'transform rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -410,10 +410,10 @@ export default function FuncionarioForm({
                                                                         return (
                                                                             <tr key={mId} className="hover:bg-gray-50">
                                                                                 <td className="px-2 py-3 font-medium text-gray-800">{module.name}</td>
-                                                                                <td className="px-2 py-3 text-center"><input type="checkbox" checked={!!p.view} onChange={() => handlePermissionToggle(mId, 'view')} className="rounded border-gray-300 text-[#00b393] focus:ring-[#00b393] w-4 h-4 cursor-pointer" /></td>
-                                                                                <td className="px-2 py-3 text-center"><input type="checkbox" checked={!!p.list} onChange={() => handlePermissionToggle(mId, 'list')} className="rounded border-gray-300 text-[#00b393] focus:ring-[#00b393] w-4 h-4 cursor-pointer" /></td>
-                                                                                <td className="px-2 py-3 text-center"><input type="checkbox" checked={!!p.create} onChange={() => handlePermissionToggle(mId, 'create')} className="rounded border-gray-300 text-[#00b393] focus:ring-[#00b393] w-4 h-4 cursor-pointer" /></td>
-                                                                                <td className="px-2 py-3 text-center"><input type="checkbox" checked={!!p.edit} onChange={() => handlePermissionToggle(mId, 'edit')} className="rounded border-gray-300 text-[#00b393] focus:ring-[#00b393] w-4 h-4 cursor-pointer" /></td>
+                                                                                <td className="px-2 py-3 text-center"><input type="checkbox" checked={!!p.view} onChange={() => handlePermissionToggle(mId, 'view')} className="rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb] w-4 h-4 cursor-pointer" /></td>
+                                                                                <td className="px-2 py-3 text-center"><input type="checkbox" checked={!!p.list} onChange={() => handlePermissionToggle(mId, 'list')} className="rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb] w-4 h-4 cursor-pointer" /></td>
+                                                                                <td className="px-2 py-3 text-center"><input type="checkbox" checked={!!p.create} onChange={() => handlePermissionToggle(mId, 'create')} className="rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb] w-4 h-4 cursor-pointer" /></td>
+                                                                                <td className="px-2 py-3 text-center"><input type="checkbox" checked={!!p.edit} onChange={() => handlePermissionToggle(mId, 'edit')} className="rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb] w-4 h-4 cursor-pointer" /></td>
                                                                                 <td className="px-2 py-3 text-center"><input type="checkbox" checked={!!p.delete} onChange={() => handlePermissionToggle(mId, 'delete')} className="rounded border-gray-300 text-rose-500 focus:ring-rose-500 w-4 h-4 cursor-pointer" /></td>
                                                                             </tr>
                                                                         );
@@ -443,7 +443,7 @@ export default function FuncionarioForm({
                 <button
                     type="submit"
                     disabled={processing}
-                    className={`px-8 py-2.5 rounded-lg font-bold text-white shadow-md transition-all ${processing ? 'bg-gray-400 cursor-not-allowed hidden' : 'bg-[#00b393] hover:bg-[#008f75] hover:-translate-y-0.5 hover:shadow-lg'}`}
+                    className={`px-8 py-2.5 rounded-lg font-bold text-white shadow-md transition-all ${processing ? 'bg-gray-400 cursor-not-allowed hidden' : 'bg-[#557bbb] hover:bg-[#3a5a8c] hover:-translate-y-0.5 hover:shadow-lg'}`}
                 >
                     {isEdit ? 'Salvar Alterações' : 'Cadastrar Funcionário'}
                 </button>

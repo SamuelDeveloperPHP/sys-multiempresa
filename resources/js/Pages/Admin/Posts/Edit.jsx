@@ -91,7 +91,7 @@ export default function Edit({ post: postObj, companies, categories, selectedCom
                                 id="title"
                                 value={data.title}
                                 onChange={e => setData('title', e.target.value)}
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] sm:text-sm"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] sm:text-sm"
                                 required
                             />
                             {errors.title && <div className="mt-1 text-sm text-red-600">{errors.title}</div>}
@@ -106,7 +106,7 @@ export default function Edit({ post: postObj, companies, categories, selectedCom
                                 value={data.description}
                                 onChange={e => setData('description', e.target.value)}
                                 rows="2"
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] sm:text-sm"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] sm:text-sm"
                             ></textarea>
                             {errors.description && <div className="mt-1 text-sm text-red-600">{errors.description}</div>}
                         </div>
@@ -120,7 +120,7 @@ export default function Edit({ post: postObj, companies, categories, selectedCom
                                 value={data.content}
                                 onChange={e => setData('content', e.target.value)}
                                 rows="8"
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] font-mono sm:text-sm text-gray-800"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] font-mono sm:text-sm text-gray-800"
                                 required
                             ></textarea>
                             {errors.content && <div className="mt-1 text-sm text-red-600">{errors.content}</div>}
@@ -134,7 +134,7 @@ export default function Edit({ post: postObj, companies, categories, selectedCom
                                 id="category_id"
                                 value={data.category_id}
                                 onChange={e => setData('category_id', e.target.value)}
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] sm:text-sm"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] sm:text-sm"
                             >
                                 <option value="">Nenhuma</option>
                                 {categories.map(cat => (
@@ -153,7 +153,7 @@ export default function Edit({ post: postObj, companies, categories, selectedCom
                                 id="published_at"
                                 value={data.published_at}
                                 onChange={e => setData('published_at', e.target.value)}
-                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#00b393] focus:border-[#00b393] sm:text-sm"
+                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-[#557bbb] focus:border-[#557bbb] sm:text-sm"
                             />
                             {errors.published_at && <div className="mt-1 text-sm text-red-600">{errors.published_at}</div>}
                         </div>
@@ -164,7 +164,7 @@ export default function Edit({ post: postObj, companies, categories, selectedCom
                                     type="checkbox"
                                     checked={data.is_published}
                                     onChange={e => setData('is_published', e.target.checked)}
-                                    className="form-checkbox h-5 w-5 text-[#00b393] border-gray-300 rounded focus:ring-[#00b393]"
+                                    className="form-checkbox h-5 w-5 text-[#557bbb] border-gray-300 rounded focus:ring-[#557bbb]"
                                 />
                                 <span className="text-sm font-medium text-gray-700">Post Publicado</span>
                             </label>
@@ -182,7 +182,7 @@ export default function Edit({ post: postObj, companies, categories, selectedCom
                                         type="checkbox"
                                         checked={data.companies.includes(company.id)}
                                         onChange={() => handleCompanyToggle(company.id)}
-                                        className="form-checkbox text-[#00b393] border-gray-300 rounded focus:ring-[#00b393]"
+                                        className="form-checkbox text-[#557bbb] border-gray-300 rounded focus:ring-[#557bbb]"
                                     />
                                     <span className="text-sm text-gray-700 truncate">{company.name}</span>
                                 </label>
@@ -199,7 +199,7 @@ export default function Edit({ post: postObj, companies, categories, selectedCom
                             multiple
                             accept="image/*"
                             onChange={handleImageChange}
-                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#e6f7f4] file:text-[#008f75] hover:file:bg-[#d1f0eb] transition-colors"
+                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#e6f7f4] file:text-[#3a5a8c] hover:file:bg-[#d1f0eb] transition-colors"
                         />
                         {errors.images && <div className="mt-1 text-sm text-red-600">{errors.images}</div>}
                         
@@ -238,7 +238,7 @@ export default function Edit({ post: postObj, companies, categories, selectedCom
                         <button
                             type="submit"
                             disabled={processing}
-                            className="px-5 py-2.5 bg-[#00b393] text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-[#009b80] transition-colors disabled:opacity-50"
+                            className="px-5 py-2.5 bg-[#557bbb] text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-[#009b80] transition-colors disabled:opacity-50"
                         >
                             Atualizar Post
                         </button>

@@ -49,7 +49,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                         value={data.current_password}
                         onChange={(e) => setData('current_password', e.target.value)}
                         type="password"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring focus:ring-[#00b393] focus:ring-opacity-50"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring focus:ring-[#557bbb] focus:ring-opacity-50"
                         autoComplete="current-password"
                     />
                     {errors.current_password && <p className="text-sm text-red-600 mt-2">{errors.current_password}</p>}
@@ -63,7 +63,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                         value={data.password}
                         onChange={(e) => setData('password', e.target.value)}
                         type="password"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring focus:ring-[#00b393] focus:ring-opacity-50"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring focus:ring-[#557bbb] focus:ring-opacity-50"
                         autoComplete="new-password"
                     />
                     {errors.password && <p className="text-sm text-red-600 mt-2">{errors.password}</p>}
@@ -76,7 +76,7 @@ export default function UpdatePasswordForm({ className = '' }) {
                         value={data.password_confirmation}
                         onChange={(e) => setData('password_confirmation', e.target.value)}
                         type="password"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#00b393] focus:ring focus:ring-[#00b393] focus:ring-opacity-50"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring focus:ring-[#557bbb] focus:ring-opacity-50"
                         autoComplete="new-password"
                     />
                     {errors.password_confirmation && <p className="text-sm text-red-600 mt-2">{errors.password_confirmation}</p>}
