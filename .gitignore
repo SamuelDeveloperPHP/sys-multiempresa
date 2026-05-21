@@ -22,3 +22,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Releases empacotadas pelo scripts/deploy-build.ps1
+/_release
+/.claude
