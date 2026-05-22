@@ -45,16 +45,18 @@ export default function AuthenticatedLayout({ header, children }) {
             >
                 {/* Brand */}
                 <div className="h-16 flex items-center px-4 border-b border-gray-200">
-                    <div className="flex items-center gap-2 w-full">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#1abc9c] to-[#00BCD4] flex items-center justify-center text-white font-bold flex-shrink-0 shadow-sm">
-                            S
-                        </div>
+                    <Link href="/dashboard" className="flex items-center gap-2 w-full">
+                        <img
+                            src="/imagens/logos/adaptive-icon.png"
+                            alt="SGA"
+                            className="w-8 h-8 flex-shrink-0 object-contain"
+                        />
                         {!sidebarCollapsed && (
                             <span className="text-[20px] font-extrabold tracking-tight text-gray-800">
-                                SGA<span className="text-[#1abc9c]">·Eng</span>
+                                SGA<span className="text-[#557bbb]">·Eng</span>
                             </span>
                         )}
-                    </div>
+                    </Link>
                 </div>
 
                 {/* Menu scroll */}
