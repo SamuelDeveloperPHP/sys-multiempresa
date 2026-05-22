@@ -4,6 +4,24 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+    // Força IPv4 (127.0.0.1) — alguns Windows tem problemas com IPv6 loopback ([::1])
+    // que se manifesta como ERR_INTERNET_DISCONNECTED no browser ao tentar bater
+    // no Vite dev server.
+    server: {
+        host: '127.0.0.1',
+        port: 5173,
+        strictPort: true,
+        // CORS: permite que o browser, ao bater em 127.0.0.1:8000 (Laravel),
+        // baixe assets do Vite em 127.0.0.1:5173 sem problemas.
+        cors: {
+            origin: ['http://127.0.0.1:8000', 'http://localhost:8000'],
+        },
+        hmr: {
+            host: '127.0.0.1',
+            port: 5173,
+            protocol: 'ws',
+        },
+    },
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/app.jsx'],
@@ -29,24 +47,45 @@ export default defineConfig({
                 lang: 'pt-BR',
                 icons: [
                     {
-                        src: '/icons/icon-192.png',
+                        src: '/imagens/logos/adaptive-icon.png',
                         sizes: '192x192',
                         type: 'image/png',
-                        purpose: 'any maskable',
+                        purpose: 'any',
                     },
                     {
-                        src: '/icons/icon-512.png',
+                        src: '/imagens/logos/adaptive-icon.png',
                         sizes: '512x512',
                         type: 'image/png',
-                        purpose: 'any maskable',
+                        purpose: 'any',
+                    },
+                    {
+                        src: '/imagens/logos/adaptive-icon.png',
+                        sizes: '512x512',
+                        type: 'image/png',
+                        purpose: 'maskable',
                     },
                 ],
             },
             workbox: {
                 // Pré-cache do app-shell (HTML/JS/CSS/fonts)
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-                // /login removido do denylist — agora cacheia a tela de login p/ offline
-                navigateFallbackDenylist: [/^\/admin/, /^\/api/, /^\/logout/],
+                // Navigation Fallback: quando uma navegação falha (offline + URL não
+                // está no cache de runtime), o Workbox serve essa página. Ela está
+                // em public/offline.html e é precacheada automaticamente porque
+                // bate com globPatterns *.html.
+                navigateFallback: '/offline.html',
+                // Não use o fallback para essas rotas (deixa a request falhar para
+                // o handler natural do browser, ou para o runtimeCaching adequado).
+                // OBS: /mobile/* NÃO está aqui — assim, navegações para /mobile/*
+                // sem cache caem no offline.html (que tem botão para /mobile/veiculos
+                // já cacheado pelo runtimeCaching).
+                navigateFallbackDenylist: [
+                    /^\/admin/,
+                    /^\/api/,
+                    /^\/logout/,
+                    /^\/_dev/,
+                    /\/[^/?]+\.[^/]+$/, // arquivos com extensão (imagens, json, etc)
+                ],
                 runtimeCaching: [
                     {
                         // Fontes Bunny / Google
@@ -75,6 +114,16 @@ export default defineConfig({
                         options: {
                             cacheName: 'veiculos-imgs',
                             expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+                            cacheableResponse: { statuses: [0, 200] },
+                        },
+                    },
+                    {
+                        // Logos e ícones da marca — quase imutáveis. CacheFirst longo.
+                        urlPattern: /\/imagens\/logos\/.*/i,
+                        handler: 'CacheFirst',
+                        options: {
+                            cacheName: 'brand-assets',
+                            expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
                             cacheableResponse: { statuses: [0, 200] },
                         },
                     },

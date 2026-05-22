@@ -8,16 +8,26 @@
 // -----------------------------------------------------------------------------
 
 import { Link, usePage, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import OnlineIndicator from '@/Components/Mobile/OnlineIndicator';
 import SyncButton from '@/Components/Mobile/SyncButton';
 import InstallPrompt from '@/Components/Mobile/InstallPrompt';
 import useSyncStatus from '@/offline/hooks/useSyncStatus';
+import { warmupMobileCache } from '@/offline/warmupCache';
 
 export default function MobileLayout({ header, backUrl, children, hideBottomNav = false }) {
     const { auth } = usePage().props;
     const { user } = auth || {};
     const [menuOpen, setMenuOpen] = useState(false);
+
+    // Pre-warm do cache de navegação: quando o usuário abre qualquer página
+    // mobile estando online, disparamos fetch em background das outras rotas
+    // principais para que o Service Worker as cacheie. Assim, se entrar em
+    // modo avião depois, todas funcionam offline.
+    // Throttled internamente (5 min) e silencioso em caso de erro.
+    useEffect(() => {
+        warmupMobileCache().catch(() => { /* silent */ });
+    }, []);
 
     const handleBack = () => {
         if (backUrl) {
