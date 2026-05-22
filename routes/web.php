@@ -32,10 +32,77 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 | Service Worker (PWA) — servido na raiz para ter escopo global "/"
 |--------------------------------------------------------------------------
-| O Vite gera public/build/sw.js, mas o SW precisa ser servido a partir
-| da raiz para conseguir interceptar requests fora de /build/*.
+| Em PROD: serve o sw.js gerado pelo Vite (com reescrita de paths).
+| Em DEV:  serve um "kill-switch SW" que se auto-desregistra, limpa caches
+|          e força reload — necessário porque um SW antigo cacheado pode
+|          continuar interceptando o HTML cacheado (com [::1]:5173) e
+|          impedindo que a versão nova chegue ao browser.
 */
 Route::get('/sw.js', function () {
+    // -----------------------------------------------------------------------
+    // DEV: Kill-Switch SW (auto-destrutivo)
+    // -----------------------------------------------------------------------
+    // O browser CHECA atualização do /sw.js a cada navegação. Quando ele
+    // pegar esse kill-switch, vai:
+    //   1) install: skipWaiting() → ativa imediatamente
+    //   2) activate: limpa CacheStorage + desregistra a si mesmo +
+    //                navega cada client para client.url (reload fresh)
+    //   3) fetch: NÃO intercepta — deixa tudo passar direto pro servidor
+    // Resultado: na próxima navegação o HTML vem fresh do Laravel, sem SW.
+    if (!app()->environment('production')) {
+        $kill = <<<'JS'
+// === SGA Kill-Switch Service Worker (DEV ONLY) ===
+// Auto-desregistra, limpa caches e recarrega clients controlados.
+// Servido pela rota Laravel /sw.js quando APP_ENV != production.
+
+self.addEventListener('install', (event) => {
+    // Pula o estado "waiting" — ativa assim que instala
+    self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+    event.waitUntil((async () => {
+        try {
+            // 1) Toma controle imediato dos clients
+            await self.clients.claim();
+
+            // 2) Limpa TODOS os caches do CacheStorage (workbox, runtime, etc)
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(n => caches.delete(n)));
+
+            // 3) Desregistra a si mesmo
+            await self.registration.unregister();
+
+            // 4) Força reload de todos os clients (HTML virá fresh do server)
+            const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+            for (const client of clients) {
+                try {
+                    // navigate() força reload sem manter histórico bagunçado
+                    await client.navigate(client.url);
+                } catch (e) {
+                    // Fallback: postMessage (caso navigate falhe)
+                    try { client.postMessage({ type: 'SW_KILLED_RELOAD' }); } catch (_) {}
+                }
+            }
+        } catch (e) {
+            // Silencia — não há nada para fazer em caso de erro aqui
+        }
+    })());
+});
+
+// NÃO interceptamos fetch — todas as requisições vão direto pro servidor.
+// Sem listener de fetch, o SW não controla nenhuma resposta.
+JS;
+        return response($kill, 200, [
+            'Content-Type' => 'application/javascript',
+            'Service-Worker-Allowed' => '/',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        ]);
+    }
+
+    // -----------------------------------------------------------------------
+    // PROD: sw.js do Vite com reescrita de paths
+    // -----------------------------------------------------------------------
     $file = public_path('build/sw.js');
     if (!file_exists($file)) {
         return response('// service worker ainda não foi gerado (rode `npm run build`)', 200, [
@@ -63,15 +130,11 @@ Route::get('/sw.js', function () {
         '$1/manifest.webmanifest$1',
         $content
     );
-    // O Workbox gera uma NavigationRoute com createHandlerBoundToURL("index.html")
-    // que assume um SPA com index.html no precache. Nosso Laravel/Inertia não
-    // tem isso — cada navegação retorna HTML diferente do servidor. Remove a
-    // linha inteira (já temos NetworkFirst para /mobile/* e /login/ no runtime).
-    $content = preg_replace(
-        '#,?\s*[a-z]\.registerRoute\(new [a-z]\.NavigationRoute\([a-z]\.createHandlerBoundToURL\([^)]+\),\{denylist:\[[^\]]+\]\}\)\)#',
-        '',
-        $content
-    );
+    // NavigationRoute do Workbox agora aponta para "/offline.html" (configurado
+    // via navigateFallback no vite.config.js). Esse arquivo é precacheado
+    // automaticamente pelo globPatterns *.html, então a NavigationRoute funciona
+    // corretamente. NÃO removemos mais essa linha — ela é essencial para que
+    // navegações offline para URLs não-cacheadas tenham um fallback amigável.
 
     return response($content, 200, [
         'Content-Type' => 'application/javascript',
@@ -79,6 +142,85 @@ Route::get('/sw.js', function () {
         'Cache-Control' => 'no-cache, no-store, must-revalidate',
     ]);
 })->name('sw.js');
+
+/*
+|--------------------------------------------------------------------------
+| Dev-only: página de limpeza manual de SW + caches
+|--------------------------------------------------------------------------
+| Backup caso o kill-switch /sw.js não pegue (ex: usuário em offline ou
+| browser que não está checando update). Acesse http://127.0.0.1:8000/_dev/reset-sw
+| que executa unregister + caches.delete + reload com feedback visual.
+*/
+Route::get('/_dev/reset-sw', function () {
+    abort_if(app()->environment('production'), 404);
+    return response(<<<'HTML'
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Reset SW — SGA Dev</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 20px; color: #1f2937; background: #f9fafb; }
+  h1 { color: #557bbb; }
+  pre { background: #111827; color: #e5e7eb; padding: 16px; border-radius: 8px; font-size: 13px; overflow-x: auto; }
+  .ok { color: #10b981; font-weight: bold; }
+  .err { color: #ef4444; }
+  button { background: #557bbb; color: white; border: 0; padding: 10px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; margin-right: 8px; }
+  button:hover { background: #4263a3; }
+</style>
+</head>
+<body>
+<h1>SGA · Reset Service Worker (DEV)</h1>
+<p>Limpa Service Workers, CacheStorage e força nova navegação fresh do servidor.</p>
+<pre id="log">[aguardando…]</pre>
+<button onclick="goHome()">Ir para /</button>
+<button onclick="goMobile()">Ir para /mobile/veiculos</button>
+<script>
+const log = document.getElementById('log');
+function put(msg, cls) {
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  log.appendChild(line);
+}
+log.textContent = '';
+
+(async () => {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      put('SWs encontrados: ' + regs.length);
+      for (const r of regs) {
+        const ok = await r.unregister();
+        put(' • unregister ' + r.scope + ' → ' + (ok ? 'OK' : 'FAIL'), ok ? 'ok' : 'err');
+      }
+    } else {
+      put('serviceWorker API indisponível neste browser', 'err');
+    }
+    if (window.caches) {
+      const keys = await caches.keys();
+      put('Caches encontrados: ' + keys.length);
+      for (const k of keys) {
+        const ok = await caches.delete(k);
+        put(' • delete cache ' + k + ' → ' + (ok ? 'OK' : 'FAIL'), ok ? 'ok' : 'err');
+      }
+    }
+    put('');
+    put('✓ LIMPEZA CONCLUÍDA. Feche esta aba e abra uma NOVA aba em http://127.0.0.1:8000', 'ok');
+    put('  (não recarregue esta aba — abra uma nova para garantir contexto fresh)');
+  } catch (e) {
+    put('ERRO: ' + e.message, 'err');
+  }
+})();
+
+function goHome() { window.location.href = '/'; }
+function goMobile() { window.location.href = '/mobile/veiculos'; }
+</script>
+</body>
+</html>
+HTML, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+})->name('dev.reset-sw');
 
 Route::get('/manifest.webmanifest', function () {
     $file = public_path('build/manifest.webmanifest');

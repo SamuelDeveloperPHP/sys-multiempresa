@@ -1,31 +1,183 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SGA - Modo Offline</title>
-    <link rel="icon" href="/icons/icon-192.png">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Offline · SGA Engeativos</title>
+    <meta name="theme-color" content="#557bbb">
+    <link rel="icon" href="/imagens/logos/icon.png">
+    <link rel="apple-touch-icon" href="/imagens/logos/icon.png">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; background: linear-gradient(135deg, #1abc9c 0%, #00BCD4 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #1a2632; }
-        .card { background: #fff; border-radius: 16px; padding: 32px 28px; max-width: 360px; width: 88%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
-        .icon { font-size: 64px; margin-bottom: 12px; }
-        h1 { margin: 0 0 8px; font-size: 22px; }
-        p { margin: 0 0 20px; color: #5b6770; font-size: 14px; line-height: 1.5; }
-        button { background: #557bbb; color: #fff; border: 0; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; }
-        button:hover { background: #3f63a0; }
-        .links { margin-top: 16px; font-size: 12px; color: #888; }
-        .links a { color: #557bbb; text-decoration: none; }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #f9fafb 0%, #eef2f9 100%);
+            color: #1f2937;
+            -webkit-font-smoothing: antialiased;
+        }
+        .wrap {
+            min-height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(85, 123, 187, 0.12);
+            max-width: 420px;
+            width: 100%;
+            padding: 32px 28px;
+            text-align: center;
+        }
+        .logo {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 18px;
+            display: block;
+            object-fit: contain;
+        }
+        h1 {
+            font-size: 22px;
+            font-weight: 800;
+            margin: 0 0 8px;
+            color: #1f2937;
+            letter-spacing: -0.01em;
+        }
+        h1 span { color: #557bbb; }
+        p {
+            font-size: 14px;
+            line-height: 1.55;
+            color: #4b5563;
+            margin: 0 0 22px;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .status.online {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #f59e0b;
+            animation: pulse 1.5s infinite;
+        }
+        .status.online .dot { background: #10b981; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        button, a.btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            border: 0;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn-primary {
+            background: #557bbb;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(85, 123, 187, 0.3);
+        }
+        .btn-primary:hover { background: #3a5a8c; transform: translateY(-1px); }
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        .btn-secondary:hover { background: #e5e7eb; }
+        .hint {
+            margin-top: 18px;
+            font-size: 11px;
+            color: #9ca3af;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <div class="icon">📡</div>
-        <h1>Você está offline</h1>
-        <p>Não foi possível carregar essa página. Verifique sua conexão ou continue trabalhando com os dados em cache.</p>
-        <button onclick="window.location.reload()">Tentar novamente</button>
-        <div class="links">
-            <a href="/mobile/veiculos">Ir para Veículos (offline)</a>
+    <div class="wrap">
+        <div class="card">
+            <img src="/imagens/logos/adaptive-icon.png" alt="SGA Engeativos" class="logo" onerror="this.style.display='none'">
+
+            <div id="status" class="status">
+                <span class="dot"></span>
+                <span id="statusText">Você está offline</span>
+            </div>
+
+            <h1>SGA<span> Engeativos</span></h1>
+
+            <p>
+                Sem conexão no momento. Se você já acessou o app antes,
+                pode continuar usando funcionalidades a partir dos dados salvos localmente.
+            </p>
+
+            <div class="actions">
+                <a href="/mobile/veiculos" class="btn btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                    Abrir Veículos (cache local)
+                </a>
+
+                <button onclick="window.location.reload()" class="btn btn-secondary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    Tentar novamente
+                </button>
+            </div>
+
+            <p class="hint">
+                Dica: instale o app na tela inicial pelo menu do browser para acesso rápido em modo offline.
+            </p>
         </div>
     </div>
+
+    <script>
+        // Atualiza badge de status conforme conectividade muda
+        var statusEl = document.getElementById('status');
+        var statusText = document.getElementById('statusText');
+
+        function updateStatus() {
+            if (navigator.onLine) {
+                statusEl.classList.add('online');
+                statusText.textContent = 'Conexão restaurada — recarregando…';
+                setTimeout(function () {
+                    window.location.href = '/mobile/veiculos';
+                }, 800);
+            } else {
+                statusEl.classList.remove('online');
+                statusText.textContent = 'Você está offline';
+            }
+        }
+
+        window.addEventListener('online', updateStatus);
+        window.addEventListener('offline', updateStatus);
+        updateStatus();
+    </script>
 </body>
 </html>

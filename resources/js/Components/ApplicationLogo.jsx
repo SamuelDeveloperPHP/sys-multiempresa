@@ -1,8 +1,17 @@
-export default function ApplicationLogo(props) {
+/**
+ * ApplicationLogo — logo padrão do SGA Engeativos.
+ *
+ * Usa /imagens/logos/adaptive-icon.png. Aceita className para dimensionamento
+ * via Tailwind (ex: <ApplicationLogo className="h-10 w-10" />) e demais atributos
+ * de <img> (alt, style, onClick, etc).
+ */
+export default function ApplicationLogo({ className = 'h-8 w-8', alt = 'SGA Engeativos', ...props }) {
     return (
-        <svg {...props} viewBox="0 0 316 316" xmlns="http://www.w3.org/2000/svg">
-            {/* O SVG do logo da Engeativos / Sistema (versão minificada) */}
-            <path d="M305.8 81.125C305.77 80.995 305.69 80.885 305.59 80.805L160.59 13.305C160.03 13.045 159.43 12.925 158.83 12.925C158.23 12.925 157.63 13.045 157.07 13.305L12.07 80.805C11.97 80.885 11.89 80.995 11.86 81.125C11.81 81.255 11.81 81.405 11.86 81.535L57.26 128.535C57.51 128.795 57.85 128.925 58.21 128.925C58.57 128.925 58.91 128.795 59.16 128.535L115.16 70.335V244.335C115.16 244.885 115.61 245.335 116.16 245.335H201.5C202.05 245.335 202.5 244.885 202.5 244.335V70.335L258.5 128.535C258.75 128.795 259.09 128.925 259.45 128.925C259.81 128.925 260.15 128.795 260.4 128.535L305.8 81.535C305.85 81.405 305.85 81.255 305.8 81.125Z" fill="currentColor"/>
-        </svg>
+        <img
+            src="/imagens/logos/adaptive-icon.png"
+            alt={alt}
+            className={className}
+            {...props}
+        />
     );
 }

@@ -11,16 +11,13 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                     <div className="w-full px-4 sm:px-6 lg:px-8">
                         <div className="flex justify-between items-center h-20">
                             {/* Logo Area */}
-                            <div className="flex-shrink-0 flex items-center gap-3 cursor-pointer group">
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#3a5a8c] to-[#557bbb] flex items-center justify-center shadow-lg shadow-[#557bbb]/30 group-hover:scale-105 transition-transform duration-300">
-                                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                    </svg>
-                                </div>
-                                <span className="font-bold text-xl tracking-tight text-gray-900 group-hover:text-[#3a5a8c] transition-colors">
-                                    SGA<span className="text-[#557bbb]"> ENGEATIVOS</span>
-                                </span>
-                            </div>
+                            <Link href="/" className="flex-shrink-0 flex items-center gap-3 cursor-pointer group">
+                                <img
+                                    src="/imagens/logos/splash.png"
+                                    alt="SGA Engeativos"
+                                    className="h-12 w-auto group-hover:scale-105 transition-transform duration-300"
+                                />
+                            </Link>
 
                             {/* Authentication Links */}
                             <nav className="flex items-center gap-4 hidden sm:flex">
@@ -62,14 +59,14 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                         <div className="absolute top-0 -translate-y-12 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-tr from-[#557bbb]/20 to-[#557bbb]/20 blur-[100px] rounded-full pointer-events-none -z-10"></div>
 
                         <h1 className="mx-auto max-w-4xl font-extrabold text-5xl tracking-tight text-slate-900 sm:text-7xl mb-8 leading-tight">
-                            Gestão multiempresa{' '}
+                            Gestão multiempresa e filiais{' '}
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3a5a8c] to-[#557bbb]">
                                 inteligente e unificada.
                             </span>
                         </h1>
 
-                        <p className="mx-auto max-w-2xl text-lg tracking-tight text-slate-600 mb-10 leading-relaxed">
-                            Controle total sobre condomínios, obras e clientes. Uma plataforma moderna que centraliza tickets de suporte, finanças e painéis gerenciais em uma interface fluida.
+                        <p className="mx-auto max-w-3xl text-lg tracking-tight text-slate-600 mb-10 leading-relaxed">
+                            Plataforma multiempresa que integra <strong className="text-slate-800">frota, ativos, obras, equipes, fornecedores, qualidade, segurança do trabalho e meio ambiente</strong> em uma experiência mobile-first com operação off-line e painéis em tempo real.
                         </p>
 
                         <div className="flex justify-center gap-4 flex-col sm:flex-row">

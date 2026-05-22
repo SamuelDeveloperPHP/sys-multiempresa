@@ -12,9 +12,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="SGA">
-    <link rel="apple-touch-icon" href="/icons/icon-192.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
-    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+    <link rel="apple-touch-icon" href="/imagens/logos/icon.png">
+    <link rel="icon" type="image/png" href="/imagens/logos/icon.png">
+    <link rel="shortcut icon" href="/imagens/logos/icon.png">
 
     {{-- Font Awesome 6: importado via npm (em resources/css/app.css). Sem CDN para evitar Tracking Prevention. --}}
 
@@ -30,7 +30,12 @@
 <body class="font-sans antialiased bg-gray-50 text-gray-900">
     @inertia
 
-    {{-- Registro do Service Worker (PWA) --}}
+    {{-- Service Worker --}}
+    {{-- PROD: registra o SW gerado pelo Vite (PWA offline-first). --}}
+    {{-- DEV:  registra o /sw.js que é um KILL-SWITCH — ele se auto-desregistra,
+              limpa caches e força reload. Necessário para destravar SW antigos
+              que ficaram do dia em que rodávamos PWA em dev. --}}
+    @production
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -41,5 +46,55 @@
             });
         }
     </script>
+    @else
+    <script>
+        // === DEV: Limpeza defensiva de SW + caches residuais ===
+        // NÃO registramos SW em dev. Apenas desregistramos qualquer SW residual
+        // e limpamos CacheStorage.
+        //
+        // OBS importante: a rota Laravel /sw.js continua servindo um "kill-switch"
+        // (auto-desregistra). O browser checa update do /sw.js automaticamente
+        // quando há um SW registrado — ou seja, se um SW antigo ainda existir,
+        // o browser pega o kill-switch sozinho e se livra dele. Não precisamos
+        // forçar nada aqui (forçar causa loop de controllerchange→reload).
+        //
+        // Usamos sessionStorage para garantir que NÃO entremos em loop de reload.
+        if ('serviceWorker' in navigator) {
+            (async () => {
+                try {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    if (regs.length > 0) {
+                        for (const r of regs) {
+                            await r.unregister();
+                            console.debug('[DEV] SW desregistrado:', r.scope);
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+
+                try {
+                    if (window.caches) {
+                        const keys = await caches.keys();
+                        for (const k of keys) {
+                            await caches.delete(k);
+                            console.debug('[DEV] Cache deletado:', k);
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+
+                // Se algo foi limpo AGORA, recarrega UMA única vez para garantir
+                // que os assets venham fresh — mas usando flag em sessionStorage
+                // para nunca entrar em loop.
+                const alreadyCleaned = sessionStorage.getItem('sga_dev_sw_cleaned');
+                const hadSwOrCache = (await navigator.serviceWorker.getRegistrations()).length === 0;
+                // Note: depois de unregister, getRegistrations() retorna 0. Não recarregamos
+                // automaticamente — o próprio ato de desregistrar não força HTML novo;
+                // a próxima navegação já virá fresh do servidor. Sem reload, sem loop.
+                if (!alreadyCleaned) {
+                    sessionStorage.setItem('sga_dev_sw_cleaned', '1');
+                }
+            })();
+        }
+    </script>
+    @endproduction
 </body>
 </html>
