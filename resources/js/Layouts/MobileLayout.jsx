@@ -14,11 +14,22 @@ import SyncButton from '@/Components/Mobile/SyncButton';
 import InstallPrompt from '@/Components/Mobile/InstallPrompt';
 import useSyncStatus from '@/offline/hooks/useSyncStatus';
 import { warmupMobileCache } from '@/offline/warmupCache';
+import { setAuthMarker, clearAuthMarker } from '@/offline/authMarker';
 
 export default function MobileLayout({ header, backUrl, children, hideBottomNav = false }) {
     const { auth } = usePage().props;
     const { user } = auth || {};
     const [menuOpen, setMenuOpen] = useState(false);
+
+    // Persiste "auth marker" no localStorage quando temos auth.user válido.
+    // Esse marker é lido pelo /login quando offline para fazer bypass automático
+    // (se já logou aqui antes, redireciona direto para /mobile/veiculos em vez
+    // de exibir tela de login impossível de prosseguir sem internet).
+    useEffect(() => {
+        if (user?.id) {
+            setAuthMarker(user);
+        }
+    }, [user?.id]);
 
     // Pre-warm do cache de navegação: quando o usuário abre qualquer página
     // mobile estando online, disparamos fetch em background das outras rotas
@@ -126,6 +137,7 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
                                 label="Sair"
                                 method="post"
                                 className="text-red-600"
+                                onClick={() => clearAuthMarker()}
                             />
                         </nav>
 
@@ -191,12 +203,13 @@ function BottomNav({ onMenuClick }) {
     );
 }
 
-function DrawerLink({ href, icon, label, method, className = '' }) {
+function DrawerLink({ href, icon, label, method, className = '', onClick }) {
     return (
         <Link
             href={href}
             method={method}
             as={method ? 'button' : 'a'}
+            onClick={onClick}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-gray-50 text-sm text-gray-700 w-full text-left ${className}`}
         >
             <i className={`fa-solid ${icon} w-5 text-center text-gray-400`} />

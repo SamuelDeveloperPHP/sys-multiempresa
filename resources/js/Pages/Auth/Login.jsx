@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import AuthLayout from '../../Layouts/AuthLayout';
+import { getAuthMarker } from '@/offline/authMarker';
 
 export default function Login({ status, canResetPassword }) {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -14,6 +15,16 @@ export default function Login({ status, canResetPassword }) {
     const [online, setOnline] = useState(
         typeof navigator !== 'undefined' ? navigator.onLine : true
     );
+
+    // Marker de "este usuário já logou aqui antes" — lido do localStorage.
+    // Se existe E está offline, oferecemos bypass automático para /mobile/veiculos.
+    const [marker, setMarker] = useState(null);
+    const [bypassing, setBypassing] = useState(false);
+
+    useEffect(() => {
+        setMarker(getAuthMarker());
+    }, []);
+
     useEffect(() => {
         const on = () => setOnline(true);
         const off = () => setOnline(false);
@@ -31,6 +42,21 @@ export default function Login({ status, canResetPassword }) {
         };
     }, []);
 
+    // AUTO-BYPASS quando offline + marker existe: redireciona automaticamente
+    // para /mobile/veiculos (que está cacheado pelo SW). O React vai renderizar
+    // com auth.user lido do JSON Inertia cacheado, sem precisar de servidor.
+    // Só funciona para motoristas (type='motorista') — admins fazem login normal.
+    useEffect(() => {
+        if (!online && marker?.id && marker?.type === 'motorista' && !bypassing) {
+            setBypassing(true);
+            // Pequeno delay para o usuário ver a mensagem antes do redirect
+            const timer = setTimeout(() => {
+                window.location.href = '/mobile/veiculos';
+            }, 1200);
+            return () => clearTimeout(timer);
+        }
+    }, [online, marker, bypassing]);
+
     const submit = (e) => {
         e.preventDefault();
         if (!online) {
@@ -39,6 +65,10 @@ export default function Login({ status, canResetPassword }) {
             return;
         }
         post('/login');
+    };
+
+    const openOfflineApp = () => {
+        window.location.href = '/mobile/veiculos';
     };
 
     return (
@@ -55,7 +85,34 @@ export default function Login({ status, canResetPassword }) {
             {status && <div className="mt-4 font-medium text-sm text-green-600">{status}</div>}
 
             {/* Banner de status offline (PWA em campo) */}
-            {!online && (
+            {!online && marker?.id && marker?.type === 'motorista' && (
+                <div className="mt-4 flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-3">
+                    <i className={`fa-solid ${bypassing ? 'fa-arrow-right-to-bracket fa-bounce' : 'fa-circle-check'} text-emerald-600 mt-0.5`} />
+                    <div className="text-xs flex-1">
+                        <p className="font-semibold mb-0.5">
+                            {bypassing ? 'Abrindo modo offline…' : `Bem-vindo de volta, ${marker.name?.split(' ')[0] || ''}`}
+                        </p>
+                        <p className="text-emerald-700 leading-relaxed">
+                            Você já tem acesso liberado neste dispositivo.
+                            {bypassing
+                                ? ' Redirecionando para Veículos…'
+                                : ' Vamos abrir o app com seus dados em cache.'}
+                        </p>
+                        {!bypassing && (
+                            <button
+                                type="button"
+                                onClick={openOfflineApp}
+                                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                            >
+                                <i className="fa-solid fa-arrow-right" />
+                                Abrir aplicativo offline
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {!online && (!marker?.id || marker?.type !== 'motorista') && (
                 <div className="mt-4 flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3">
                     <i className="fa-solid fa-wifi-slash text-amber-600 mt-0.5" />
                     <div className="text-xs">
