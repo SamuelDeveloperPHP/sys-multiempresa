@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import OnlineIndicator from '@/Components/Mobile/OnlineIndicator';
 import SyncButton from '@/Components/Mobile/SyncButton';
 import InstallPrompt from '@/Components/Mobile/InstallPrompt';
+import OpenCyclesBanner from '@/Components/Mobile/OpenCyclesBanner';
 import useSyncStatus from '@/offline/hooks/useSyncStatus';
 import { warmupMobileCache } from '@/offline/warmupCache';
 import { setAuthMarker, clearAuthMarker } from '@/offline/authMarker';
@@ -81,6 +82,9 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
                     </button>
                 </div>
             </header>
+
+            {/* ============= BANNER DE CICLOS ABERTOS ============= */}
+            <OpenCyclesBanner />
 
             {/* ============= MAIN ============= */}
             <main className="flex-1 overflow-y-auto pb-20">
