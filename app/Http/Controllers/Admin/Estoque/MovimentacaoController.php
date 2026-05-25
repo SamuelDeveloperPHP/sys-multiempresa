@@ -33,7 +33,7 @@ class MovimentacaoController extends Controller
         $companyId = CompanyContext::current()?->id;
 
         $query = Movimentacao::query()
-            ->with(['produto:id,sku,nome,unidade', 'obra:id,codigo_obra,nome', 'obraContraparte:id,codigo_obra,nome', 'fornecedor:id,razao_social']);
+            ->with(['produto:id,sku,nome,unidade', 'obra:id,codigo_obra,nome_fantasia', 'obraContraparte:id,codigo_obra,nome_fantasia', 'fornecedor:id,razao_social']);
 
         if ($companyId) {
             $query->where('company_id', $companyId);
@@ -59,13 +59,16 @@ class MovimentacaoController extends Controller
             $query->whereDate('data_movimento', '<=', $ate);
         }
 
-        $movimentacoes = $query->orderByDesc('data_movimento')->orderByDesc('id')
-            ->paginate(25)->withQueryString();
+        // simplePaginate evita COUNT(*) caro quando a tabela crescer.
+        // Ordena por id desc (que é praticamente equivalente a data desc
+        // já que id é serial).
+        $movimentacoes = $query->orderByDesc('id')
+            ->simplePaginate(25)->withQueryString();
 
         return Inertia::render('Admin/Estoque/Movimentacoes/Index', [
             'movimentacoes' => $movimentacoes,
             'obras'         => Obra::when($companyId, fn ($q) => $q->where('company_id', $companyId))
-                                  ->orderBy('codigo_obra')->get(['id', 'codigo_obra', 'nome']),
+                                  ->orderBy('codigo_obra')->get(['id', 'codigo_obra', 'nome_fantasia']),
             'tiposLabels'   => $this->tiposLabels(),
             'filtros'       => $request->only(['tipo', 'obra_id', 'produto_id', 'q', 'data_de', 'data_ate']),
         ]);
@@ -79,7 +82,7 @@ class MovimentacaoController extends Controller
         return Inertia::render('Admin/Estoque/Movimentacoes/Form', [
             'tipoInicial'  => $tipo,
             'obras'        => Obra::when($companyId, fn ($q) => $q->where('company_id', $companyId))
-                                ->orderBy('codigo_obra')->get(['id', 'codigo_obra', 'nome']),
+                                ->orderBy('codigo_obra')->get(['id', 'codigo_obra', 'nome_fantasia']),
             'fornecedores' => Fornecedor::when($companyId, fn ($q) => $q->where('company_id', $companyId))
                                 ->orderBy('razao_social')->get(['id', 'razao_social', 'nome_fantasia']),
         ]);
@@ -92,8 +95,8 @@ class MovimentacaoController extends Controller
 
         $movimentacao->load([
             'produto:id,sku,nome,unidade,imagem',
-            'obra:id,codigo_obra,nome',
-            'obraContraparte:id,codigo_obra,nome',
+            'obra:id,codigo_obra,nome_fantasia',
+            'obraContraparte:id,codigo_obra,nome_fantasia',
             'fornecedor:id,razao_social,nome_fantasia',
             'par',
         ]);

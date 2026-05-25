@@ -130,7 +130,7 @@ export default function MovimentacoesIndex({ movimentacoes, obras, tiposLabels, 
                     >
                         <option value="">Todas as obras</option>
                         {obras.map((o) => (
-                            <option key={o.id} value={o.id}>{o.codigo_obra} — {o.nome}</option>
+                            <option key={o.id} value={o.id}>{o.codigo_obra} — {o.nome_fantasia}</option>
                         ))}
                     </select>
                     <input
@@ -193,10 +193,10 @@ export default function MovimentacoesIndex({ movimentacoes, obras, tiposLabels, 
                                         <div className="text-[11px] text-gray-400 font-mono">{m.produto?.sku}</div>
                                     </td>
                                     <td className="px-4 py-2">
-                                        <div className="text-gray-700">{m.obra?.codigo_obra || m.obra?.nome}</div>
+                                        <div className="text-gray-700">{m.obra?.codigo_obra || m.obra?.nome_fantasia}</div>
                                         {m.obra_contraparte_id && m.obra_contraparte && (
                                             <div className="text-[11px] text-gray-400">
-                                                {m.tipo === 'TRANSF_OUT' ? '→ ' : '← '}{m.obra_contraparte.codigo_obra || m.obra_contraparte.nome}
+                                                {m.tipo === 'TRANSF_OUT' ? '→ ' : '← '}{m.obra_contraparte.codigo_obra || m.obra_contraparte?.nome_fantasia}
                                             </div>
                                         )}
                                     </td>
@@ -241,28 +241,22 @@ export default function MovimentacoesIndex({ movimentacoes, obras, tiposLabels, 
                     </table>
                 </div>
 
-                {movimentacoes.last_page > 1 && (
+                {(movimentacoes.prev_page_url || movimentacoes.next_page_url) && (
                     <div className="mt-4 flex items-center justify-between text-sm">
-                        <span className="text-gray-600">
-                            {movimentacoes.from}–{movimentacoes.to} de {movimentacoes.total}
-                        </span>
-                        <div className="flex gap-1">
-                            {movimentacoes.links.map((link, i) => (
-                                <Link
-                                    key={i}
-                                    href={link.url || '#'}
-                                    preserveScroll
-                                    preserveState
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
-                                    className={`px-3 py-1.5 rounded border text-xs ${
-                                        link.active
-                                            ? 'bg-rise-600 text-white border-rise-600'
-                                            : link.url
-                                                ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                                                : 'border-gray-200 text-gray-300 cursor-not-allowed'
-                                    }`}
-                                />
-                            ))}
+                        <span className="text-gray-600">Página {movimentacoes.current_page}</span>
+                        <div className="flex gap-2">
+                            <a href={movimentacoes.prev_page_url || '#'}
+                                className={`px-3 py-1.5 rounded border text-xs ${movimentacoes.prev_page_url
+                                    ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    : 'border-gray-200 text-gray-300 cursor-not-allowed pointer-events-none'}`}>
+                                ← Anterior
+                            </a>
+                            <a href={movimentacoes.next_page_url || '#'}
+                                className={`px-3 py-1.5 rounded border text-xs ${movimentacoes.next_page_url
+                                    ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    : 'border-gray-200 text-gray-300 cursor-not-allowed pointer-events-none'}`}>
+                                Próximo →
+                            </a>
                         </div>
                     </div>
                 )}

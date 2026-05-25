@@ -52,7 +52,17 @@ class ProdutoController extends Controller
             });
         }
 
-        $produtos = $query->orderBy('nome')->paginate(20)->withQueryString();
+        // Estratégia de paginação otimizada para catálogo grande (100k+):
+        //   - Sem filtro de busca → simplePaginate ordenado por id desc
+        //     (evita COUNT(*) caro e ORDER BY nome FILESORT)
+        //   - Com filtro de busca → paginate normal (resultset já é pequeno),
+        //     ordenado por nome (alfabético) para melhor UX
+        $temFiltroTexto = $request->filled('q');
+        if ($temFiltroTexto) {
+            $produtos = $query->orderBy('nome')->paginate(20)->withQueryString();
+        } else {
+            $produtos = $query->orderByDesc('id')->simplePaginate(20)->withQueryString();
+        }
 
         return Inertia::render('Admin/Estoque/Produtos/Index', [
             'produtos'   => $produtos,
@@ -87,7 +97,7 @@ class ProdutoController extends Controller
         // (o admin de empresa A não precisa ver saldos da empresa B).
         $companyId = CompanyContext::current()?->id;
         $saldosQuery = Saldo::where('produto_id', $produto->id)
-            ->with('obra:id,codigo_obra,nome');
+            ->with('obra:id,codigo_obra,nome_fantasia');
         if ($companyId) {
             $saldosQuery->where('company_id', $companyId);
         }

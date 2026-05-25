@@ -135,8 +135,8 @@ export default function ProdutoShow({ produto, saldos, saldoTotal, valorTotal })
                                         return (
                                             <tr key={s.id} className="hover:bg-gray-50">
                                                 <td className="px-4 py-2">
-                                                    <div className="font-medium text-gray-900">{s.obra?.nome || s.obra?.codigo_obra}</div>
-                                                    {s.obra?.codigo_obra && s.obra?.nome && (
+                                                    <div className="font-medium text-gray-900">{s.obra?.nome_fantasia || s.obra?.codigo_obra}</div>
+                                                    {s.obra?.codigo_obra && s.obra?.nome_fantasia && (
                                                         <div className="text-[11px] text-gray-400">{s.obra.codigo_obra}</div>
                                                     )}
                                                 </td>

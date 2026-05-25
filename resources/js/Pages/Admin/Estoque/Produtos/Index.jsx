@@ -226,33 +226,65 @@ export default function ProdutosIndex({ produtos, categorias, filtros }) {
                     </table>
                 </div>
 
-                {/* Paginação */}
-                {produtos.last_page > 1 && (
-                    <div className="mt-4 flex items-center justify-between text-sm">
-                        <span className="text-gray-600">
-                            {produtos.from}–{produtos.to} de {produtos.total}
-                        </span>
-                        <div className="flex gap-1">
-                            {produtos.links.map((link, i) => (
-                                <Link
-                                    key={i}
-                                    href={link.url || '#'}
-                                    preserveScroll
-                                    preserveState
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
-                                    className={`px-3 py-1.5 rounded border text-xs ${
-                                        link.active
-                                            ? 'bg-rise-600 text-white border-rise-600'
-                                            : link.url
-                                                ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                                                : 'border-gray-200 text-gray-300 cursor-not-allowed'
-                                    }`}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* Paginação — funciona com paginate (total) e simplePaginate (só prev/next) */}
+                <Pagination produtos={produtos} />
             </div>
         </AuthenticatedLayout>
+    );
+}
+
+// Paginação reutilizável: detecta se vem de paginate (com .total) ou
+// simplePaginate (só com prev_page_url/next_page_url).
+function Pagination({ produtos }) {
+    const isSimple = typeof produtos.total === 'undefined';
+
+    if (isSimple) {
+        if (!produtos.prev_page_url && !produtos.next_page_url) return null;
+        return (
+            <div className="mt-4 flex items-center justify-between text-sm">
+                <span className="text-gray-600">Página {produtos.current_page}</span>
+                <div className="flex gap-2">
+                    <a
+                        href={produtos.prev_page_url || '#'}
+                        className={`px-3 py-1.5 rounded border text-xs ${produtos.prev_page_url
+                            ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                            : 'border-gray-200 text-gray-300 cursor-not-allowed pointer-events-none'}`}
+                    >
+                        ← Anterior
+                    </a>
+                    <a
+                        href={produtos.next_page_url || '#'}
+                        className={`px-3 py-1.5 rounded border text-xs ${produtos.next_page_url
+                            ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                            : 'border-gray-200 text-gray-300 cursor-not-allowed pointer-events-none'}`}
+                    >
+                        Próximo →
+                    </a>
+                </div>
+            </div>
+        );
+    }
+
+    if (produtos.last_page <= 1) return null;
+    return (
+        <div className="mt-4 flex items-center justify-between text-sm">
+            <span className="text-gray-600">{produtos.from}–{produtos.to} de {produtos.total}</span>
+            <div className="flex gap-1">
+                {produtos.links.map((link, i) => (
+                    <a
+                        key={i}
+                        href={link.url || '#'}
+                        dangerouslySetInnerHTML={{ __html: link.label }}
+                        className={`px-3 py-1.5 rounded border text-xs ${
+                            link.active
+                                ? 'bg-rise-600 text-white border-rise-600'
+                                : link.url
+                                    ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    : 'border-gray-200 text-gray-300 cursor-not-allowed pointer-events-none'
+                        }`}
+                    />
+                ))}
+            </div>
+        </div>
     );
 }

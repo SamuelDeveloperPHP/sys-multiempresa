@@ -67,8 +67,8 @@ export default function MovimentacaoShow({ movimentacao: m }) {
                         </p>
                         <p className="text-xs text-gray-500">
                             {m.tipo.startsWith('TRANSF') && m.obra_contraparte
-                                ? `${m.obra?.codigo_obra || m.obra?.nome}  ${m.tipo === 'TRANSF_OUT' ? '→' : '←'}  ${m.obra_contraparte?.codigo_obra || m.obra_contraparte?.nome}`
-                                : `Obra: ${m.obra?.codigo_obra || m.obra?.nome}`}
+                                ? `${m.obra?.codigo_obra || m.obra?.nome_fantasia}  ${m.tipo === 'TRANSF_OUT' ? '→' : '←'}  ${m.obra_contraparte?.codigo_obra || m.obra_contraparte?.nome_fantasia}`
+                                : `Obra: ${m.obra?.codigo_obra || m.obra?.nome_fantasia}`}
                         </p>
                     </div>
                     <div className="text-right">
@@ -110,11 +110,11 @@ export default function MovimentacaoShow({ movimentacao: m }) {
                                 <Linha label="Quantidade" valor={`${numero(m.quantidade)} ${m.produto?.unidade}`} bold />
                                 <Linha label="Valor unitário" valor={moeda(m.valor_unitario)} />
                                 <Linha label="Valor total" valor={moeda(m.valor_total)} bold />
-                                <Linha label="Obra" valor={m.obra?.codigo_obra ? `${m.obra.codigo_obra} — ${m.obra.nome}` : m.obra?.nome || '—'} />
+                                <Linha label="Obra" valor={m.obra?.codigo_obra ? `${m.obra.codigo_obra} — ${m.obra?.nome_fantasia_fantasia}` : m.obra?.nome_fantasia || '—'} />
                                 {m.tipo.startsWith('TRANSF') && m.obra_contraparte && (
                                     <Linha
                                         label={m.tipo === 'TRANSF_OUT' ? 'Obra destino' : 'Obra origem'}
-                                        valor={m.obra_contraparte.codigo_obra ? `${m.obra_contraparte.codigo_obra} — ${m.obra_contraparte.nome}` : m.obra_contraparte.nome || '—'}
+                                        valor={m.obra_contraparte.codigo_obra ? `${m.obra_contraparte.codigo_obra} — ${m.obra_contraparte?.nome_fantasia_fantasia}` : m.obra_contraparte?.nome_fantasia_fantasia || '—'}
                                     />
                                 )}
                             </div>
