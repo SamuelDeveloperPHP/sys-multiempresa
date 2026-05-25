@@ -1,10 +1,18 @@
 // resources/js/Pages/Mobile/Veiculos/Index.jsx
 // -----------------------------------------------------------------------------
-// Lista de veículos — offline-first.
-// Estratégia (mesma do app React Native):
-//   1) Tenta sincronizar do servidor (se online).
-//   2) Sempre lê do cache local (Dexie) — instantâneo, mesmo sem internet.
-//   3) Busca por prefixo/placa/marca/modelo via filter local.
+// Lista de veículos — UX portada do legado React Native.
+//
+// PRINCIPAIS DIFERENÇAS DA VERSÃO ANTERIOR:
+//   - Lista INICIA VAZIA (não mostra nada até o motorista buscar)
+//   - Botão grande "Escanear QR/OCR" no topo abre scanner full-screen
+//   - QR Code scanner (qualquer formato: QR, ean13, code-128, code-39)
+//   - OCR scanner que reconhece prefixos no formato XX-NNN ou XXX-NNN
+//   - Campo de busca read-only que mostra o resultado do scanner
+//   - Pull-to-refresh manual (botão "Atualizar")
+//
+// OFFLINE-FIRST:
+//   - Lê SEMPRE do Dexie via veiculosRepo.list()
+//   - Sync online via veiculosRepo.syncFromServer() apenas no mount + ao refrescar
 // -----------------------------------------------------------------------------
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -12,6 +20,7 @@ import { Link, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+import QRCodeOCRScanner from '@/Components/Mobile/QRCodeOCRScanner';
 
 export default function VeiculosIndex() {
     const { online } = useOnlineStatus();
@@ -23,11 +32,20 @@ export default function VeiculosIndex() {
     const [loading, setLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [error, setError] = useState(null);
-    const [lastSyncCount, setLastSyncCount] = useState(null);
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [scanFeedback, setScanFeedback] = useState(null);
     const searchTimer = useRef(null);
 
-    // ---- carrega do cache ----
+    // ---- Carrega do cache (Dexie) ----
     const loadFromCache = useCallback(async (q = '', p = 0, append = false) => {
+        if (!q.trim()) {
+            // Lista vazia quando não há busca (UX do legado)
+            setVeiculos([]);
+            setTotal(0);
+            setPage(0);
+            setHasMore(false);
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
@@ -43,34 +61,29 @@ export default function VeiculosIndex() {
         }
     }, []);
 
-    // ---- sincroniza do servidor (puxa lista atualizada) ----
+    // ---- Sincroniza do servidor (popula Dexie) ----
     const syncNow = useCallback(async () => {
         if (!online) return;
         setSyncing(true);
         try {
-            const count = await veiculosRepo.syncFromServer();
-            setLastSyncCount(count);
-            await loadFromCache(searchQuery, 0, false);
+            await veiculosRepo.syncFromServer();
         } catch (err) {
-            setError('Falha ao sincronizar com o servidor — exibindo cache local.');
+            console.warn('[Veiculos] sync falhou:', err.message);
         } finally {
             setSyncing(false);
         }
-    }, [online, loadFromCache, searchQuery]);
+    }, [online]);
 
-    // ---- mount: sincroniza (se online) e carrega cache ----
+    // ---- Mount: só sincroniza, não exibe lista ainda ----
     useEffect(() => {
-        (async () => {
-            await loadFromCache('', 0, false);
-            if (online) {
-                await syncNow();
-            }
-        })();
+        if (online) {
+            syncNow();
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // ---- search com debounce de 400ms (sempre do cache, nunca online) ----
-    const handleSearch = (text) => {
+    // ---- Busca com debounce 400ms ----
+    const handleSearchManual = (text) => {
         setSearchQuery(text);
         if (searchTimer.current) clearTimeout(searchTimer.current);
         searchTimer.current = setTimeout(() => {
@@ -78,10 +91,39 @@ export default function VeiculosIndex() {
         }, 400);
     };
 
+    // ---- Resultado do Scanner (QR ou OCR) ----
+    const handleScannerResult = (text, modeUsed) => {
+        const cleaned = String(text || '').trim();
+        if (!cleaned) return;
+        setSearchQuery(cleaned);
+        setScanFeedback({
+            text: cleaned,
+            mode: modeUsed,
+            timestamp: Date.now(),
+        });
+        loadFromCache(cleaned, 0, false);
+        // Feedback some após 4s
+        setTimeout(() => setScanFeedback(null), 4000);
+    };
+
     const loadMore = () => {
         if (!loading && hasMore) {
             loadFromCache(searchQuery, page + 1, true);
         }
+    };
+
+    const handleRefresh = async () => {
+        await syncNow();
+        if (searchQuery.trim()) {
+            await loadFromCache(searchQuery, 0, false);
+        }
+    };
+
+    const handleClearSearch = () => {
+        setSearchQuery('');
+        setVeiculos([]);
+        setTotal(0);
+        setScanFeedback(null);
     };
 
     const baseImageUrl = 'https://sga-engeativos.com.br/imagens/veiculos';
@@ -91,40 +133,74 @@ export default function VeiculosIndex() {
             <Head title="Veículos - Mobile" />
 
             <div className="p-3 space-y-3">
-                {/* Search */}
-                <div className="relative">
-                    <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
-                    <input
-                        type="search"
-                        value={searchQuery}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        placeholder="Buscar prefixo, placa, marca…"
-                        className="w-full pl-9 pr-3 py-2.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-[#557bbb] focus:ring-1 focus:ring-[#557bbb]"
-                        autoCapitalize="characters"
-                    />
-                </div>
+                {/* Botão grande de Scanner */}
+                <button
+                    type="button"
+                    onClick={() => setScannerOpen(true)}
+                    className="w-full bg-[#557bbb] hover:bg-[#3a5a8c] active:scale-[0.98] text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-[#557bbb]/30 flex items-center justify-center gap-3 transition-all"
+                >
+                    <i className="fa-solid fa-camera text-2xl" />
+                    <span className="text-base">Escanear Veículo</span>
+                </button>
 
-                {/* Status bar */}
-                <div className="flex items-center justify-between text-[12px] text-gray-500">
-                    <span>
-                        <strong className="text-gray-700">{total}</strong> veículo(s){searchQuery ? ` para "${searchQuery}"` : ''}
-                    </span>
-                    {syncing && (
-                        <span className="text-[#557bbb]">
-                            <i className="fa-solid fa-rotate fa-spin mr-1" />
-                            Sincronizando…
-                        </span>
-                    )}
-                    {!syncing && online && (
+                {/* Campo somente leitura mostrando resultado do scanner / busca */}
+                <div className="relative">
+                    <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => handleSearchManual(e.target.value.toUpperCase())}
+                        placeholder="Aponte a câmera para o código…"
+                        className="w-full pl-9 pr-9 py-3 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-[#557bbb] focus:ring-1 focus:ring-[#557bbb] text-center uppercase font-mono"
+                        autoCapitalize="characters"
+                        spellCheck={false}
+                    />
+                    {searchQuery && (
                         <button
-                            onClick={syncNow}
-                            className="text-[#557bbb] font-medium hover:underline"
+                            type="button"
+                            onClick={handleClearSearch}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-200"
+                            aria-label="Limpar busca"
                         >
-                            <i className="fa-solid fa-rotate mr-1" />
-                            Atualizar
+                            <i className="fa-solid fa-xmark text-xs" />
                         </button>
                     )}
                 </div>
+
+                {/* Feedback do scanner */}
+                {scanFeedback && (
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-2 text-xs flex items-center gap-2">
+                        <i className={`fa-solid ${scanFeedback.mode === 'qr' ? 'fa-qrcode' : 'fa-font'} text-emerald-600`} />
+                        <span>
+                            {scanFeedback.mode === 'qr' ? 'QR lido' : 'OCR lido'}:{' '}
+                            <strong>{scanFeedback.text}</strong>
+                        </span>
+                    </div>
+                )}
+
+                {/* Status bar */}
+                {searchQuery && (
+                    <div className="flex items-center justify-between text-[12px] text-gray-500">
+                        <span>
+                            <strong className="text-gray-700">{total}</strong> veículo(s) para "{searchQuery}"
+                        </span>
+                        {syncing ? (
+                            <span className="text-[#557bbb]">
+                                <i className="fa-solid fa-rotate fa-spin mr-1" />
+                                Sincronizando…
+                            </span>
+                        ) : online && (
+                            <button
+                                type="button"
+                                onClick={handleRefresh}
+                                className="text-[#557bbb] font-medium hover:underline"
+                            >
+                                <i className="fa-solid fa-rotate mr-1" />
+                                Atualizar
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {error && (
                     <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-2 text-xs">
@@ -133,23 +209,40 @@ export default function VeiculosIndex() {
                     </div>
                 )}
 
-                {/* Lista */}
-                {loading && veiculos.length === 0 ? (
+                {/* Estado: vazio inicial (sem busca) */}
+                {!searchQuery && !loading && (
+                    <div className="text-center py-16 text-gray-400">
+                        <i className="fa-solid fa-camera text-5xl mb-4 text-[#557bbb]/30" />
+                        <p className="text-sm font-medium">Aponte a câmera para o código do veículo.</p>
+                        <p className="text-xs mt-2 text-gray-400">
+                            Use o botão acima para escanear QR Code ou ler o prefixo (OCR).
+                        </p>
+                    </div>
+                )}
+
+                {/* Estado: buscando */}
+                {searchQuery && loading && veiculos.length === 0 && (
                     <div className="text-center py-12 text-gray-400">
                         <i className="fa-solid fa-spinner fa-spin text-2xl mb-2" />
-                        <p className="text-sm">Carregando…</p>
+                        <p className="text-sm">Buscando…</p>
                     </div>
-                ) : veiculos.length === 0 ? (
+                )}
+
+                {/* Estado: nada encontrado */}
+                {searchQuery && !loading && veiculos.length === 0 && (
                     <div className="text-center py-12 text-gray-400">
                         <i className="fa-solid fa-truck text-3xl mb-2" />
-                        <p className="text-sm">Nenhum veículo encontrado{searchQuery ? ` para "${searchQuery}"` : ''}.</p>
+                        <p className="text-sm">Nenhum veículo encontrado para "{searchQuery}".</p>
                         {!online && (
                             <p className="text-xs mt-2 text-red-600">
-                                Você está offline e o cache local está vazio.
+                                Você está offline. Tente sincronizar quando voltar online.
                             </p>
                         )}
                     </div>
-                ) : (
+                )}
+
+                {/* Lista */}
+                {veiculos.length > 0 && (
                     <ul className="space-y-2">
                         {veiculos.map((v) => (
                             <li key={v.id}>
@@ -188,6 +281,7 @@ export default function VeiculosIndex() {
 
                 {hasMore && (
                     <button
+                        type="button"
                         onClick={loadMore}
                         disabled={loading}
                         className="w-full py-2.5 text-sm text-[#557bbb] font-medium hover:bg-gray-50 rounded-lg"
@@ -196,6 +290,14 @@ export default function VeiculosIndex() {
                     </button>
                 )}
             </div>
+
+            {/* Scanner full-screen */}
+            <QRCodeOCRScanner
+                isOpen={scannerOpen}
+                onClose={() => setScannerOpen(false)}
+                onResult={handleScannerResult}
+                initialMode="qr"
+            />
         </MobileLayout>
     );
 }
