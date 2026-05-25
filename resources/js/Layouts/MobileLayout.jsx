@@ -128,6 +128,7 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
                         </div>
 
                         <nav className="flex-1 overflow-y-auto px-2 py-2">
+                            <DrawerLink href="/mobile/dashboard" icon="fa-chart-pie" label="Dashboard" />
                             <DrawerLink href="/mobile/veiculos" icon="fa-truck-front" label="Veículos" />
                             <DrawerLink href="/mobile/abastecimentos" icon="fa-gas-pump" label="Abastecimentos" />
                             <DrawerLink href="/mobile/diario-bordo" icon="fa-book" label="Diário de Bordo" />
@@ -191,8 +192,8 @@ function BottomNav({ onMenuClick }) {
     return (
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30">
             <div className="grid grid-cols-5 max-w-md mx-auto">
+                <BottomNavLink href="/mobile/dashboard"       icon="fa-chart-pie"      label="Painel" />
                 <BottomNavLink href="/mobile/veiculos"        icon="fa-truck-front"    label="Veículos" />
-                <BottomNavLink href="/mobile/abastecimentos"  icon="fa-gas-pump"       label="Abastec." />
                 <BottomNavLink href="/mobile/diario-bordo"    icon="fa-book"           label="Diário" />
                 <BottomNavLink href="/mobile/checklists"      icon="fa-clipboard-check" label="Checklist" />
                 <BottomNavAction

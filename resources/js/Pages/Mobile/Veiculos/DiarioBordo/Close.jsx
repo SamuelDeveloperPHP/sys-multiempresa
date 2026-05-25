@@ -17,7 +17,7 @@ import veiculosRepo from '@/offline/repositories/veiculosRepo';
 import IntegerInput from '@/Components/Mobile/IntegerInput';
 import CameraCapture from '@/Components/Mobile/CameraCapture';
 import { integerNumberValue } from '@/utils/numberInput';
-import { nowLocalDMYHM, nowLocalTimestamp } from '@/utils/datetime';
+import { nowLocalDMYHM, nowLocalTimestamp, diffMinutos, formatMinutos } from '@/utils/datetime';
 
 export default function DiarioBordoClose({ veiculoId, diarioId }) {
     const segments = window.location.pathname.split('/');
@@ -102,9 +102,14 @@ export default function DiarioBordoClose({ veiculoId, diarioId }) {
 
         try {
             const now = nowLocalTimestamp();
+            // Calcula horas trabalhadas em minutos (regra do legado):
+            // diff entre horario_inicial e horario_final em minutos
+            const minutosTrabalhados = diffMinutos(diario.horario_inicial, now);
+
             const payload = {
                 ciclo_status: 'FECHADO',
                 horario_final: now,
+                horas_trabalhadas_minutos: minutosTrabalhados,
                 user_edit: auth?.user?.email || '',
                 km_final: form.km_final ? integerNumberValue(form.km_final) : null,
                 hr_final: form.hr_final ? integerNumberValue(form.hr_final) : null,

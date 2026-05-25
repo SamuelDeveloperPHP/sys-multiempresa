@@ -24,6 +24,9 @@ Route::get('/mobile',      fn() => redirect('/mobile/veiculos'))->name('mobile.s
 // =============== PAGES (Inertia) ===============
 Route::middleware(['auth', 'mobile.access'])->prefix('mobile')->name('mobile.')->group(function () {
 
+    // Dashboard
+    Route::get('/dashboard', [PagesController::class, 'dashboardMobile'])->name('dashboard');
+
     // Veículos
     Route::get('/veiculos',                   [PagesController::class, 'veiculosIndex'])->name('veiculos.index');
     Route::get('/veiculos/{id}',              [PagesController::class, 'veiculosShow'])->name('veiculos.show');

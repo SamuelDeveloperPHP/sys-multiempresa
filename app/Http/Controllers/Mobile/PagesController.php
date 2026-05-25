@@ -14,6 +14,12 @@ use Inertia\Inertia;
  */
 class PagesController extends Controller
 {
+    // ===== Dashboard =====
+    public function dashboardMobile()
+    {
+        return Inertia::render('Mobile/Dashboard/Index');
+    }
+
     // ===== Veículos =====
     public function veiculosIndex()
     {

@@ -75,10 +75,62 @@ export function formatDate(isoOrDate) {
     }
 }
 
+/**
+ * Calcula a diferença entre duas datas/horários em MINUTOS.
+ * Aceita formatos: timestamp MySQL ("YYYY-MM-DD HH:mm:ss"), ISO 8601, ou
+ * dd/mm/aaaa hh:mm (formato BR). Retorna 0 se entrada inválida ou diff <= 0.
+ *
+ * Usado em diário de bordo para calcular horas_trabalhadas_minutos.
+ *
+ * @param {string|Date} inicio
+ * @param {string|Date} fim
+ * @returns {number} minutos de diferença (>=0)
+ */
+export function diffMinutos(inicio, fim) {
+    const di = parseDateFlex(inicio);
+    const df = parseDateFlex(fim);
+    if (!di || !df) return 0;
+    const diffMs = df.getTime() - di.getTime();
+    if (diffMs <= 0) return 0;
+    return Math.floor(diffMs / 60000);
+}
+
+/**
+ * Parser flexível — aceita Date, ISO, MySQL timestamp ou pt-BR dd/mm/aaaa hh:mm.
+ */
+export function parseDateFlex(input) {
+    if (!input) return null;
+    if (input instanceof Date) return input;
+    const s = String(input).trim();
+    // Formato pt-BR: dd/mm/aaaa hh:mm
+    const brMatch = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+    if (brMatch) {
+        const [, d, m, y, hh, mm] = brMatch;
+        return new Date(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), 0);
+    }
+    // Tenta parsing nativo (ISO, MySQL timestamp, etc.)
+    const d = new Date(s.replace(' ', 'T'));
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Formata minutos em "Xh Ymin" (ex: 125 → "2h 5min").
+ */
+export function formatMinutos(min) {
+    const m = Number(min) || 0;
+    if (m < 60) return `${m}min`;
+    const h = Math.floor(m / 60);
+    const r = m % 60;
+    return r > 0 ? `${h}h ${r}min` : `${h}h`;
+}
+
 export default {
     nowLocalTimestamp,
     toLocalTimestamp,
     nowLocalDMYHM,
     toLocalDMYHM,
     formatDate,
+    diffMinutos,
+    parseDateFlex,
+    formatMinutos,
 };
