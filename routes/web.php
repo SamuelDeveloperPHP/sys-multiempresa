@@ -674,6 +674,15 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
 
                 // Produtos — catálogo completo com foto, SKU, categoria, fornecedor padrão
                 Route::resource('produtos', \App\Http\Controllers\Admin\Estoque\ProdutoController::class);
+
+                // Movimentações — entrada / saída / transferência (FASE 3)
+                // Endpoints AJUX para o form precisam vir ANTES do resource
+                Route::get('movimentacoes/buscar-produtos', [\App\Http\Controllers\Admin\Estoque\MovimentacaoController::class, 'buscarProdutos'])
+                    ->name('movimentacoes.buscar-produtos');
+                Route::get('movimentacoes/saldo', [\App\Http\Controllers\Admin\Estoque\MovimentacaoController::class, 'saldoProdutoObra'])
+                    ->name('movimentacoes.saldo');
+                Route::resource('movimentacoes', \App\Http\Controllers\Admin\Estoque\MovimentacaoController::class)
+                    ->only(['index', 'create', 'store', 'show', 'destroy']);
             });
 
             Route::prefix('configuracao/blog')->group(function () {
