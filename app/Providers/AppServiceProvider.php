@@ -22,5 +22,8 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
         \Carbon\Carbon::setLocale('pt_BR');
+
+        // Mantém estoque_saldos consistente com estoque_movimentacoes.
+        \App\Models\Estoque\Movimentacao::observe(\App\Observers\EstoqueMovimentacaoObserver::class);
     }
 }
