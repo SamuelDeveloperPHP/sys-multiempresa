@@ -20,6 +20,17 @@ class PagesController extends Controller
         return Inertia::render('Mobile/Dashboard/Index');
     }
 
+    // ===== Perfil =====
+    public function perfilIndex()
+    {
+        return Inertia::render('Mobile/Perfil/Index');
+    }
+
+    public function perfilAlterarSenha()
+    {
+        return Inertia::render('Mobile/Perfil/AlterarSenha');
+    }
+
     // ===== Veículos =====
     public function veiculosIndex()
     {

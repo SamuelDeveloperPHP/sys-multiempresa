@@ -103,18 +103,27 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
                     />
                     <div className="fixed top-0 right-0 bottom-0 w-72 bg-white z-50 shadow-2xl flex flex-col">
                         <div className="p-4 border-b border-gray-200 flex items-center gap-3">
-                            <img
-                                src={
-                                    user?.profile_photo_url ||
-                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=557bbb&color=fff&bold=true`
-                                }
-                                alt={user?.name || 'Usuário'}
-                                className="w-12 h-12 rounded-full object-cover"
-                            />
-                            <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm text-gray-800 truncate">{user?.name || 'Usuário'}</p>
-                                <p className="text-[11px] text-gray-500 truncate">{user?.email}</p>
-                            </div>
+                            <Link
+                                href="/mobile/perfil"
+                                onClick={() => setMenuOpen(false)}
+                                className="flex items-center gap-3 flex-1 min-w-0 group"
+                                title="Ver meu perfil"
+                            >
+                                <img
+                                    src={
+                                        user?.profile_photo_url ||
+                                        `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=557bbb&color=fff&bold=true`
+                                    }
+                                    alt={user?.name || 'Usuário'}
+                                    className="w-12 h-12 rounded-full object-cover ring-2 ring-transparent group-hover:ring-[#557bbb]/30 transition-all"
+                                />
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-sm text-gray-800 truncate group-hover:text-[#557bbb]">
+                                        {user?.name || 'Usuário'}
+                                    </p>
+                                    <p className="text-[11px] text-gray-500 truncate">{user?.email}</p>
+                                </div>
+                            </Link>
                             <button
                                 onClick={() => setMenuOpen(false)}
                                 className="w-8 h-8 flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-100"
@@ -135,6 +144,7 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
                             <DrawerLink href="/mobile/checklists" icon="fa-clipboard-check" label="Checklists" />
                             <DrawerLink href="/mobile/locacoes" icon="fa-handshake" label="Locações" />
                             <div className="border-t border-gray-200 my-2" />
+                            <DrawerLink href="/mobile/perfil" icon="fa-user-gear" label="Meu Perfil" />
                             <DrawerLink href="/dashboard" icon="fa-desktop" label="Versão Desktop" />
                             <DrawerLink
                                 href="/logout"

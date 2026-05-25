@@ -27,6 +27,10 @@ Route::middleware(['auth', 'mobile.access'])->prefix('mobile')->name('mobile.')-
     // Dashboard
     Route::get('/dashboard', [PagesController::class, 'dashboardMobile'])->name('dashboard');
 
+    // Perfil
+    Route::get('/perfil',                  [PagesController::class, 'perfilIndex'])->name('perfil.index');
+    Route::get('/perfil/alterar-senha',    [PagesController::class, 'perfilAlterarSenha'])->name('perfil.alterar-senha');
+
     // Veículos
     Route::get('/veiculos',                   [PagesController::class, 'veiculosIndex'])->name('veiculos.index');
     Route::get('/veiculos/{id}',              [PagesController::class, 'veiculosShow'])->name('veiculos.show');
@@ -65,6 +69,10 @@ Route::middleware(['auth', 'mobile.access', 'throttle:120,1'])->prefix('api/mobi
 
     // Health check
     Route::get('/ping', [MobileApiController::class, 'ping'])->name('ping');
+
+    // Perfil do usuário
+    Route::get('/users/me',                  [MobileApiController::class, 'me'])->name('users.me');
+    Route::put('/users/change-password',     [MobileApiController::class, 'changePassword'])->name('users.change-password');
 
     // Veículos
     Route::get('/veiculos',                                [MobileApiController::class, 'veiculosIndex'])->name('veiculos.index');

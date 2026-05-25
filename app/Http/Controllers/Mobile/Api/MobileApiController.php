@@ -22,8 +22,13 @@ use App\Models\Frota\VeiculoPreventiva;
 use App\Models\Frota\VeiculoPreventivaItem;
 use App\Models\Frota\VeiculoPreventivaItemRealizada;
 use App\Models\Frota\VeiculoQuilometragem;
+use App\Models\Funcionario;
+use App\Models\Obra;
+use App\Models\FuncionarioFuncao;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 /**
  * MobileApiController — endpoints JSON consumidos pelos repositories
@@ -546,5 +551,108 @@ class MobileApiController extends Controller
         if ($cid = $this->companyId()) $q->where('company_id', $cid);
         $rows = $q->orderBy('id', 'desc')->limit($limit)->get();
         return response()->json(['status' => true, 'data' => $rows]);
+    }
+
+    // =========================================================================
+    // PERFIL DO USUÁRIO — endpoint /api/mobile/users/me
+    // Retorna user logado + funcionario + obra + função
+    // =========================================================================
+    public function me()
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['status' => false, 'message' => 'Não autenticado'], 401);
+        }
+
+        // Tenta achar funcionário pelo email do usuário
+        $funcionario = null;
+        $obra = null;
+        $funcao = null;
+
+        try {
+            $funcionario = Funcionario::where('email', $user->email)
+                ->orWhere(function ($q) use ($user) {
+                    if (method_exists($user, 'getKey')) {
+                        $q->orWhere('id', $user->id_funcionario ?? null);
+                    }
+                })
+                ->first();
+
+            if ($funcionario) {
+                if ($funcionario->id_obra) {
+                    $obra = Obra::find($funcionario->id_obra);
+                }
+                if ($funcionario->id_funcao) {
+                    $funcao = FuncionarioFuncao::find($funcionario->id_funcao);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silencia — funcionario relacionado é opcional
+        }
+
+        return response()->json([
+            'status' => true,
+            'user' => [
+                'id'              => $user->id,
+                'name'            => $user->name,
+                'email'           => $user->email,
+                'type'            => $user->type ?? null,
+                'profile_photo'   => $user->profile_photo_url ?? null,
+                'two_factor'      => !empty($user->two_factor_confirmed_at),
+            ],
+            'funcionario' => $funcionario ? [
+                'id'             => $funcionario->id,
+                'matricula'      => $funcionario->matricula,
+                'nome'           => $funcionario->nome,
+                'cpf'            => $funcionario->cpf,
+                'celular'        => $funcionario->celular,
+                'email'          => $funcionario->email,
+                'imagem_usuario' => $funcionario->imagem_usuario,
+                'situacao'       => $funcionario->situacao,
+            ] : null,
+            'obra' => $obra ? [
+                'id'          => $obra->id,
+                'codigo_obra' => $obra->codigo_obra ?? null,
+                'nome'        => $obra->nome ?? $obra->descricao ?? null,
+            ] : null,
+            'funcao' => $funcao ? [
+                'id'     => $funcao->id,
+                'funcao' => $funcao->funcao ?? $funcao->nome ?? null,
+            ] : null,
+        ]);
+    }
+
+    /**
+     * PUT /api/mobile/users/change-password
+     * Body: { current_password, password, password_confirmation }
+     *
+     * Validações:
+     *  - current_password confere com o hash atual
+     *  - nova senha tem 8+ chars, letras+números, não pwned (HIBP via Laravel Password rule)
+     *  - password_confirmation === password
+     */
+    public function changePassword(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['status' => false, 'message' => 'Não autenticado'], 401);
+        }
+
+        $request->validate([
+            'current_password' => ['required', 'string', 'current_password'],
+            'password' => [
+                'required',
+                'confirmed',
+                Password::min(8)->letters()->numbers()->uncompromised(),
+            ],
+        ]);
+
+        $user->password = Hash::make($request->password);
+        $user->save();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Senha alterada com sucesso. Você será desconectado.',
+        ]);
     }
 }
