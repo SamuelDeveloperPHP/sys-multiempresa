@@ -655,6 +655,27 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->only(['index', 'store', 'update', 'destroy']);
             });
 
+            /*
+            |------------------------------------------------------------------
+            | Estoque (admin)
+            |------------------------------------------------------------------
+            | URLs base:  /admin/estoque/...
+            | RouteNames: admin.estoque.*
+            |
+            | Controllers em App\Http\Controllers\Admin\Estoque.
+            | Módulo de controle de estoque por obra (FASE 2 — catálogo).
+            | Próximas fases: movimentações, requisições, inventário.
+            |------------------------------------------------------------------
+            */
+            Route::prefix('estoque')->name('admin.estoque.')->group(function () {
+                // Categorias — árvore via parent_id (CRUD inline)
+                Route::resource('categorias', \App\Http\Controllers\Admin\Estoque\CategoriaController::class)
+                    ->only(['index', 'store', 'update', 'destroy']);
+
+                // Produtos — catálogo completo com foto, SKU, categoria, fornecedor padrão
+                Route::resource('produtos', \App\Http\Controllers\Admin\Estoque\ProdutoController::class);
+            });
+
             Route::prefix('configuracao/blog')->group(function () {
                 // -----------------------------------------------------------------
                 // POSTS  (admin.posts.*)
