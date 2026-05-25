@@ -72,6 +72,13 @@ class PagesController extends Controller
             'diarioId' => $diarioId,
         ]);
     }
+    public function diarioClose($veiculoId, $diarioId)
+    {
+        return Inertia::render('Mobile/Veiculos/DiarioBordo/Close', [
+            'veiculoId' => $veiculoId,
+            'diarioId' => $diarioId,
+        ]);
+    }
 
     // ===== Checklist =====
     public function checklistIndex($veiculoId)

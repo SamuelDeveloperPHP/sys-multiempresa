@@ -31,6 +31,38 @@ export async function find(id) {
     return await db.diario_bordo.get(id) || await db.diario_bordo.get(Number(id));
 }
 
+// -----------------------------------------------------------------------------
+// CICLOS ABERTOS - regra do legado: 1 diário ABERTO por motorista
+// -----------------------------------------------------------------------------
+
+/**
+ * Retorna o diário ABERTO do motorista, ou null.
+ * Procura na base local. Considera apenas registros não-deletados.
+ *
+ * @param {number} userId - id do motorista (auth.user.id)
+ * @returns {Promise<Object|null>}
+ */
+export async function findOpen(userId = null) {
+    let query = db.diario_bordo.where('ciclo_status').equals('ABERTO');
+    if (userId) {
+        query = query.and(r => Number(r.user_id) === Number(userId));
+    }
+    // Exclui registros marcados para delete
+    query = query.and(r => r._sync_status !== 'pending_delete');
+    const all = await query.toArray();
+    return all[0] || null;
+}
+
+/**
+ * Lista todos os diários ABERTOS (debug/admin).
+ */
+export async function listOpen() {
+    return await db.diario_bordo
+        .where('ciclo_status').equals('ABERTO')
+        .and(r => r._sync_status !== 'pending_delete')
+        .toArray();
+}
+
 export async function create(payload) {
     return await localCreate('diario_bordo', payload, ENDPOINTS.diarioBordo.create);
 }
@@ -59,4 +91,4 @@ export async function syncAllRecent() {
     return rows.length;
 }
 
-export default { syncByVeiculo, listByVeiculo, find, create, update, remove, listAllRecent, syncAllRecent };
+export default { syncByVeiculo, listByVeiculo, find, findOpen, listOpen, create, update, remove, listAllRecent, syncAllRecent };

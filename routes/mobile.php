@@ -39,6 +39,7 @@ Route::middleware(['auth', 'mobile.access'])->prefix('mobile')->name('mobile.')-
     Route::get('/veiculos/{id}/diario-bordo/criar',       [PagesController::class, 'diarioCreate'])->name('diario.create');
     Route::get('/veiculos/{id}/diario-bordo/{dId}',       [PagesController::class, 'diarioShow'])->name('diario.show');
     Route::get('/veiculos/{id}/diario-bordo/{dId}/editar',[PagesController::class, 'diarioEdit'])->name('diario.edit');
+    Route::get('/veiculos/{id}/diario-bordo/{dId}/close', [PagesController::class, 'diarioClose'])->name('diario.close');
 
     // Checklist
     Route::get('/veiculos/{id}/checklist',                 [PagesController::class, 'checklistIndex'])->name('checklist.index');

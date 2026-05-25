@@ -35,6 +35,15 @@ db.version(1).stores({
     meta:           'key',
 });
 
+// ---------- v2: adiciona ciclo_status em diario_bordo e checklist_servicos ----------
+// Regra do legado: motorista só pode ter 1 diário/checklist ABERTO por vez.
+// ciclo_status: 'ABERTO' | 'FECHADO'
+// Dexie migra automaticamente sem perder dados — apenas adiciona índices.
+db.version(2).stores({
+    diario_bordo:       'id, _local_id, veiculo_id, data, _sync_status, ciclo_status, user_id, [ciclo_status+user_id]',
+    checklist_servicos: 'id, _local_id, checklist_id, veiculo_id, data, _sync_status, ciclo_status, tipo, user_id, [ciclo_status+user_id]',
+});
+
 // -----------------------------------------------------------------------------
 // API utilitária para gerar IDs locais temporários
 // -----------------------------------------------------------------------------
