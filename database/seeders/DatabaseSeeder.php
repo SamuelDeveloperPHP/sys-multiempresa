@@ -25,6 +25,8 @@ class DatabaseSeeder extends Seeder
             CompanySeeder::class,
             ModulesPermissionsSeeder::class,
             InitialPermissionsSeeder::class,
+            // Estoque: módulos + permissões para super_admin/manager. Idempotente.
+            EstoqueModulesSeeder::class,
         ]);
     }
 }
