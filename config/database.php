@@ -63,6 +63,33 @@ return [
             ]) : [],
         ],
 
+        /*
+        |------------------------------------------------------------------
+        | Banco legado scraping (sync-products) — usado pelo ETL de estoque
+        |------------------------------------------------------------------
+        | Conexão somente-leitura para importar catálogo de produtos do
+        | sistema legado. Comando: php artisan estoque:etl-legado.
+        |
+        | Por padrão usa as mesmas credenciais do banco principal (WAMP local).
+        | Em produção, configure DB_SCRAPING_* no .env do servidor que tem
+        | acesso ao banco do sync-products.
+        */
+        'scraping' => [
+            'driver' => 'mysql',
+            'host' => env('DB_SCRAPING_HOST', env('DB_HOST', '127.0.0.1')),
+            'port' => env('DB_SCRAPING_PORT', env('DB_PORT', '3306')),
+            'database' => env('DB_SCRAPING_DATABASE', 'scraping'),
+            'username' => env('DB_SCRAPING_USERNAME', env('DB_USERNAME', 'root')),
+            'password' => env('DB_SCRAPING_PASSWORD', env('DB_PASSWORD', '')),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'strict' => true,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),
