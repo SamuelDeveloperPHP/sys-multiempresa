@@ -28,7 +28,11 @@ class RedirectMotoristaToMobile
                 || str_starts_with($path, 'sw.js')
                 || str_starts_with($path, 'manifest.webmanifest')
                 // WebAuthn / Biometria: necessário para motorista cadastrar/usar passkey
-                || str_starts_with($path, 'webauthn');
+                || str_starts_with($path, 'webauthn')
+                // Health check público: usado pelo useOnlineStatus do PWA
+                || str_starts_with($path, 'health')
+                // offline.html fallback do Workbox
+                || $path === 'offline.html';
 
             if (!$isMobile) {
                 // Se for uma chamada AJAX/JSON, devolve 403 (não redireciona)

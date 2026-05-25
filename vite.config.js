@@ -69,10 +69,15 @@ export default defineConfig({
             workbox: {
                 // Pré-cache do app-shell (HTML/JS/CSS/fonts)
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-                // Navigation Fallback: quando uma navegação falha (offline + URL não
-                // está no cache de runtime), o Workbox serve essa página. Ela está
-                // em public/offline.html e é precacheada automaticamente porque
-                // bate com globPatterns *.html.
+                // O offline.html mora em public/offline.html (raiz) — NÃO em
+                // public/build/ — então o globPatterns não pega. Adicionamos
+                // manualmente via additionalManifestEntries.
+                // Revision = timestamp do build (regera cache quando muda).
+                additionalManifestEntries: [
+                    { url: '/offline.html', revision: String(Date.now()) },
+                ],
+                // Navigation Fallback: quando uma navegação falha (offline + URL
+                // não está no cache de runtime), o Workbox serve essa página.
                 navigateFallback: '/offline.html',
                 // Não use o fallback para essas rotas (deixa a request falhar para
                 // o handler natural do browser, ou para o runtimeCaching adequado).
