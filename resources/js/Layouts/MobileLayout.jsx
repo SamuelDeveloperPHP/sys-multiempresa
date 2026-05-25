@@ -17,6 +17,7 @@ import OpenCyclesBanner from '@/Components/Mobile/OpenCyclesBanner';
 import useSyncStatus from '@/offline/hooks/useSyncStatus';
 import { warmupMobileCache } from '@/offline/warmupCache';
 import { setAuthMarker, clearAuthMarker } from '@/offline/authMarker';
+import { logoutSafely } from '@/offline/logout';
 
 export default function MobileLayout({ header, backUrl, children, hideBottomNav = false }) {
     const { auth } = usePage().props;
@@ -153,13 +154,13 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
                             <div className="border-t border-gray-200 my-2" />
                             <DrawerLink href="/mobile/perfil" icon="fa-user-gear" label="Meu Perfil" />
                             <DrawerLink href="/dashboard" icon="fa-desktop" label="Versão Desktop" />
-                            <DrawerLink
-                                href="/logout"
+                            {/* Logout safe-offline: não tenta POST quando sem
+                                internet (evita loop de ERR_INTERNET_DISCONNECTED) */}
+                            <DrawerButton
                                 icon="fa-right-from-bracket"
                                 label="Sair"
-                                method="post"
                                 className="text-red-600"
-                                onClick={() => clearAuthMarker()}
+                                onClick={() => logoutSafely()}
                             />
                         </nav>
 
@@ -237,5 +238,19 @@ function DrawerLink({ href, icon, label, method, className = '', onClick }) {
             <i className={`fa-solid ${icon} w-5 text-center text-gray-400`} />
             <span>{label}</span>
         </Link>
+    );
+}
+
+// Para ações que não navegam (ex: logout safe-offline) — não usa Inertia Link.
+function DrawerButton({ icon, label, className = '', onClick }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-gray-50 text-sm text-gray-700 w-full text-left ${className}`}
+        >
+            <i className={`fa-solid ${icon} w-5 text-center text-gray-400`} />
+            <span>{label}</span>
+        </button>
     );
 }

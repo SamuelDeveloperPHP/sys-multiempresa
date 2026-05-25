@@ -22,6 +22,7 @@ import MobileLayout from '@/Layouts/MobileLayout';
 import apiClient from '@/offline/api/client';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
 import BiometriaSetup from '@/Components/Mobile/BiometriaSetup';
+import { logoutSafely } from '@/offline/logout';
 
 const STORAGE_PROFILE = 'sga_user_profile_cache';
 const STORAGE_PREFS   = 'sga_user_prefs';
@@ -237,23 +238,19 @@ export default function PerfilIndex() {
                     </a>
                 </div>
 
-                {/* ============= LOGOUT ============= */}
-                <Link
-                    href="/logout"
-                    method="post"
-                    as="button"
+                {/* ============= LOGOUT (safe-offline) ============= */}
+                {/* Não usa Inertia Link/method=post — quando offline, tentava
+                    bater no servidor e gerava ERR_INTERNET_DISCONNECTED em loop.
+                    logoutSafely decide em runtime: online → POST /logout;
+                    offline → limpa storage e vai direto pra /login. */}
+                <button
+                    type="button"
+                    onClick={() => logoutSafely()}
                     className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
-                    onClick={() => {
-                        // Limpa marker offline ao deslogar
-                        try {
-                            localStorage.removeItem('sga_auth_marker');
-                            localStorage.removeItem(STORAGE_PROFILE);
-                        } catch (_) {}
-                    }}
                 >
                     <i className="fa-solid fa-right-from-bracket" />
                     Sair da conta
-                </Link>
+                </button>
             </div>
         </MobileLayout>
     );
