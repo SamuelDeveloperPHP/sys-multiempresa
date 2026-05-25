@@ -17,7 +17,7 @@
 // -----------------------------------------------------------------------------
 
 import { useEffect, useState } from 'react';
-import Webpass from '@laragear/webpass';
+import { registerBiometric, isSupported as bioSupported, friendlyError } from '@/offline/webauthn';
 
 const STORAGE_KEY = 'sga_webauthn_active';
 
@@ -30,12 +30,7 @@ export default function BiometriaSetup({ onChange }) {
 
     // Detecta suporte ao montar
     useEffect(() => {
-        const isSupported =
-            typeof window !== 'undefined' &&
-            window.isSecureContext &&
-            'PublicKeyCredential' in window &&
-            typeof navigator?.credentials?.create === 'function';
-        setSupported(!!isSupported);
+        setSupported(bioSupported());
         setActive(localStorage.getItem(STORAGE_KEY) === '1');
     }, []);
 
@@ -46,18 +41,7 @@ export default function BiometriaSetup({ onChange }) {
         setWorking(true);
 
         try {
-            // CSRF token Laravel
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            const headers = csrf ? { 'X-CSRF-TOKEN': csrf } : {};
-
-            const response = await Webpass.attest({
-                attestOptions: '/webauthn/register/options',
-                attest: '/webauthn/register',
-                fetchOptions: {
-                    credentials: 'same-origin',
-                    headers,
-                },
-            });
+            const response = await registerBiometric();
 
             if (response.success) {
                 localStorage.setItem(STORAGE_KEY, '1');
@@ -65,20 +49,11 @@ export default function BiometriaSetup({ onChange }) {
                 setSuccess('Biometria configurada! Use sua impressão digital ou Face ID para entrar.');
                 onChange?.(true);
             } else {
-                throw new Error(response.message || 'Falha ao registrar biometria.');
+                throw response.error || new Error('Falha ao registrar biometria.');
             }
         } catch (err) {
             console.error('[BiometriaSetup] erro:', err);
-            const msg = err?.message || String(err);
-            if (/NotAllowedError|cancelled/i.test(msg)) {
-                setError('Você cancelou a configuração da biometria.');
-            } else if (/InvalidStateError/i.test(msg)) {
-                setError('Este dispositivo já está cadastrado.');
-            } else if (/NotSupportedError/i.test(msg)) {
-                setError('Seu dispositivo não suporta biometria.');
-            } else {
-                setError('Erro ao configurar biometria: ' + msg);
-            }
+            setError(friendlyError(err, 'cadastro de biometria'));
         } finally {
             setWorking(false);
         }

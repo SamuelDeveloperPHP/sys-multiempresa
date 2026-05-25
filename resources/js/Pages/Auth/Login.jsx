@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Head, Link, useForm, router } from '@inertiajs/react';
-import Webpass from '@laragear/webpass';
 import AuthLayout from '../../Layouts/AuthLayout';
 import { getAuthMarker } from '@/offline/authMarker';
 import { isBiometriaActive } from '@/Components/Mobile/BiometriaSetup';
+import { loginBiometric, isSupported as bioApiSupported, friendlyError } from '@/offline/webauthn';
 
 export default function Login({ status, canResetPassword }) {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -80,10 +80,7 @@ export default function Login({ status, canResetPassword }) {
     const [bioError, setBioError] = useState(null);
 
     useEffect(() => {
-        const supported =
-            typeof window !== 'undefined' &&
-            window.isSecureContext &&
-            'PublicKeyCredential' in window;
+        const supported = bioApiSupported();
         setBioSupported(supported);
         setBioActive(supported && isBiometriaActive());
     }, []);
@@ -93,36 +90,17 @@ export default function Login({ status, canResetPassword }) {
         setBioError(null);
         setBioWorking(true);
         try {
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-            const headers = csrf ? { 'X-CSRF-TOKEN': csrf } : {};
-
-            const response = await Webpass.assert({
-                assertOptions: '/webauthn/login/options',
-                assert: '/webauthn/login',
-                // Se há email digitado, manda como hint (mostra só credenciais desse user)
-                assertOptionsBody: data.email ? { email: data.email } : {},
-                fetchOptions: {
-                    credentials: 'same-origin',
-                    headers,
-                },
-            });
+            const response = await loginBiometric(data.email || null);
 
             if (response.success) {
                 // Login OK — redireciona para o módulo mobile
                 window.location.href = '/mobile/veiculos';
             } else {
-                throw new Error(response.message || 'Falha na autenticação.');
+                throw response.error || new Error('Falha na autenticação.');
             }
         } catch (err) {
             console.error('[Login biometria] erro:', err);
-            const msg = err?.message || String(err);
-            if (/NotAllowedError|cancel/i.test(msg)) {
-                setBioError('Autenticação cancelada.');
-            } else if (/no credentials|none registered/i.test(msg)) {
-                setBioError('Nenhuma biometria cadastrada neste dispositivo.');
-            } else {
-                setBioError('Erro: ' + msg);
-            }
+            setBioError(friendlyError(err, 'autenticação biométrica'));
         } finally {
             setBioWorking(false);
         }
