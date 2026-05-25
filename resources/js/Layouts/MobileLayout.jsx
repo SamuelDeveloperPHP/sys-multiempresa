@@ -10,6 +10,7 @@
 import { Link, usePage, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import OnlineIndicator from '@/Components/Mobile/OnlineIndicator';
+import NetworkStatusBar from '@/Components/Mobile/NetworkStatusBar';
 import SyncButton from '@/Components/Mobile/SyncButton';
 import InstallPrompt from '@/Components/Mobile/InstallPrompt';
 import OpenCyclesBanner from '@/Components/Mobile/OpenCyclesBanner';
@@ -82,6 +83,12 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
                     </button>
                 </div>
             </header>
+
+            {/* ============= BANNER DE STATUS DE REDE ============= */}
+            {/* Aparece automaticamente quando o app detecta offline ou quando o
+                usuário forçou modo offline manualmente. Substitui o antigo
+                requisito de "ativar modo avião" para usar offline. */}
+            <NetworkStatusBar />
 
             {/* ============= BANNER DE CICLOS ABERTOS ============= */}
             <OpenCyclesBanner />

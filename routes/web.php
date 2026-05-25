@@ -222,6 +222,23 @@ function goMobile() { window.location.href = '/mobile/veiculos'; }
 HTML, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('dev.reset-sw');
 
+/*
+|--------------------------------------------------------------------------
+| Health-check público (sem auth)
+|--------------------------------------------------------------------------
+| Endpoint super leve usado pelo client (useOnlineStatus) para detectar
+| conexão real com o servidor. Diferente de navigator.onLine, que só
+| responde a "modo avião", esse ping detecta também:
+|   - WiFi conectado mas sem internet
+|   - WiFi caindo / instabilidade
+|   - Captive portals
+|   - DNS quebrado
+| Retorna 204 No Content (sem corpo, sem cookies) para minimizar tráfego.
+*/
+Route::get('/health/ping', function () {
+    return response()->noContent()->header('Cache-Control', 'no-store');
+})->name('health.ping');
+
 Route::get('/manifest.webmanifest', function () {
     $file = public_path('build/manifest.webmanifest');
     if (!file_exists($file)) {

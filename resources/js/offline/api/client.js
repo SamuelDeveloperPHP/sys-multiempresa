@@ -36,19 +36,22 @@ apiClient.interceptors.response.use(
     }
 );
 
-// Helper: verifica conexão real fazendo um HEAD rápido
+// Helper: verifica conexão real fazendo um GET rápido a um endpoint público.
+// Usamos /health/ping (sem auth) para que funcione também na tela de login.
+// Retorna true se o servidor respondeu 2xx/3xx; false em erro de rede ou timeout.
 export async function pingServer(timeoutMs = 3000) {
     try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
-        const resp = await fetch('/api/mobile/ping', {
+        const resp = await fetch('/health/ping?ts=' + Date.now(), {
             method: 'GET',
             signal: controller.signal,
             cache: 'no-store',
+            credentials: 'same-origin',
             headers: { 'Accept': 'application/json' },
         });
         clearTimeout(timer);
-        return resp.ok;
+        return resp.ok || resp.status === 204;
     } catch {
         return false;
     }

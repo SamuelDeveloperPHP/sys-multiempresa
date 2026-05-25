@@ -3,7 +3,7 @@ import { Head, Link } from '@inertiajs/react';
 export default function Welcome({ auth, canLogin, canRegister }) {
     return (
         <>
-            <Head title="Bem-vindo ao Sys-Multiempresa" />
+            <Head title="Bem-vindo ao Engeativos" />
 
             <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-[#557bbb] selection:text-white">
                 {/* Navbar / Header */}

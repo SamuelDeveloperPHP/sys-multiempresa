@@ -1,77 +1,95 @@
+// resources/js/Pages/Auth/Login.jsx
+// -----------------------------------------------------------------------------
+// Tela de login — port das funcionalidades do legado (RN) para PWA/web.
+//
+// Funcionalidades:
+//   - Login normal (POST /login via Inertia) quando online
+//   - Login biométrico (WebAuthn) quando suportado + ativado
+//   - Login offline (bypass para /mobile/veiculos) quando há marker do motorista
+//   - Banner de status de rede em 4 estados (online bom, sinal fraco, sem
+//     conexão, modo offline manual)
+//   - Checkbox "Acessar sem internet" — força modo offline mesmo com sinal OK
+//   - Toggle show/hide password (ícone eye / eye-slash)
+//   - Botão dinâmico: "Acessar (ONLINE)" azul vs "Acessar (OFFLINE)" laranja
+//   - Auto-bypass quando offline + marker motorista (timer 1.2s)
+//
+// Inspirado em: C:\wamp64\www\app_engeativos_v002\src\pages\Login\index.js
+// -----------------------------------------------------------------------------
+
 import { useEffect, useState } from 'react';
-import { Head, Link, useForm, router } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import AuthLayout from '../../Layouts/AuthLayout';
 import { getAuthMarker } from '@/offline/authMarker';
 import { isBiometriaActive } from '@/Components/Mobile/BiometriaSetup';
 import { loginBiometric, isSupported as bioApiSupported, friendlyError } from '@/offline/webauthn';
+import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+
+// Avalia qualidade do sinal via Network Information API (quando disponível).
+// Retorna 'good' | 'fair' | 'poor'. Usado para sugerir login OFFLINE quando
+// a internet está ligada mas instável.
+function getSignalQuality() {
+    if (typeof navigator === 'undefined' || !navigator.connection) return 'good';
+    const conn = navigator.connection;
+    const eff = conn.effectiveType; // '4g' | '3g' | '2g' | 'slow-2g'
+    if (conn.saveData) return 'fair';
+    if (eff === 'slow-2g' || eff === '2g') return 'poor';
+    if (eff === '3g') return 'fair';
+    return 'good';
+}
 
 export default function Login({ status, canResetPassword }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
-        remember: true,  // Default true — bom para app mobile (sessão longa)
+        remember: true,
     });
 
-    // Detecta online/offline (não usa useOnlineStatus do offline/ para manter a
-    // página de login leve e independente do bundle do app mobile).
-    const [online, setOnline] = useState(
-        typeof navigator !== 'undefined' ? navigator.onLine : true
-    );
+    // Status de conexão real (ping + navigator + modo forçado)
+    const { online, deviceOffline, forcedOffline, setForcedOffline } = useOnlineStatus();
 
-    // Marker de "este usuário já logou aqui antes" — lido do localStorage.
-    // Se existe E está offline, oferecemos bypass automático para /mobile/veiculos.
+    // Marker: este dispositivo já logou aqui antes? Lido do localStorage.
     const [marker, setMarker] = useState(null);
     const [bypassing, setBypassing] = useState(false);
+
+    // Estado da senha (toggle visibility)
+    const [showPassword, setShowPassword] = useState(false);
+
+    // Qualidade do sinal (para banner informativo)
+    const [signal, setSignal] = useState(() => getSignalQuality());
+
+    // Modo efetivo do login (decide o que o botão faz e como aparece)
+    //   - 'online'  : faz POST /login (requer internet)
+    //   - 'offline' : abre direto /mobile/veiculos (requer marker motorista)
+    // forcedOffline (checkbox) OU !online → modo offline
+    const effectiveMode = (forcedOffline || !online) ? 'offline' : 'online';
+    const canOfflineLogin = marker?.id && marker?.type === 'motorista';
 
     useEffect(() => {
         setMarker(getAuthMarker());
     }, []);
 
     useEffect(() => {
-        const on = () => setOnline(true);
-        const off = () => setOnline(false);
-        window.addEventListener('online', on);
-        window.addEventListener('offline', off);
-        return () => {
-            window.removeEventListener('online', on);
-            window.removeEventListener('offline', off);
-        };
+        return () => reset('password');
     }, []);
 
+    // Reavalia o sinal periodicamente (Network Info API muda conforme rede)
     useEffect(() => {
-        return () => {
-            reset('password');
-        };
+        const i = setInterval(() => setSignal(getSignalQuality()), 5000);
+        return () => clearInterval(i);
     }, []);
 
-    // AUTO-BYPASS quando offline + marker existe: redireciona automaticamente
-    // para /mobile/veiculos (que está cacheado pelo SW). O React vai renderizar
-    // com auth.user lido do JSON Inertia cacheado, sem precisar de servidor.
-    // Só funciona para motoristas (type='motorista') — admins fazem login normal.
+    // AUTO-BYPASS: quando dispositivo está offline DE VERDADE (não forçado),
+    // e tem marker motorista, redireciona automaticamente para /mobile/veiculos
+    // depois de 1.2s. Se for forçado manual, o usuário pode clicar no botão.
     useEffect(() => {
-        if (!online && marker?.id && marker?.type === 'motorista' && !bypassing) {
+        if (deviceOffline && canOfflineLogin && !bypassing) {
             setBypassing(true);
-            // Pequeno delay para o usuário ver a mensagem antes do redirect
             const timer = setTimeout(() => {
                 window.location.href = '/mobile/veiculos';
             }, 1200);
             return () => clearTimeout(timer);
         }
-    }, [online, marker, bypassing]);
-
-    const submit = (e) => {
-        e.preventDefault();
-        if (!online) {
-            // Não tenta postar offline (vai falhar com erro feio de rede).
-            // Mostra mensagem amigável e mantém o form.
-            return;
-        }
-        post('/login');
-    };
-
-    const openOfflineApp = () => {
-        window.location.href = '/mobile/veiculos';
-    };
+    }, [deviceOffline, canOfflineLogin, bypassing]);
 
     // ===== Biometria (WebAuthn) =====
     const [bioSupported, setBioSupported] = useState(false);
@@ -91,9 +109,7 @@ export default function Login({ status, canResetPassword }) {
         setBioWorking(true);
         try {
             const response = await loginBiometric(data.email || null);
-
             if (response.success) {
-                // Login OK — redireciona para o módulo mobile
                 window.location.href = '/mobile/veiculos';
             } else {
                 throw response.error || new Error('Falha na autenticação.');
@@ -106,10 +122,59 @@ export default function Login({ status, canResetPassword }) {
         }
     };
 
+    // Submit: decide entre login online (POST) ou offline (redirect direto)
+    const submit = (e) => {
+        e.preventDefault();
+        if (effectiveMode === 'offline') {
+            if (canOfflineLogin) {
+                window.location.href = '/mobile/veiculos';
+            }
+            // Se não tem marker, botão já está desabilitado — não cai aqui
+            return;
+        }
+        post('/login');
+    };
+
+    // ============= Banner de status de rede (texto + cor) =============
+    let bannerIcon, bannerText, bannerSub, bannerBg;
+    if (forcedOffline) {
+        bannerIcon = 'fa-toggle-off text-slate-600';
+        bannerText = 'Modo OFFLINE ativado manualmente';
+        bannerSub = 'O login vai usar dados salvos neste dispositivo.';
+        bannerBg = 'bg-slate-100 border-slate-300 text-slate-800';
+    } else if (deviceOffline) {
+        bannerIcon = 'fa-wifi-slash text-red-600';
+        bannerText = 'Sem conexão — apenas OFFLINE disponível';
+        bannerSub = canOfflineLogin
+            ? 'Vamos abrir o app com seus dados em cache.'
+            : 'Conecte à internet para fazer o primeiro login.';
+        bannerBg = 'bg-red-50 border-red-200 text-red-800';
+    } else if (signal === 'poor' || signal === 'fair') {
+        bannerIcon = 'fa-triangle-exclamation text-amber-600';
+        bannerText = signal === 'poor' ? 'Sinal fraco — recomendado OFFLINE' : 'Conexão lenta';
+        bannerSub = 'Marque "Acessar sem internet" para entrar mais rápido.';
+        bannerBg = 'bg-amber-50 border-amber-200 text-amber-800';
+    } else {
+        bannerIcon = 'fa-circle-check text-emerald-600';
+        bannerText = 'Sinal bom — login ONLINE recomendado';
+        bannerSub = null;
+        bannerBg = 'bg-emerald-50 border-emerald-200 text-emerald-800';
+    }
+
+    // ============= Visual do botão principal =============
+    const buttonOnlineClasses  = 'bg-[#557bbb] hover:bg-[#3a5a8c] focus:ring-[#557bbb]';
+    const buttonOfflineClasses = 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-600';
+    const buttonClasses = effectiveMode === 'online' ? buttonOnlineClasses : buttonOfflineClasses;
+
+    const submitDisabled =
+        processing
+        || (effectiveMode === 'online' && !online)
+        || (effectiveMode === 'offline' && !canOfflineLogin);
+
     return (
         <AuthLayout>
             <Head title="Acesso Administrativo" />
-            
+
             <div>
                 <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Bem-vindo(a) de volta</h2>
                 <p className="mt-2 text-sm text-gray-500">
@@ -119,13 +184,13 @@ export default function Login({ status, canResetPassword }) {
 
             {status && <div className="mt-4 font-medium text-sm text-green-600">{status}</div>}
 
-            {/* Banner de status offline (PWA em campo) */}
-            {!online && marker?.id && marker?.type === 'motorista' && (
+            {/* ============= Auto-bypass banner ============= */}
+            {deviceOffline && canOfflineLogin && (
                 <div className="mt-4 flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-3">
                     <i className={`fa-solid ${bypassing ? 'fa-arrow-right-to-bracket fa-bounce' : 'fa-circle-check'} text-emerald-600 mt-0.5`} />
                     <div className="text-xs flex-1">
                         <p className="font-semibold mb-0.5">
-                            {bypassing ? 'Abrindo modo offline…' : `Bem-vindo de volta, ${marker.name?.split(' ')[0] || ''}`}
+                            {bypassing ? 'Abrindo modo offline…' : `Bem-vindo de volta, ${marker?.name?.split(' ')[0] || ''}`}
                         </p>
                         <p className="text-emerald-700 leading-relaxed">
                             Você já tem acesso liberado neste dispositivo.
@@ -133,65 +198,68 @@ export default function Login({ status, canResetPassword }) {
                                 ? ' Redirecionando para Veículos…'
                                 : ' Vamos abrir o app com seus dados em cache.'}
                         </p>
-                        {!bypassing && (
-                            <button
-                                type="button"
-                                onClick={openOfflineApp}
-                                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors"
-                            >
-                                <i className="fa-solid fa-arrow-right" />
-                                Abrir aplicativo offline
-                            </button>
-                        )}
                     </div>
                 </div>
             )}
 
-            {!online && (!marker?.id || marker?.type !== 'motorista') && (
-                <div className="mt-4 flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3">
-                    <i className="fa-solid fa-wifi-slash text-amber-600 mt-0.5" />
-                    <div className="text-xs">
-                        <p className="font-semibold mb-0.5">Você está offline</p>
-                        <p className="text-amber-700 leading-relaxed">
-                            Para fazer login pela primeira vez você precisa de internet.
-                            Se já entrou aqui antes e está em modo offline, abra direto o
-                            aplicativo a partir do ícone na tela inicial.
-                        </p>
-                    </div>
-                </div>
-            )}
-
-            <form onSubmit={submit} className="mt-8 space-y-6">
+            <form onSubmit={submit} className="mt-6 space-y-5">
                 <div className="space-y-4">
+                    {/* ============= E-MAIL ============= */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700">E-mail corporativo</label>
                         <div className="mt-1">
                             <input type="email" required autoFocus autoComplete="username"
                                 value={data.email} onChange={e => setData('email', e.target.value)}
-                                className={`appearance-none block w-full px-4 py-3 rounded-xl border ${errors.email ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'} focus:outline-none focus:ring-2 focus:border-transparent transition-all sm:text-sm text-gray-900 shadow-sm bg-white placeholder-gray-400`} 
+                                className={`appearance-none block w-full px-4 py-3 rounded-xl border ${errors.email ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'} focus:outline-none focus:ring-2 focus:border-transparent transition-all sm:text-sm text-gray-900 shadow-sm bg-white placeholder-gray-400`}
                                 placeholder="nome@empresa.com" />
                             {errors.email && <p className="mt-2 text-sm text-red-600 font-medium">{errors.email}</p>}
                         </div>
                     </div>
 
+                    {/* ============= SENHA com toggle de visibilidade ============= */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Senha</label>
-                        <div className="mt-1">
-                            <input type="password" required autoComplete="current-password"
-                                value={data.password} onChange={e => setData('password', e.target.value)}
-                                className={`appearance-none block w-full px-4 py-3 rounded-xl border ${errors.password ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'} focus:outline-none focus:ring-2 focus:border-transparent transition-all sm:text-sm text-gray-900 shadow-sm bg-white`} 
-                                placeholder="••••••••" />
+                        <div className="mt-1 relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                required
+                                autoComplete="current-password"
+                                value={data.password}
+                                onChange={e => setData('password', e.target.value)}
+                                className={`appearance-none block w-full px-4 py-3 pr-12 rounded-xl border ${errors.password ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'} focus:outline-none focus:ring-2 focus:border-transparent transition-all sm:text-sm text-gray-900 shadow-sm bg-white`}
+                                placeholder="••••••••"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(v => !v)}
+                                tabIndex={-1}
+                                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+                                title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                            >
+                                <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
+                            </button>
                             {errors.password && <p className="mt-2 text-sm text-red-600 font-medium">{errors.password}</p>}
                         </div>
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between">
+                {/* ============= Banner de status de rede ============= */}
+                <div className={`flex items-start gap-3 border rounded-xl p-3 text-xs ${bannerBg}`}>
+                    <i className={`fa-solid ${bannerIcon} text-base mt-0.5 shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                        <p className="font-semibold leading-tight">{bannerText}</p>
+                        {bannerSub && <p className="opacity-80 leading-tight mt-0.5">{bannerSub}</p>}
+                    </div>
+                </div>
+
+                {/* ============= Lembrar + Esqueci senha + Forçar offline ============= */}
+                <div className="flex items-center justify-between flex-wrap gap-y-2">
                     <div className="flex items-center">
-                        <input id="remember" name="remember" type="checkbox" checked={data.remember} onChange={e => setData('remember', e.target.checked)}
+                        <input id="remember" type="checkbox" checked={data.remember} onChange={e => setData('remember', e.target.checked)}
                             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded text-blue-600 focus:ring-offset-0 transition-colors" />
                         <label htmlFor="remember" className="ml-2 block text-sm text-gray-600">
-                            Lembrar neste dispositivo
+                            Lembrar
                         </label>
                     </div>
 
@@ -204,19 +272,44 @@ export default function Login({ status, canResetPassword }) {
                     )}
                 </div>
 
+                {/* ============= Checkbox: forçar modo offline ============= */}
+                {canOfflineLogin && (
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={forcedOffline}
+                            onChange={e => setForcedOffline(e.target.checked)}
+                            className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                        />
+                        <span className="text-sm text-gray-700">
+                            <i className="fa-solid fa-wifi-slash text-orange-500 mr-1" />
+                            Acessar sem internet (modo OFFLINE)
+                        </span>
+                    </label>
+                )}
+
+                {/* ============= BOTÃO PRINCIPAL ============= */}
                 <div>
-                    <button type="submit" disabled={processing || !online}
-                        className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                        {!online ? (
-                            <><i className="fa-solid fa-wifi-slash mr-2" /> Sem internet</>
-                        ) : processing ? 'Autenticando...' : 'Acessar o Painel'}
+                    <button type="submit" disabled={submitDisabled}
+                        className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${buttonClasses}`}>
+                        {processing ? (
+                            <><i className="fa-solid fa-spinner fa-spin mr-2" /> Autenticando…</>
+                        ) : effectiveMode === 'offline' ? (
+                            canOfflineLogin ? (
+                                <><i className="fa-solid fa-wifi-slash mr-2" /> Acessar (OFFLINE)</>
+                            ) : (
+                                <><i className="fa-solid fa-wifi-slash mr-2" /> Sem internet — login indisponível</>
+                            )
+                        ) : (
+                            <><i className="fa-solid fa-right-to-bracket mr-2" /> Acessar (ONLINE)</>
+                        )}
                     </button>
                 </div>
 
-                {/* ============= Botão Biometria ============= */}
-                {bioSupported && bioActive && online && (
+                {/* ============= BIOMETRIA ============= */}
+                {bioSupported && bioActive && online && !forcedOffline && (
                     <>
-                        <div className="relative my-2">
+                        <div className="relative my-1">
                             <div className="absolute inset-0 flex items-center">
                                 <div className="w-full border-t border-gray-200" />
                             </div>
@@ -246,6 +339,32 @@ export default function Login({ status, canResetPassword }) {
                     </>
                 )}
             </form>
+
+            {/* ============= Links LGPD ============= */}
+            <div className="mt-6 pt-4 border-t border-gray-100 text-center">
+                <div className="flex items-center justify-center gap-2 text-[11px]">
+                    <a
+                        href="https://sga-engeativos.com.br/privacidade"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#557bbb] hover:underline"
+                    >
+                        Política de Privacidade
+                    </a>
+                    <span className="text-gray-300">•</span>
+                    <a
+                        href="https://sga-engeativos.com.br/suporte"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#557bbb] hover:underline"
+                    >
+                        Termos e Suporte
+                    </a>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2 leading-snug">
+                    Ao entrar, você concorda com nossa Política de Privacidade e Termos de Uso.
+                </p>
+            </div>
         </AuthLayout>
     );
 }
