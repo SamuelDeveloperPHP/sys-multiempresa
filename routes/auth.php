@@ -9,7 +9,20 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\WebAuthn\WebAuthnLoginController;
+use App\Http\Controllers\WebAuthn\WebAuthnRegisterController;
 use Illuminate\Support\Facades\Route;
+
+// ============= WebAuthn / Biometria =============
+// Login com biometria (guest)
+Route::post('webauthn/login/options', [WebAuthnLoginController::class, 'options'])->name('webauthn.login.options');
+Route::post('webauthn/login',         [WebAuthnLoginController::class, 'login'])->name('webauthn.login');
+
+// Cadastro de dispositivo biométrico (autenticado)
+Route::middleware('auth')->group(function () {
+    Route::post('webauthn/register/options', [WebAuthnRegisterController::class, 'options'])->name('webauthn.register.options');
+    Route::post('webauthn/register',         [WebAuthnRegisterController::class, 'register'])->name('webauthn.register');
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])

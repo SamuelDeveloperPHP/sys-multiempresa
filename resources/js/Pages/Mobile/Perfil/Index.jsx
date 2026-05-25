@@ -21,6 +21,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import MobileLayout from '@/Layouts/MobileLayout';
 import apiClient from '@/offline/api/client';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+import BiometriaSetup from '@/Components/Mobile/BiometriaSetup';
 
 const STORAGE_PROFILE = 'sga_user_profile_cache';
 const STORAGE_PREFS   = 'sga_user_prefs';
@@ -169,24 +170,22 @@ export default function PerfilIndex() {
                     )}
                 </div>
 
-                {/* ============= PREFERÊNCIAS ============= */}
+                {/* ============= SEGURANÇA ============= */}
                 <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Preferências</h3>
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Segurança</h3>
 
-                    <PrefRow
-                        icon="fa-fingerprint"
-                        iconColor={prefs.biometria ? 'text-emerald-600' : 'text-gray-400'}
-                        label="Biometria"
-                        value={prefs.biometria}
-                        onToggle={() => togglePref('biometria')}
-                    />
-                    <PrefRow
-                        icon="fa-location-dot"
-                        iconColor={prefs.geolocalizacao ? 'text-emerald-600' : 'text-gray-400'}
-                        label="Geolocalização"
-                        value={prefs.geolocalizacao}
-                        onToggle={() => togglePref('geolocalizacao')}
-                    />
+                    {/* Biometria real (WebAuthn) */}
+                    <BiometriaSetup />
+
+                    <div className="border-t border-gray-100 pt-3">
+                        <PrefRow
+                            icon="fa-location-dot"
+                            iconColor={prefs.geolocalizacao ? 'text-emerald-600' : 'text-gray-400'}
+                            label="Geolocalização"
+                            value={prefs.geolocalizacao}
+                            onToggle={() => togglePref('geolocalizacao')}
+                        />
+                    </div>
                 </div>
 
                 {/* ============= DADOS PESSOAIS ============= */}

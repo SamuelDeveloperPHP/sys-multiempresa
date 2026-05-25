@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
+import Webpass from '@laragear/webpass';
 import AuthLayout from '../../Layouts/AuthLayout';
 import { getAuthMarker } from '@/offline/authMarker';
+import { isBiometriaActive } from '@/Components/Mobile/BiometriaSetup';
 
 export default function Login({ status, canResetPassword }) {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -69,6 +71,61 @@ export default function Login({ status, canResetPassword }) {
 
     const openOfflineApp = () => {
         window.location.href = '/mobile/veiculos';
+    };
+
+    // ===== Biometria (WebAuthn) =====
+    const [bioSupported, setBioSupported] = useState(false);
+    const [bioActive, setBioActive] = useState(false);
+    const [bioWorking, setBioWorking] = useState(false);
+    const [bioError, setBioError] = useState(null);
+
+    useEffect(() => {
+        const supported =
+            typeof window !== 'undefined' &&
+            window.isSecureContext &&
+            'PublicKeyCredential' in window;
+        setBioSupported(supported);
+        setBioActive(supported && isBiometriaActive());
+    }, []);
+
+    const handleBiometricLogin = async () => {
+        if (!online || bioWorking) return;
+        setBioError(null);
+        setBioWorking(true);
+        try {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            const headers = csrf ? { 'X-CSRF-TOKEN': csrf } : {};
+
+            const response = await Webpass.assert({
+                assertOptions: '/webauthn/login/options',
+                assert: '/webauthn/login',
+                // Se há email digitado, manda como hint (mostra só credenciais desse user)
+                assertOptionsBody: data.email ? { email: data.email } : {},
+                fetchOptions: {
+                    credentials: 'same-origin',
+                    headers,
+                },
+            });
+
+            if (response.success) {
+                // Login OK — redireciona para o módulo mobile
+                window.location.href = '/mobile/veiculos';
+            } else {
+                throw new Error(response.message || 'Falha na autenticação.');
+            }
+        } catch (err) {
+            console.error('[Login biometria] erro:', err);
+            const msg = err?.message || String(err);
+            if (/NotAllowedError|cancel/i.test(msg)) {
+                setBioError('Autenticação cancelada.');
+            } else if (/no credentials|none registered/i.test(msg)) {
+                setBioError('Nenhuma biometria cadastrada neste dispositivo.');
+            } else {
+                setBioError('Erro: ' + msg);
+            }
+        } finally {
+            setBioWorking(false);
+        }
     };
 
     return (
@@ -177,6 +234,39 @@ export default function Login({ status, canResetPassword }) {
                         ) : processing ? 'Autenticando...' : 'Acessar o Painel'}
                     </button>
                 </div>
+
+                {/* ============= Botão Biometria ============= */}
+                {bioSupported && bioActive && online && (
+                    <>
+                        <div className="relative my-2">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-gray-200" />
+                            </div>
+                            <div className="relative flex justify-center text-xs">
+                                <span className="px-2 bg-white text-gray-500">ou</span>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={handleBiometricLogin}
+                            disabled={bioWorking}
+                            className="w-full flex justify-center items-center gap-2 py-3 px-4 border-2 border-[#557bbb] rounded-xl text-sm font-semibold text-[#557bbb] bg-white hover:bg-[#eef2f9] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#557bbb] transition-all disabled:opacity-50"
+                        >
+                            {bioWorking ? (
+                                <><i className="fa-solid fa-spinner fa-spin" /> Aguardando biometria…</>
+                            ) : (
+                                <><i className="fa-solid fa-fingerprint text-lg" /> Entrar com biometria</>
+                            )}
+                        </button>
+
+                        {bioError && (
+                            <p className="text-xs text-red-600 font-medium text-center">
+                                {bioError}
+                            </p>
+                        )}
+                    </>
+                )}
             </form>
         </AuthLayout>
     );
