@@ -11,21 +11,57 @@
 
 import Webpass from '@laragear/webpass';
 
-// Instância única com config global
+// -----------------------------------------------------------------------------
+// IMPORTANTE: findCsrfToken/findXsrfToken passados em Webpass.create() NÃO
+// funcionam — bug do laragear/webpass (a função E() interna não propaga esses
+// campos do config global para cada request individual).
+//
+// SOLUÇÃO: lemos o CSRF token dinamicamente A CADA call e passamos como header
+// explícito no objeto de options. Garantido funcionar.
+// -----------------------------------------------------------------------------
+
 const wp = Webpass.create({
-    findCsrfToken: true,   // lê <meta name="csrf-token"> automaticamente
-    findXsrfToken: true,   // fallback: lê cookie XSRF-TOKEN
     credentials: 'same-origin',
 });
 
 /**
+ * Lê o CSRF token Laravel do meta tag OU cookie XSRF-TOKEN.
+ * É chamado a cada request para garantir token atual.
+ */
+function getCsrfHeaders() {
+    const headers = {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+    };
+
+    // 1) Meta tag (mais confiável — é o csrf_token() do Laravel direto)
+    const metaToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (metaToken && metaToken.length >= 40) {
+        headers['X-CSRF-TOKEN'] = metaToken;
+        return headers;
+    }
+
+    // 2) Cookie XSRF-TOKEN (fallback) — Laravel envia este criptografado
+    const cookieMatch = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+    if (cookieMatch) {
+        try {
+            headers['X-XSRF-TOKEN'] = decodeURIComponent(cookieMatch[1]);
+        } catch (_) {
+            headers['X-XSRF-TOKEN'] = cookieMatch[1];
+        }
+    }
+
+    return headers;
+}
+
+/**
  * Registra um novo dispositivo biométrico para o usuário autenticado.
- * URLs: /webauthn/register/options + /webauthn/register
  */
 export async function registerBiometric() {
+    const headers = getCsrfHeaders();
     return await wp.attest(
-        '/webauthn/register/options',
-        '/webauthn/register'
+        { path: '/webauthn/register/options', headers },
+        { path: '/webauthn/register', headers }
     );
 }
 
@@ -36,10 +72,14 @@ export async function registerBiometric() {
  * @param {string|null} email
  */
 export async function loginBiometric(email = null) {
-    const optionsArg = email
-        ? { path: '/webauthn/login/options', body: { email } }
-        : '/webauthn/login/options';
-    return await wp.assert(optionsArg, '/webauthn/login');
+    const headers = getCsrfHeaders();
+    const optionsConfig = email
+        ? { path: '/webauthn/login/options', body: { email }, headers }
+        : { path: '/webauthn/login/options', headers };
+    return await wp.assert(
+        optionsConfig,
+        { path: '/webauthn/login', headers }
+    );
 }
 
 /**
