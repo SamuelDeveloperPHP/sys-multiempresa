@@ -111,20 +111,42 @@ class MobileApiController extends Controller
     {
         $veiculo = $this->veiculoDaEmpresa((int) $id);
 
-        $preventivasItens = VeiculoPreventivaItem::where('veiculo_id', $id)->get();
-        $servicosPreventiva = VeiculoPreventivaItemRealizada::where('veiculo_id', $id)
-            ->orderBy('id', 'desc')
-            ->get();
+        // OBS importante: ambas tabelas usam `id_veiculo` (não `veiculo_id`).
+        // Migrations: 2026_05_12_000013_create_frota_preventivas_tables.php +
+        // 2026_05_19_140001_create_veiculo_preventivas_itens_table.php
+        //
+        // Try/catch por bloco: se uma tabela opcional não existir (migration
+        // ainda não rodada em produção), o app ainda retorna o veículo com
+        // listas vazias em vez de 500.
+        $preventivasItens = [];
+        try {
+            $preventivasItens = VeiculoPreventivaItem::where('id_veiculo', $id)->get();
+        } catch (\Throwable $e) {
+            \Log::warning('[veiculosShow] preventivas_itens falhou', [
+                'veiculo_id' => $id, 'msg' => $e->getMessage(),
+            ]);
+        }
+
+        $servicosPreventiva = [];
+        try {
+            $servicosPreventiva = VeiculoPreventivaItemRealizada::where('id_veiculo', $id)
+                ->orderBy('id', 'desc')
+                ->get();
+        } catch (\Throwable $e) {
+            \Log::warning('[veiculosShow] servicos_preventiva falhou', [
+                'veiculo_id' => $id, 'msg' => $e->getMessage(),
+            ]);
+        }
 
         // Calcula medição atual a partir das tabelas de leitura (última)
-        $kmAtual = $this->ultimaQuilometragem($id) ?? (float) $veiculo->quilometragem_inicial;
-        $hrAtual = $this->ultimoHorimetro($id)     ?? (float) $veiculo->horimetro_inicial;
+        $kmAtual = $this->ultimaQuilometragem($id) ?? (float) ($veiculo->quilometragem_inicial ?? 0);
+        $hrAtual = $this->ultimoHorimetro($id)     ?? (float) ($veiculo->horimetro_inicial ?? 0);
 
         // Anexa pseudo-fields esperados pelo front
         $veiculo->quilometragem_atual = $kmAtual;
         $veiculo->horimetro_atual     = $hrAtual;
 
-        $medicaoAtual = $veiculo->tipo_hr == 1 ? $hrAtual : $kmAtual;
+        $medicaoAtual = ($veiculo->tipo_hr ?? 0) == 1 ? $hrAtual : $kmAtual;
 
         return response()->json([
             'status' => true,
