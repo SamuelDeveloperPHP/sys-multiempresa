@@ -170,7 +170,9 @@ class MobileApiController extends Controller
     public function abastecimentosByVeiculo($veiculoId)
     {
         $this->veiculoDaEmpresa((int) $veiculoId); // garante ownership
+        $userEmail = Auth::user()?->email;
         $rows = VeiculoAbastecimento::where('veiculo_id', $veiculoId)
+            ->where('user_create', $userEmail)                   // ISOLAMENTO POR USUÁRIO
             ->orderBy('data_abastecimento', 'desc')
             ->get()
             ->map(fn($r) => $this->mapAbastecimento($r));
@@ -252,7 +254,9 @@ class MobileApiController extends Controller
     public function diarioByVeiculo($veiculoId)
     {
         $this->veiculoDaEmpresa((int) $veiculoId);
+        $userId = Auth::id();
         $rows = VeiculoDiarioBordo::where('id_veiculo', $veiculoId)
+            ->where('id_user', $userId)                       // ISOLAMENTO POR USUÁRIO
             ->orderBy('data_cadastro', 'desc')
             ->get()
             ->map(fn($r) => $this->mapDiario($r));
@@ -329,27 +333,61 @@ class MobileApiController extends Controller
     // -------------------------------------------------------------------------
     // CHECKLISTS — templates + execuções
     // -------------------------------------------------------------------------
-    public function checklistsByObra($obraId)
+    /**
+     * Lista templates de checklist do veículo (catálogo + itens).
+     * Tabela veiculo_checklist tem id_veiculo (não id_obra) — checklist é
+     * configurado POR VEÍCULO no SGA. Coluna do nome: nome_checklist.
+     * Itens em veiculo_checklist_itens com id_checklist + nome_servico.
+     */
+    public function checklistsByVeiculo($veiculoId)
     {
-        $checklists = VeiculoChecklist::where('id_obra', $obraId)->get();
+        $this->veiculoDaEmpresa((int) $veiculoId); // ownership
+
+        $checklists = VeiculoChecklist::where('id_veiculo', $veiculoId)
+            ->where(function ($q) {
+                $q->whereNull('situacao')->orWhere('situacao', 'Ativo')->orWhere('situacao', 'ativo');
+            })
+            ->get();
+
         $ids = $checklists->pluck('id');
-        $itens = VeiculoChecklistItem::whereIn('id_checklist', $ids)->get();
+        $itens = VeiculoChecklistItem::whereIn('id_checklist', $ids)
+            ->where(function ($q) {
+                $q->whereNull('situacao')->orWhere('situacao', 'Ativo')->orWhere('situacao', 'ativo');
+            })
+            ->get();
 
         return response()->json([
             'status' => true,
             'checklists' => $checklists->map(fn($c) => [
                 'id' => $c->id,
-                'obra_id' => $c->id_obra,
-                'nome' => $c->nome ?? $c->titulo ?? "Checklist #{$c->id}",
+                'veiculo_id' => $c->id_veiculo,
+                'nome' => $c->nome_checklist ?? "Checklist #{$c->id}",
                 'descricao' => $c->descricao ?? null,
             ]),
             'itens' => $itens->map(fn($i) => [
                 'id' => $i->id,
                 'checklist_id' => $i->id_checklist,
-                'nome' => $i->nome ?? $i->descricao,
-                'descricao' => $i->descricao,
+                'veiculo_id' => $i->id_veiculo,
+                'nome' => $i->nome_servico ?? $i->descricao,
+                'descricao' => $i->descricao ?? null,
+                'periodo_maq_vei' => $i->periodo_maq_vei ?? null,
+                'tipo_itens' => $i->tipo_itens ?? null,
                 'obrigatorio' => true,
             ]),
+        ]);
+    }
+
+    /**
+     * @deprecated Mantido para compatibilidade com clientes antigos.
+     * Use checklistsByVeiculo. Esta versão retorna vazio em vez de 500.
+     */
+    public function checklistsByObra($obraId)
+    {
+        return response()->json([
+            'status' => true,
+            'checklists' => [],
+            'itens' => [],
+            'deprecated' => 'Use /api/mobile/veiculos/{veiculoId}/checklists',
         ]);
     }
 
@@ -366,7 +404,10 @@ class MobileApiController extends Controller
 
     public function checklistServicosByVeiculo($veiculoId)
     {
+        $this->veiculoDaEmpresa((int) $veiculoId);
+        $userEmail = Auth::user()?->email;
         $rows = VeiculoChecklistServico::where('id_veiculo', $veiculoId)
+            ->where('user_create', $userEmail)                  // ISOLAMENTO POR USUÁRIO
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(fn($r) => $this->mapChecklistServico($r));
@@ -459,7 +500,9 @@ class MobileApiController extends Controller
     public function abastecimentosAll(Request $request)
     {
         $limit = min((int) $request->get('limit', 100), 500);
-        $q = VeiculoAbastecimento::query();
+        $user = Auth::user();
+        $q = VeiculoAbastecimento::query()
+            ->where('user_create', $user?->email);              // ISOLAMENTO POR USUÁRIO
         if ($cid = $this->companyId()) $q->where('company_id', $cid);
         $rows = $q->orderBy('data_abastecimento', 'desc')
             ->limit($limit)
@@ -471,7 +514,9 @@ class MobileApiController extends Controller
     public function diarioAll(Request $request)
     {
         $limit = min((int) $request->get('limit', 100), 500);
-        $q = VeiculoDiarioBordo::query();
+        $userId = Auth::id();
+        $q = VeiculoDiarioBordo::query()
+            ->where('id_user', $userId);                        // ISOLAMENTO POR USUÁRIO
         if ($cid = $this->companyId()) $q->where('company_id', $cid);
         $rows = $q->orderBy('data_cadastro', 'desc')
             ->limit($limit)
@@ -483,7 +528,9 @@ class MobileApiController extends Controller
     public function checklistServicosAll(Request $request)
     {
         $limit = min((int) $request->get('limit', 100), 500);
-        $q = VeiculoChecklistServico::query();
+        $userEmail = Auth::user()?->email;
+        $q = VeiculoChecklistServico::query()
+            ->where('user_create', $userEmail);                 // ISOLAMENTO POR USUÁRIO
         if ($cid = $this->companyId()) $q->where('company_id', $cid);
         $rows = $q->orderBy('created_at', 'desc')
             ->limit($limit)

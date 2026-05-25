@@ -22,19 +22,15 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
     const load = useCallback(async () => {
         const v = await veiculosRepo.find(id);
         setVeiculo(v?.veiculo);
-        if (v?.veiculo?.obra_id) {
-            setTemplates(await repo.listChecklists(v.veiculo.obra_id));
-        } else {
-            setTemplates(await repo.listChecklists());
-        }
+        // Templates de checklist são POR VEÍCULO (não por obra)
+        setTemplates(await repo.listChecklists(id));
         setHistorico(await repo.listServicosByVeiculo(id));
     }, [id]);
 
     const syncNow = useCallback(async () => {
         if (!online) return;
-        const v = await veiculosRepo.find(id);
         try {
-            if (v?.veiculo?.obra_id) await repo.syncChecklists(v.veiculo.obra_id);
+            await repo.syncChecklists(id);                 // sync POR VEÍCULO
             await repo.syncServicosByVeiculo(id);
             await load();
         } catch (e) { /* cache */ }

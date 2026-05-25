@@ -14,33 +14,34 @@ import ENDPOINTS from '../api/endpoints';
 import { localCreate, localUpdate, localDelete } from '../syncQueue';
 
 // -----------------------------------------------------------------------------
-// TEMPLATES — listagem por obra
+// TEMPLATES — listagem POR VEÍCULO (corrigido: checklist é por veículo no SGA)
 // -----------------------------------------------------------------------------
-export async function syncChecklists(obraId = null) {
-    const url = obraId ? ENDPOINTS.checklists.byObra(obraId) : ENDPOINTS.checklists.list;
+export async function syncChecklists(veiculoId = null) {
+    if (!veiculoId) return 0; // sem veículo, não há nada para sincronizar
+    const url = ENDPOINTS.checklists.byVeiculo(veiculoId);
     const { data } = await apiClient.get(url);
     const checklists = data?.checklists || data?.data || [];
     const itens = data?.itens || data?.checklist_itens || [];
 
     await db.transaction('rw', [db.checklists, db.checklist_itens], async () => {
-        if (obraId) {
-            await db.checklists.where('obra_id').equals(Number(obraId)).delete();
-            const ids = checklists.map(c => c.id);
-            await db.checklist_itens.where('checklist_id').anyOf(ids).delete();
-        } else {
-            await db.checklists.clear();
-            await db.checklist_itens.clear();
+        // Remove os antigos desse veículo (checklists e itens vinculados)
+        const existing = await db.checklists.where('veiculo_id').equals(Number(veiculoId)).toArray();
+        const oldIds = existing.map(c => c.id);
+        if (oldIds.length) {
+            await db.checklist_itens.where('checklist_id').anyOf(oldIds).delete();
         }
+        await db.checklists.where('veiculo_id').equals(Number(veiculoId)).delete();
+
         if (checklists.length) await db.checklists.bulkPut(checklists);
         if (itens.length) await db.checklist_itens.bulkPut(itens);
     });
-    await setLastSync(`checklists${obraId ? `:obra:${obraId}` : ''}`);
+    await setLastSync(`checklists:veiculo:${veiculoId}`);
     return checklists.length;
 }
 
-export async function listChecklists(obraId = null) {
-    if (obraId) {
-        return await db.checklists.where('obra_id').equals(Number(obraId)).toArray();
+export async function listChecklists(veiculoId = null) {
+    if (veiculoId) {
+        return await db.checklists.where('veiculo_id').equals(Number(veiculoId)).toArray();
     }
     return await db.checklists.toArray();
 }

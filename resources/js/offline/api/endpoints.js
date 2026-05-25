@@ -35,6 +35,8 @@ export const ENDPOINTS = {
 
     checklists: {
         list: '/checklists',
+        byVeiculo: (veiculoId) => `/veiculos/${veiculoId}/checklists`,
+        // Compat (deprecated)
         byObra: (obraId) => `/obras/${obraId}/checklists`,
     },
 

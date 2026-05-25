@@ -44,6 +44,14 @@ db.version(2).stores({
     checklist_servicos: 'id, _local_id, checklist_id, veiculo_id, data, _sync_status, ciclo_status, tipo, user_id, [ciclo_status+user_id]',
 });
 
+// ---------- v3: checklists agora indexa veiculo_id (não obra_id) ----------
+// Razão: a tabela veiculo_checklist do backend tem id_veiculo (não id_obra).
+// Mantém o índice obra_id por compatibilidade, mas o cliente passa a usar veiculo_id.
+db.version(3).stores({
+    checklists:      'id, veiculo_id, obra_id',
+    checklist_itens: 'id, checklist_id, veiculo_id',
+});
+
 // -----------------------------------------------------------------------------
 // API utilitária para gerar IDs locais temporários
 // -----------------------------------------------------------------------------

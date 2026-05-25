@@ -81,6 +81,8 @@ Route::middleware(['auth', 'mobile.access', 'throttle:120,1'])->prefix('api/mobi
 
     // Checklists (templates)
     Route::get('/checklists',                              [MobileApiController::class, 'checklistsAll']);
+    Route::get('/veiculos/{veiculoId}/checklists',         [MobileApiController::class, 'checklistsByVeiculo']);
+    // DEPRECATED: mantém para clientes antigos não quebrarem (retorna lista vazia)
     Route::get('/obras/{obraId}/checklists',               [MobileApiController::class, 'checklistsByObra']);
 
     // Checklist execuções (servicos)
