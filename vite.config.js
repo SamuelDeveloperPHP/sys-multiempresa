@@ -67,6 +67,15 @@ export default defineConfig({
                 ],
             },
             workbox: {
+                // Atualização agressiva: novo SW assume controle imediatamente
+                // sem esperar todas as abas/PWA fecharem. Sem isso, mudanças
+                // no SW só pegam efeito depois do usuário fechar tudo —
+                // que é exatamente o que vimos com o bug do /offline.html.
+                skipWaiting: true,
+                clientsClaim: true,
+                // Limpa caches antigos do Workbox (evita ficar com /offline.html
+                // de versões anteriores que apontavam para um arquivo inexistente).
+                cleanupOutdatedCaches: true,
                 // Pré-cache do app-shell (HTML/JS/CSS/fonts)
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
                 // O offline.html mora em public/offline.html (raiz) — NÃO em
