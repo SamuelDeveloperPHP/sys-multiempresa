@@ -158,17 +158,56 @@
     </div>
 
     <script>
-        // Atualiza badge de status conforme conectividade muda
+        // Atualiza badge de status conforme conectividade muda.
+        //
+        // OBS: quando o usuário cai aqui ESTANDO online, geralmente significa
+        // que a sessão Laravel expirou (servidor responde 302 → /login).
+        // Em vez de redirecionar pra /mobile/veiculos (que vai dar 302 de novo
+        // e potencialmente cair de volta aqui), fazemos um ping em /health/ping
+        // e decidimos:
+        //   - Servidor responde → vai pra /login (auto-bypass do marker
+        //     trata o caso de motorista com sessão válida)
+        //   - Servidor não responde → mantém offline
         var statusEl = document.getElementById('status');
         var statusText = document.getElementById('statusText');
+        var pingingNow = false;
+
+        function pingServer() {
+            return fetch('/health/ping?ts=' + Date.now(), {
+                method: 'GET',
+                cache: 'no-store',
+                credentials: 'same-origin',
+                signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined,
+            }).then(function (r) { return r.ok || r.status === 204; })
+              .catch(function () { return false; });
+        }
+
+        function tryRedirect() {
+            if (pingingNow) return;
+            pingingNow = true;
+            pingServer().then(function (ok) {
+                pingingNow = false;
+                if (!ok) {
+                    statusEl.classList.remove('online');
+                    statusText.textContent = 'Você está offline';
+                    return;
+                }
+                // Servidor alcançável — manda pra /login. Se a sessão estiver
+                // válida, o Laravel redireciona automaticamente para o módulo
+                // mobile. Se motorista tiver marker, o auto-bypass entra.
+                statusEl.classList.add('online');
+                statusText.textContent = 'Conexão restaurada — recarregando…';
+                setTimeout(function () {
+                    window.location.href = '/login';
+                }, 600);
+            });
+        }
 
         function updateStatus() {
             if (navigator.onLine) {
                 statusEl.classList.add('online');
-                statusText.textContent = 'Conexão restaurada — recarregando…';
-                setTimeout(function () {
-                    window.location.href = '/mobile/veiculos';
-                }, 800);
+                statusText.textContent = 'Verificando conexão…';
+                tryRedirect();
             } else {
                 statusEl.classList.remove('online');
                 statusText.textContent = 'Você está offline';

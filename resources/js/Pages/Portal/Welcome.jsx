@@ -59,7 +59,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                         <div className="absolute top-0 -translate-y-12 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-tr from-[#557bbb]/20 to-[#557bbb]/20 blur-[100px] rounded-full pointer-events-none -z-10"></div>
 
                         <h1 className="mx-auto max-w-4xl font-extrabold text-5xl tracking-tight text-slate-900 sm:text-7xl mb-8 leading-tight">
-                            Gestão multiempresa e filiais{' '}
+                            Gestão multiempresa e obras{' '}
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#3a5a8c] to-[#557bbb]">
                                 inteligente e unificada.
                             </span>

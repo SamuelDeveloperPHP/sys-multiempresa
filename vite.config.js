@@ -97,6 +97,9 @@ export default defineConfig({
                     /^\/admin/,
                     /^\/api/,
                     /^\/logout/,
+                    /^\/login/,    // login sempre bate na rede (auth via SSR)
+                    /^\/health/,   // health-check público nunca cacheia
+                    /^\/webauthn/, // WebAuthn API
                     /^\/_dev/,
                     /\/[^/?]+\.[^/]+$/, // arquivos com extensão (imagens, json, etc)
                 ],
@@ -151,12 +154,16 @@ export default defineConfig({
                         },
                     },
                     {
-                        // Páginas Inertia /mobile/* — NetworkFirst para sempre pegar última versão
+                        // Páginas Inertia /mobile/* — NetworkFirst com timeout
+                        // generoso (10s) para tolerar conexões 3G/4G ruins.
+                        // Antes era 4s, causando fallback prematuro no
+                        // offline.html quando o servidor estava lento.
                         urlPattern: /\/mobile\/.*/i,
                         handler: 'NetworkFirst',
                         options: {
-                            cacheName: 'mobile-pages',
-                            networkTimeoutSeconds: 4,
+                            // v2: cache antigo pode ter /offline.html como /mobile/veiculos
+                            cacheName: 'mobile-pages-v2',
+                            networkTimeoutSeconds: 10,
                             expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 7 },
                             cacheableResponse: { statuses: [0, 200] },
                         },
