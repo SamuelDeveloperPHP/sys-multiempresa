@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Estoque;
 
-use App\Helpers\CompanyContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,17 +14,17 @@ class ProdutoRequest extends FormRequest
 
     public function rules(): array
     {
-        $companyId = CompanyContext::current()?->id;
         $produtoId = $this->route('produto')?->id;
 
         return [
-            'categoria_id'         => ['nullable', 'integer', Rule::exists('estoque_categorias', 'id')->where('company_id', $companyId)],
-            'fornecedor_padrao_id' => ['nullable', 'integer', Rule::exists('fornecedores', 'id')->where('company_id', $companyId)],
+            // CATÁLOGO GLOBAL — categoria e fornecedor podem ser de qualquer empresa
+            'categoria_id'         => ['nullable', 'integer', Rule::exists('estoque_categorias', 'id')],
+            'fornecedor_padrao_id' => ['nullable', 'integer', Rule::exists('fornecedores', 'id')],
 
             'sku' => [
                 'nullable', 'string', 'max:100',
+                // SKU agora é único GLOBALMENTE (não por empresa)
                 Rule::unique('estoque_produtos', 'sku')
-                    ->where('company_id', $companyId)
                     ->ignore($produtoId)
                     ->whereNull('deleted_at'),
             ],
@@ -43,7 +42,7 @@ class ProdutoRequest extends FormRequest
             'estoque_minimo'  => ['nullable', 'numeric', 'min:0', 'max:999999.999'],
             'estoque_maximo'  => ['nullable', 'numeric', 'min:0', 'max:999999.999', 'gte:estoque_minimo'],
 
-            'imagem' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'], // 5MB
+            'imagem' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'ativo'  => ['nullable', 'boolean'],
         ];
     }
@@ -51,7 +50,7 @@ class ProdutoRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'sku.unique' => 'Já existe um produto com este SKU na empresa.',
+            'sku.unique' => 'Já existe um produto com este SKU no catálogo global.',
             'estoque_maximo.gte' => 'O estoque máximo deve ser maior ou igual ao mínimo.',
         ];
     }

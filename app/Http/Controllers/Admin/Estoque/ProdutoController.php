@@ -14,16 +14,17 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 /**
- * CRUD de produtos do catálogo. /admin/estoque/produtos
+ * CRUD de produtos — CATÁLOGO GLOBAL (não filtra por empresa).
+ * /admin/estoque/produtos
+ *
+ * O escopo por empresa+obra fica apenas em Saldo / Movimentacao /
+ * Requisicao / Inventario, que continuam com company_id.
  */
 class ProdutoController extends Controller
 {
     public function index(Request $request)
     {
-        $companyId = CompanyContext::current()?->id;
-
         $query = Produto::query()
-            ->where('company_id', $companyId)
             ->with(['categoria:id,nome', 'fornecedorPadrao:id,razao_social']);
 
         if ($q = $request->input('q')) {
@@ -37,69 +38,73 @@ class ProdutoController extends Controller
         if ($cat = $request->input('categoria_id')) {
             $query->where('categoria_id', $cat);
         }
-        if ($ativo = $request->input('ativo')) {
+        if (($ativo = $request->input('ativo')) !== null && $ativo !== '') {
             $query->where('ativo', $ativo === '1');
         }
         if ($request->boolean('abaixo_minimo')) {
-            // Sub-query: produtos com algum saldo abaixo do mínimo
-            $query->whereHas('saldos', function ($q) {
+            // Filtra apenas saldos da empresa atual (saldo é por empresa)
+            $companyId = CompanyContext::current()?->id;
+            $query->whereHas('saldos', function ($q) use ($companyId) {
                 $q->whereColumn('quantidade', '<', 'estoque_produtos.estoque_minimo');
+                if ($companyId) {
+                    $q->where('company_id', $companyId);
+                }
             });
         }
 
         $produtos = $query->orderBy('nome')->paginate(20)->withQueryString();
 
         return Inertia::render('Admin/Estoque/Produtos/Index', [
-            'produtos'    => $produtos,
-            'categorias'  => Categoria::where('company_id', $companyId)->orderBy('nome')->get(['id', 'nome', 'parent_id']),
-            'filtros'     => $request->only(['q', 'categoria_id', 'ativo', 'abaixo_minimo']),
+            'produtos'   => $produtos,
+            'categorias' => Categoria::orderBy('nome')->get(['id', 'nome', 'parent_id']),
+            'filtros'    => $request->only(['q', 'categoria_id', 'ativo', 'abaixo_minimo']),
         ]);
     }
 
     public function create()
     {
-        $companyId = CompanyContext::current()?->id;
         return Inertia::render('Admin/Estoque/Produtos/Form', [
             'produto'      => null,
-            'categorias'   => Categoria::where('company_id', $companyId)->orderBy('nome')->get(['id', 'nome', 'parent_id']),
-            'fornecedores' => Fornecedor::where('company_id', $companyId)->orderBy('razao_social')->get(['id', 'razao_social', 'nome_fantasia']),
+            'categorias'   => Categoria::orderBy('nome')->get(['id', 'nome', 'parent_id']),
+            'fornecedores' => Fornecedor::orderBy('razao_social')->get(['id', 'razao_social', 'nome_fantasia']),
         ]);
     }
 
     public function edit(Produto $produto)
     {
-        abort_if($produto->company_id !== CompanyContext::current()?->id, 403);
-        $companyId = $produto->company_id;
         return Inertia::render('Admin/Estoque/Produtos/Form', [
             'produto'      => $produto,
-            'categorias'   => Categoria::where('company_id', $companyId)->orderBy('nome')->get(['id', 'nome', 'parent_id']),
-            'fornecedores' => Fornecedor::where('company_id', $companyId)->orderBy('razao_social')->get(['id', 'razao_social', 'nome_fantasia']),
+            'categorias'   => Categoria::orderBy('nome')->get(['id', 'nome', 'parent_id']),
+            'fornecedores' => Fornecedor::orderBy('razao_social')->get(['id', 'razao_social', 'nome_fantasia']),
         ]);
     }
 
     public function show(Produto $produto)
     {
-        abort_if($produto->company_id !== CompanyContext::current()?->id, 403);
-
         $produto->load(['categoria', 'fornecedorPadrao']);
-        $saldos = Saldo::where('produto_id', $produto->id)
-            ->with('obra:id,codigo_obra,nome')
-            ->get();
+
+        // Saldo é por empresa+obra. Mostra apenas saldos da empresa atual
+        // (o admin de empresa A não precisa ver saldos da empresa B).
+        $companyId = CompanyContext::current()?->id;
+        $saldosQuery = Saldo::where('produto_id', $produto->id)
+            ->with('obra:id,codigo_obra,nome');
+        if ($companyId) {
+            $saldosQuery->where('company_id', $companyId);
+        }
+        $saldos = $saldosQuery->get();
 
         return Inertia::render('Admin/Estoque/Produtos/Show', [
-            'produto'      => $produto,
-            'saldos'       => $saldos,
-            'saldoTotal'   => $saldos->sum('quantidade'),
-            'valorTotal'   => $saldos->sum(fn ($s) => (float) $s->quantidade * (float) $s->valor_medio),
+            'produto'    => $produto,
+            'saldos'     => $saldos,
+            'saldoTotal' => $saldos->sum('quantidade'),
+            'valorTotal' => $saldos->sum(fn ($s) => (float) $s->quantidade * (float) $s->valor_medio),
         ]);
     }
 
     public function store(ProdutoRequest $request)
     {
-        $companyId = CompanyContext::current()?->id;
-
         $data = $request->validated();
-        $data['company_id']  = $companyId;
+        $data['company_id']  = null; // catálogo global
         $data['sku']         = $data['sku'] ?: Produto::gerarSku();
         $data['user_create'] = $request->user()->email;
         $data['ativo']       = $request->boolean('ativo', true);
@@ -116,18 +121,14 @@ class ProdutoController extends Controller
 
     public function update(ProdutoRequest $request, Produto $produto)
     {
-        abort_if($produto->company_id !== CompanyContext::current()?->id, 403);
-
         $data = $request->validated();
         $data['user_edit'] = $request->user()->email;
         $data['ativo']     = $request->boolean('ativo', true);
-        // sku vazio = mantém o atual (não regera)
         if (empty($data['sku'])) {
             unset($data['sku']);
         }
 
         if ($request->hasFile('imagem')) {
-            // Remove a antiga
             if ($produto->imagem) {
                 Storage::disk('public')->delete($produto->imagem);
             }
@@ -142,9 +143,7 @@ class ProdutoController extends Controller
 
     public function destroy(Produto $produto)
     {
-        abort_if($produto->company_id !== CompanyContext::current()?->id, 403);
-
-        // Não deixa excluir se tem movimentações (preserva histórico)
+        // Não exclui se tem movimentações em qualquer empresa
         if ($produto->movimentacoes()->exists()) {
             return back()->with('error', 'Produto tem movimentações. Desative ao invés de excluir.');
         }

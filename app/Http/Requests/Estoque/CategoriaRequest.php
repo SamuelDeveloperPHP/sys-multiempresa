@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Estoque;
 
-use App\Helpers\CompanyContext;
 use App\Models\Estoque\Categoria;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -16,19 +15,17 @@ class CategoriaRequest extends FormRequest
 
     public function rules(): array
     {
-        $companyId = CompanyContext::current()?->id;
         $categoriaId = $this->route('categoria')?->id;
 
         return [
+            // CATÁLOGO GLOBAL — categoria pai pode ser qualquer uma
             'parent_id' => [
                 'nullable', 'integer',
-                Rule::exists('estoque_categorias', 'id')->where('company_id', $companyId),
+                Rule::exists('estoque_categorias', 'id'),
                 function ($attribute, $value, $fail) use ($categoriaId) {
-                    // Não permite categoria pai = ela mesma (ciclo)
                     if ($value && $categoriaId && (int) $value === (int) $categoriaId) {
                         $fail('A categoria não pode ser pai de si mesma.');
                     }
-                    // Validação de ciclo profundo (pai → ... → eu)
                     if ($value && $categoriaId) {
                         $node = Categoria::find($value);
                         while ($node) {

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Admin\Estoque;
 
-use App\Helpers\CompanyContext;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Estoque\CategoriaRequest;
 use App\Models\Estoque\Categoria;
@@ -10,7 +9,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 /**
- * Categorias de produtos — árvore via parent_id.
+ * Categorias de produtos — CATÁLOGO GLOBAL (não filtra por empresa).
  *
  * Tela: /admin/estoque/categorias
  */
@@ -18,11 +17,8 @@ class CategoriaController extends Controller
 {
     public function index(Request $request)
     {
-        $companyId = CompanyContext::current()?->id;
-
-        // Carrega todas, monta a árvore no controller (poucas dezenas geralmente)
+        // Carrega todas — catálogo é global
         $todas = Categoria::query()
-            ->where('company_id', $companyId)
             ->orderBy('ordem')
             ->orderBy('nome')
             ->get(['id', 'parent_id', 'nome', 'descricao', 'ordem', 'ativo'])
@@ -41,17 +37,15 @@ class CategoriaController extends Controller
         unset($cat);
 
         return Inertia::render('Admin/Estoque/Categorias/Index', [
-            'arvore'      => array_values($raizes),
-            'todasFlat'   => array_values($todas),
+            'arvore'    => array_values($raizes),
+            'todasFlat' => array_values($todas),
         ]);
     }
 
     public function store(CategoriaRequest $request)
     {
-        $companyId = CompanyContext::current()?->id;
-
         Categoria::create([
-            'company_id'  => $companyId,
+            'company_id'  => null, // global
             'parent_id'   => $request->input('parent_id') ?: null,
             'nome'        => $request->input('nome'),
             'descricao'   => $request->input('descricao'),
@@ -65,8 +59,6 @@ class CategoriaController extends Controller
 
     public function update(CategoriaRequest $request, Categoria $categoria)
     {
-        abort_if($categoria->company_id !== CompanyContext::current()?->id, 403);
-
         $categoria->update([
             'parent_id' => $request->input('parent_id') ?: null,
             'nome'      => $request->input('nome'),
@@ -81,9 +73,7 @@ class CategoriaController extends Controller
 
     public function destroy(Request $request, Categoria $categoria)
     {
-        abort_if($categoria->company_id !== CompanyContext::current()?->id, 403);
-
-        // Bloqueia se tem produtos
+        // Bloqueia se tem produtos vinculados
         if ($categoria->produtos()->exists()) {
             return back()->with('error', 'Categoria tem produtos vinculados. Remova-os antes.');
         }

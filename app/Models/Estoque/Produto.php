@@ -4,7 +4,6 @@ namespace App\Models\Estoque;
 
 use App\Models\Fornecedor;
 use App\Models\Obra;
-use App\Models\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,12 +12,17 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Produto do catálogo. NÃO armazena quantidade — saldo POR OBRA fica em
- * App\Models\Estoque\Saldo (estoque_saldos).
+ * Produto do catálogo.
+ *
+ * CATÁLOGO GLOBAL: produtos são compartilhados entre todas as empresas.
+ * NÃO armazena quantidade — saldo POR (produto, obra) fica em
+ * App\Models\Estoque\Saldo (estoque_saldos), com company_id.
+ *
+ * SKU é único GLOBALMENTE.
  */
 class Produto extends Model
 {
-    use HasFactory, SoftDeletes, Tenantable;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'estoque_produtos';
 

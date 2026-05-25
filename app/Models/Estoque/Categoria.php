@@ -2,7 +2,6 @@
 
 namespace App\Models\Estoque;
 
-use App\Models\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,13 +11,16 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  * Categoria de produto. Árvore via parent_id.
  *
+ * CATÁLOGO GLOBAL: categorias são compartilhadas entre todas as empresas.
+ * O escopo por empresa+obra fica apenas nas movimentações/saldo/requisições.
+ *
  * Substitui os 3 níveis fixos do legado (principal/primaria/secundaria) por
  * uma estrutura recursiva. O atributo legacy_kind preserva qual era o tipo
  * original (após o ETL).
  */
 class Categoria extends Model
 {
-    use HasFactory, SoftDeletes, Tenantable;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'estoque_categorias';
 
