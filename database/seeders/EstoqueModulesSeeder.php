@@ -104,6 +104,15 @@ class EstoqueModulesSeeder extends Seeder
             'show_in_menu' => true, // FASE 7.B
         ],
         [
+            'slug'         => 'estoque.almoxarifes',
+            'parent_slug'  => 'estoque',
+            'name'         => 'Almoxarifes',
+            'route_name'   => 'admin.estoque.almoxarifes.index',
+            'icon'         => 'fa-solid fa-user-shield',
+            'sort_order'   => 7,
+            'show_in_menu' => true, // FASE 7.B+ gestão de aprovadores
+        ],
+        [
             'slug'         => 'estoque.relatorios',
             'parent_slug'  => 'estoque',
             'name'         => 'Relatórios',

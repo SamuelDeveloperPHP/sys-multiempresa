@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
+import BiometriaPolicyBanner from '@/Components/BiometriaPolicyBanner';
 
 /**
  * Layout inspirado no Rise CRM (CodeCanyon).
@@ -255,6 +256,7 @@ export default function AuthenticatedLayout({ header, children }) {
                 </header>
 
                 <main className="flex-1 overflow-y-auto overflow-x-hidden">
+                    <BiometriaPolicyBanner />
                     {children}
                 </main>
 

@@ -78,12 +78,32 @@ class HandleInertiaRequests extends Middleware
             }
         }
 
+        // Política biométrica — quantas credenciais WebAuthn ativas o user tem.
+        // Banner global no AuthenticatedLayout alerta se < 2.
+        $biometricStatus = null;
+        if ($user) {
+            try {
+                $count = \Laragear\WebAuthn\Models\WebAuthnCredential::query()
+                    ->where('authenticatable_type', get_class($user))
+                    ->where('authenticatable_id', $user->id)
+                    ->whereNull('disabled_at')
+                    ->count();
+                $biometricStatus = [
+                    'total'            => $count,
+                    'atende_requisito' => $count >= 2,
+                ];
+            } catch (\Throwable $e) {
+                // Sem tabela / sem laragear — ignora silenciosamente
+            }
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
                 'user' => $user,
                 'company' => $company,
                 'menuSections' => $menuSections,
+                'biometric_status' => $biometricStatus,
             ],
             'flash' => [
                 'message' => fn () => $request->session()->get('message')

@@ -723,6 +723,11 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::resource('devolucoes', \App\Http\Controllers\Admin\Estoque\DevolucaoController::class)
                     ->only(['index', 'create', 'store', 'show']);
 
+                // Gestão de almoxarifes (aprovadores de devolução) — FASE 7.B+
+                Route::get('almoxarifes',           [\App\Http\Controllers\Admin\Estoque\AlmoxarifeController::class, 'index'])->name('almoxarifes.index');
+                Route::post('almoxarifes/toggle',   [\App\Http\Controllers\Admin\Estoque\AlmoxarifeController::class, 'toggle'])->name('almoxarifes.toggle');
+                Route::post('almoxarifes/bulk',     [\App\Http\Controllers\Admin\Estoque\AlmoxarifeController::class, 'bulkSync'])->name('almoxarifes.bulk');
+
                 // Relatórios gerenciais (FASE 6)
                 Route::prefix('relatorios')->name('relatorios.')->group(function () {
                     Route::get('/',                  [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'hub'])->name('hub');
