@@ -38,6 +38,20 @@ export default function MovimentacaoForm({ tipoInicial, obras, fornecedores }) {
     const tipoAtual = TIPOS.find((t) => t.value === data.tipo) || TIPOS[0];
     const isSaida = data.tipo === 'SAIDA';
     const [retiranteSel, setRetiranteSel] = useState(null);
+    const [bioStatus, setBioStatus] = useState(null);
+
+    // Quando muda o retirante (e está em SAIDA), consulta o status biométrico
+    useEffect(() => {
+        if (!isSaida || !data.retirante_user_id) {
+            setBioStatus(null);
+            return;
+        }
+        let active = true;
+        axios.get(route('admin.biometria.status', data.retirante_user_id))
+            .then((r) => { if (active) setBioStatus(r.data); })
+            .catch(() => { if (active) setBioStatus(null); });
+        return () => { active = false; };
+    }, [data.retirante_user_id, isSaida]);
 
     // Produto selecionado (com cache visual)
     const [produtoSel, setProdutoSel] = useState(null);
@@ -297,6 +311,26 @@ export default function MovimentacaoForm({ tipoInicial, obras, fornecedores }) {
                                         />
                                     </Field>
                                 </div>
+
+                                {/* Status biométrico do retirante selecionado */}
+                                {bioStatus && bioStatus.existe && (
+                                    <div className={`mt-3 px-3 py-2 rounded text-xs flex items-center gap-2 ${
+                                        bioStatus.nivel === 'completa' ? 'bg-emerald-100 text-emerald-900' :
+                                        bioStatus.nivel === 'incompleta' ? 'bg-amber-100 text-amber-900' :
+                                        'bg-gray-100 text-gray-700'
+                                    }`}>
+                                        <i className="fa-solid fa-fingerprint" />
+                                        <span>
+                                            <strong>Biometria do retirante:</strong>{' '}
+                                            {bioStatus.nivel === 'completa' &&
+                                                <>✓ {bioStatus.total_credenciais} digitais cadastradas — funcionário pode usar biometria como autenticação.</>}
+                                            {bioStatus.nivel === 'incompleta' &&
+                                                <>⚠ apenas {bioStatus.total_credenciais} digital — recomendado cadastrar ≥ 2 (em /admin/perfil/biometria).</>}
+                                            {bioStatus.nivel === 'sem_biometria' &&
+                                                <>Sem biometria cadastrada. Use senha por enquanto.</>}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         )}
 

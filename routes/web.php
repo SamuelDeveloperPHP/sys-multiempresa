@@ -386,6 +386,15 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
         ->middleware('module.access')
         ->group(function () {
 
+            // Biometria do próprio usuário (gestão de credenciais WebAuthn)
+            // FASE 7.C — múltiplas credenciais para validar saída do estoque
+            Route::get('perfil/biometria',
+                [\App\Http\Controllers\Admin\BiometriaController::class, 'index'])
+                ->name('admin.perfil.biometria.index');
+            Route::delete('perfil/biometria/{credentialId}',
+                [\App\Http\Controllers\Admin\BiometriaController::class, 'destroy'])
+                ->name('admin.perfil.biometria.destroy');
+
             /*
             |------------------------------------------------------------------
             | Usuários - listagens especiais (ativos / inativos) + permissões
@@ -703,6 +712,10 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::post('inventarios/{inventario}/itens/lote', [\App\Http\Controllers\Admin\Estoque\InventarioController::class, 'atualizarLote'])->name('inventarios.itens.lote');
                 Route::resource('inventarios', \App\Http\Controllers\Admin\Estoque\InventarioController::class)
                     ->only(['index', 'create', 'store', 'show']);
+
+                // Status biométrico de qualquer user — usado pela tela de SAÍDA
+                Route::get('biometria/status/{userId}', [\App\Http\Controllers\Admin\BiometriaController::class, 'statusUsuario'])
+                    ->name('admin.biometria.status');
 
                 // Devoluções internas (FASE 7.B)
                 Route::post('devolucoes/{devolucao}/aprovar',  [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'aprovar'])->name('devolucoes.aprovar');
