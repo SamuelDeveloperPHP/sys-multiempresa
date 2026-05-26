@@ -683,6 +683,15 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('movimentacoes.saldo');
                 Route::resource('movimentacoes', \App\Http\Controllers\Admin\Estoque\MovimentacaoController::class)
                     ->only(['index', 'create', 'store', 'show', 'destroy']);
+
+                // Requisições — fluxo aprovação (FASE 4)
+                // RASCUNHO → ENVIADA → APROVADA → ATENDIDA (ou REJEITADA/CANCELADA)
+                Route::post('requisicoes/{requisicao}/enviar',   [\App\Http\Controllers\Admin\Estoque\RequisicaoController::class, 'enviar'])->name('requisicoes.enviar');
+                Route::post('requisicoes/{requisicao}/aprovar',  [\App\Http\Controllers\Admin\Estoque\RequisicaoController::class, 'aprovar'])->name('requisicoes.aprovar');
+                Route::post('requisicoes/{requisicao}/rejeitar', [\App\Http\Controllers\Admin\Estoque\RequisicaoController::class, 'rejeitar'])->name('requisicoes.rejeitar');
+                Route::post('requisicoes/{requisicao}/atender',  [\App\Http\Controllers\Admin\Estoque\RequisicaoController::class, 'atender'])->name('requisicoes.atender');
+                Route::post('requisicoes/{requisicao}/cancelar', [\App\Http\Controllers\Admin\Estoque\RequisicaoController::class, 'cancelar'])->name('requisicoes.cancelar');
+                Route::resource('requisicoes', \App\Http\Controllers\Admin\Estoque\RequisicaoController::class);
             });
 
             Route::prefix('configuracao/blog')->group(function () {

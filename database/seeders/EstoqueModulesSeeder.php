@@ -83,7 +83,7 @@ class EstoqueModulesSeeder extends Seeder
             'route_name'   => 'admin.estoque.requisicoes.index',
             'icon'         => 'fa-solid fa-clipboard-list',
             'sort_order'   => 4,
-            'show_in_menu' => false,
+            'show_in_menu' => true, // FASE 4 implementada
         ],
         [
             'slug'         => 'estoque.inventarios',
