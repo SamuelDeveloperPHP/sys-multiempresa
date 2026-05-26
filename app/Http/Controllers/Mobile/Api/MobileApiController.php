@@ -25,6 +25,7 @@ use App\Models\Frota\VeiculoQuilometragem;
 use App\Models\Funcionario;
 use App\Models\Obra;
 use App\Models\FuncionarioFuncao;
+use App\Services\Frota\CicloAbertoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -290,12 +291,20 @@ class MobileApiController extends Controller
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
-    public function diarioStore(StoreDiarioBordoRequest $request)
+    public function diarioStore(StoreDiarioBordoRequest $request, CicloAbertoService $ciclo)
     {
         $veiculoId = (int) ($request->veiculo_id ?? $request->id_veiculo);
         $this->veiculoDaEmpresa($veiculoId);
+
+        $user = Auth::user();
+        // Abrir diário = abrir ciclo (default ABERTO). Valida regra "1 ciclo por motorista".
+        if ($ciclo->ehAbertura($request->input('ciclo_status'))) {
+            $ciclo->assertPodeAbrir((int) $user->id, $veiculoId, $user->email);
+        }
+
         $payload = $this->normalizeDiario($request->validated());
-        $payload['company_id'] = $this->companyId();
+        $payload['company_id']  = $this->companyId();
+        $payload['ciclo_status'] = strtoupper($request->input('ciclo_status', CicloAbertoService::STATUS_ABERTO));
         $rec = VeiculoDiarioBordo::create($payload);
         return response()->json(['status' => true, 'data' => $this->mapDiario($rec)], 201);
     }
@@ -304,7 +313,15 @@ class MobileApiController extends Controller
     {
         $rec = VeiculoDiarioBordo::findOrFail($id);
         $this->veiculoDaEmpresa((int) $rec->id_veiculo);
-        $rec->update($this->normalizeDiario($request->validated(), false));
+        $payload = $this->normalizeDiario($request->validated(), false);
+
+        // Fechamento de ciclo: explícito (ciclo_status) ou implícito (horário/hr/km final).
+        if (strtoupper((string) $request->input('ciclo_status')) === CicloAbertoService::STATUS_FECHADO
+            || $request->filled('horario_final') || $request->filled('hr_final') || $request->filled('km_final')) {
+            $payload['ciclo_status'] = CicloAbertoService::STATUS_FECHADO;
+        }
+
+        $rec->update($payload);
         return response()->json(['status' => true, 'data' => $this->mapDiario($rec->fresh())]);
     }
 
@@ -345,6 +362,8 @@ class MobileApiController extends Controller
         return [
             'id'           => $r->id,
             'veiculo_id'   => $r->id_veiculo,
+            'user_id'      => $r->id_user,
+            'ciclo_status' => $r->ciclo_status,
             'data'         => optional($r->data_cadastro)->toIso8601String(),
             'responsavel'  => $r->user?->name,
             'descricao'    => $r->descricao_atividade,
@@ -441,14 +460,26 @@ class MobileApiController extends Controller
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
-    public function checklistServicosStore(StoreChecklistServicoRequest $request)
+    public function checklistServicosStore(StoreChecklistServicoRequest $request, CicloAbertoService $ciclo)
     {
-        $this->veiculoDaEmpresa((int) $request->veiculo_id);
+        $veiculoId = (int) $request->veiculo_id;
+        $this->veiculoDaEmpresa($veiculoId);
         $user = Auth::user();
+
+        // Abertura de checklist = abre ciclo. Encerramento (tipo/ciclo_status) não bloqueia.
+        $ehAbertura = $ciclo->ehAbertura($request->input('ciclo_status'), $request->input('tipo'));
+        if ($ehAbertura) {
+            $ciclo->assertPodeAbrir((int) $user->id, $veiculoId, $user->email);
+        }
+
+        $statusCiclo = strtoupper($request->input('ciclo_status')
+            ?: ($ehAbertura ? CicloAbertoService::STATUS_ABERTO : CicloAbertoService::STATUS_FECHADO));
+
         $rec = VeiculoChecklistServico::create([
             'company_id'    => $this->companyId(),
-            'id_veiculo'    => $request->veiculo_id,
+            'id_veiculo'    => $veiculoId,
             'id_checklist'  => $request->checklist_id,
+            'status_ciclo'  => $statusCiclo,
             'data_execucao' => $request->data,
             'responsavel'   => $request->responsavel,
             'km_atual'      => $request->km_atual,
@@ -456,6 +487,7 @@ class MobileApiController extends Controller
             'respostas'     => $request->respostas,
             'observacao_geral' => $request->observacao_geral,
             'user_create'   => $user?->email,
+            'id_user'       => $user?->id,
         ]);
         return response()->json(['status' => true, 'data' => $this->mapChecklistServico($rec)], 201);
     }
@@ -474,6 +506,11 @@ class MobileApiController extends Controller
         if (isset($payload['data'])) {
             $payload['data_execucao'] = $payload['data'];
             unset($payload['data']);
+        }
+        // Encerramento de ciclo: explícito por ciclo_status ou tipo=ENCERRAMENTO
+        if (strtoupper((string) $request->input('ciclo_status')) === CicloAbertoService::STATUS_FECHADO
+            || strtoupper((string) $request->input('tipo')) === 'ENCERRAMENTO') {
+            $payload['status_ciclo'] = CicloAbertoService::STATUS_FECHADO;
         }
         $payload['user_edit'] = Auth::user()?->email;
         $rec->update($payload);
@@ -498,6 +535,8 @@ class MobileApiController extends Controller
             'id'              => $r->id,
             'veiculo_id'      => $r->id_veiculo,
             'checklist_id'    => $r->id_checklist,
+            'user_id'         => $r->id_user,
+            'ciclo_status'    => $r->status_ciclo,   // front (Dexie) usa 'ciclo_status'
             'template_nome'   => optional($r->checklist)->nome ?? optional($r->checklist)->titulo,
             'data'            => optional($r->data_execucao ?? $r->created_at)->toIso8601String(),
             'responsavel'     => $r->responsavel,

@@ -19,6 +19,7 @@ class UpdateDiarioBordoRequest extends FormRequest
             'km_final'    => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'hr_inicial'  => ['nullable', 'numeric', 'min:0', 'max:9999999'],
             'hr_final'    => ['nullable', 'numeric', 'min:0', 'max:9999999'],
+            'ciclo_status' => ['nullable', 'string', 'in:ABERTO,FECHADO'],
         ];
     }
 }

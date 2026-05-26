@@ -16,6 +16,8 @@ class UpdateChecklistServicoRequest extends FormRequest
             'km_atual'         => ['nullable', 'numeric', 'min:0'],
             'hr_atual'         => ['nullable', 'numeric', 'min:0'],
             'observacao_geral' => ['nullable', 'string', 'max:2000'],
+            'ciclo_status'     => ['nullable', 'string', 'in:ABERTO,FECHADO'],
+            'tipo'             => ['nullable', 'string', 'in:ABERTURA,ENCERRAMENTO'],
             'respostas'        => ['sometimes', 'array', 'max:200'],
             'respostas.*.item_id'   => ['required_with:respostas', 'integer'],
             'respostas.*.item_nome' => ['nullable', 'string', 'max:500'],

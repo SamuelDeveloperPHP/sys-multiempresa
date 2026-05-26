@@ -23,6 +23,9 @@ class StoreChecklistServicoRequest extends FormRequest
             'km_atual'         => ['nullable', 'numeric', 'min:0'],
             'hr_atual'         => ['nullable', 'numeric', 'min:0'],
             'observacao_geral' => ['nullable', 'string', 'max:2000'],
+            // Ciclo (abertura/encerramento). 'tipo' é o sinal do front legado.
+            'ciclo_status'     => ['nullable', 'string', 'in:ABERTO,FECHADO'],
+            'tipo'             => ['nullable', 'string', 'in:ABERTURA,ENCERRAMENTO'],
             'respostas'        => ['required', 'array', 'min:1', 'max:200'],
             'respostas.*.item_id'   => ['required', 'integer'],
             'respostas.*.item_nome' => ['nullable', 'string', 'max:500'],

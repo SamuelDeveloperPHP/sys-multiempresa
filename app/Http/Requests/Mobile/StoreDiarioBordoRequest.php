@@ -29,6 +29,8 @@ class StoreDiarioBordoRequest extends FormRequest
             'km_final'    => ['nullable', 'numeric', 'min:0', 'max:99999999', 'gte:km_inicial'],
             'hr_inicial'  => ['nullable', 'numeric', 'min:0', 'max:9999999'],
             'hr_final'    => ['nullable', 'numeric', 'min:0', 'max:9999999', 'gte:hr_inicial'],
+            // Ciclo (abertura/fechamento). Default ABERTO no controller se ausente.
+            'ciclo_status' => ['nullable', 'string', 'in:ABERTO,FECHADO'],
         ];
     }
 

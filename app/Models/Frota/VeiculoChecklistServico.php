@@ -21,7 +21,7 @@ class VeiculoChecklistServico extends Model
         'id_abertura_vinculada', 'data_fechamento', 'anomalia_offline',
         'foto_extra_1', 'desc_extra_1', 'foto_extra_2', 'desc_extra_2',
         'foto_extra_3', 'desc_extra_3', 'foto_extra_4', 'desc_extra_4',
-        'data_cadastro', 'user_create', 'user_edit',
+        'data_cadastro', 'user_create', 'user_edit', 'id_user',
         'id_horimetro', 'id_quilometragem',
         // Campos adicionados para módulo Mobile (offline-first)
         'responsavel', 'km_atual', 'hr_atual', 'respostas', 'observacao_geral', 'data_execucao',
