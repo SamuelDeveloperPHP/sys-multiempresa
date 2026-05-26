@@ -113,6 +113,15 @@ class EstoqueModulesSeeder extends Seeder
             'show_in_menu' => true, // FASE 7.B+ gestão de aprovadores
         ],
         [
+            'slug'         => 'estoque.biometria_funcionarios',
+            'parent_slug'  => 'estoque',
+            'name'         => 'Biometria de funcionários',
+            'route_name'   => 'admin.estoque.biometria-funcionarios.index',
+            'icon'         => 'fa-solid fa-fingerprint',
+            'sort_order'   => 8,
+            'show_in_menu' => true, // cadastro de digital de terceiros
+        ],
+        [
             'slug'         => 'estoque.relatorios',
             'parent_slug'  => 'estoque',
             'name'         => 'Relatórios',

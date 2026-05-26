@@ -717,6 +717,21 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::get('biometria/status/{userId}', [\App\Http\Controllers\Admin\BiometriaController::class, 'statusUsuario'])
                     ->name('admin.biometria.status');
 
+                // Cadastro de biometria de TERCEIROS (almoxarife cadastra digital
+                // de outros funcionários presencialmente no terminal do almoxarifado).
+                Route::get('biometria-funcionarios',
+                    [\App\Http\Controllers\Admin\BiometriaController::class, 'funcionariosIndex'])
+                    ->name('admin.estoque.biometria-funcionarios.index');
+                Route::post('biometria-funcionarios/{funcionario}/options',
+                    [\App\Http\Controllers\Admin\BiometriaController::class, 'funcionarioOptions'])
+                    ->name('admin.estoque.biometria-funcionarios.options');
+                Route::post('biometria-funcionarios/{funcionario}/register',
+                    [\App\Http\Controllers\Admin\BiometriaController::class, 'funcionarioRegister'])
+                    ->name('admin.estoque.biometria-funcionarios.register');
+                Route::delete('biometria-funcionarios/{funcionario}/credenciais/{credentialId}',
+                    [\App\Http\Controllers\Admin\BiometriaController::class, 'funcionarioRevogarCredencial'])
+                    ->name('admin.estoque.biometria-funcionarios.credencial.destroy');
+
                 // Devoluções internas (FASE 7.B)
                 Route::post('devolucoes/{devolucao}/aprovar',  [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'aprovar'])->name('devolucoes.aprovar');
                 Route::post('devolucoes/{devolucao}/rejeitar', [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'rejeitar'])->name('devolucoes.rejeitar');

@@ -92,6 +92,36 @@ export async function registerBiometric() {
 }
 
 /**
+ * Cadastra biometria PARA OUTRO FUNCIONÁRIO (cenário: almoxarife logado
+ * registra digital do funcionário que está fisicamente no terminal).
+ *
+ * Requer permissão no servidor (super_admin OU almoxarife com can_create
+ * em estoque.devolucoes). O fluxo é o mesmo do registerBiometric, mas
+ * usa endpoints que aceitam o user-alvo na URL.
+ *
+ * @param {number} funcionarioId  ID do usuário-alvo
+ */
+export async function registerBiometricForUser(funcionarioId) {
+    try {
+        const optionsJSON = await postJson(
+            `/admin/biometria-funcionarios/${funcionarioId}/options`
+        );
+
+        const attestation = await startRegistration({ optionsJSON });
+
+        await postJson(
+            `/admin/biometria-funcionarios/${funcionarioId}/register`,
+            attestation
+        );
+
+        return { success: true };
+    } catch (error) {
+        console.error('[registerBiometricForUser] erro:', error);
+        return { success: false, error };
+    }
+}
+
+/**
  * Faz login via biometria. Se email fornecido, server filtra credenciais
  * do usuário (mais rápido); sem email, faz lookup global.
  */
@@ -149,4 +179,4 @@ export function friendlyError(err, context = 'biometria') {
     return `Erro em ${context}: ${msg}`;
 }
 
-export default { registerBiometric, loginBiometric, isSupported, friendlyError };
+export default { registerBiometric, registerBiometricForUser, loginBiometric, isSupported, friendlyError };
