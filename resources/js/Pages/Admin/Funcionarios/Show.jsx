@@ -6,6 +6,7 @@ import DadosAcesso from './Partials/DadosAcesso';
 import DocsObrigatorios from './Partials/DocsObrigatorios';
 import DocsGerais from './Partials/DocsGerais';
 import RetiradasEstoque from './Partials/RetiradasEstoque';
+import BiometriaDigital from './Partials/BiometriaDigital';
 
 export default function Show({ funcionario, linkedUser, auth }) {
     const [activeTab, setActiveTab] = useState('visao_geral');
@@ -17,6 +18,7 @@ export default function Show({ funcionario, linkedUser, auth }) {
         { id: 'docs_gerais', label: 'Doc\'s Gerais', icon: 'M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2' },
         { id: 'dados_acesso', label: 'Acesso ao Sistema', icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' },
         { id: 'retiradas', label: 'Estoque / Ferramentas', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' },
+        { id: 'biometria', label: 'Biometria', icon: 'M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 5.602a23.99 23.99 0 01-2.146 4.062m3.348-7.602a23.943 23.943 0 01-.978 5M9.5 8.5l1.5 1.5L14 7' },
     ];
 
     return (
@@ -109,6 +111,7 @@ export default function Show({ funcionario, linkedUser, auth }) {
                     {activeTab === 'docs_gerais' && <DocsGerais funcionario={funcionario} />}
                     {activeTab === 'dados_acesso' && <DadosAcesso funcionario={funcionario} linkedUser={linkedUser} />}
                     {activeTab === 'retiradas' && <RetiradasEstoque funcionario={funcionario} />}
+                    {activeTab === 'biometria' && <BiometriaDigital funcionario={funcionario} />}
                 </div>
             </div>
         </AuthenticatedLayout>
