@@ -692,6 +692,14 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::post('requisicoes/{requisicao}/atender',  [\App\Http\Controllers\Admin\Estoque\RequisicaoController::class, 'atender'])->name('requisicoes.atender');
                 Route::post('requisicoes/{requisicao}/cancelar', [\App\Http\Controllers\Admin\Estoque\RequisicaoController::class, 'cancelar'])->name('requisicoes.cancelar');
                 Route::resource('requisicoes', \App\Http\Controllers\Admin\Estoque\RequisicaoController::class);
+
+                // Inventários — contagem física + ajustes (FASE 5)
+                Route::post('inventarios/{inventario}/fechar',   [\App\Http\Controllers\Admin\Estoque\InventarioController::class, 'fechar'])->name('inventarios.fechar');
+                Route::post('inventarios/{inventario}/cancelar', [\App\Http\Controllers\Admin\Estoque\InventarioController::class, 'cancelar'])->name('inventarios.cancelar');
+                Route::put('inventarios/{inventario}/itens/{item}', [\App\Http\Controllers\Admin\Estoque\InventarioController::class, 'atualizarItem'])->name('inventarios.itens.update');
+                Route::post('inventarios/{inventario}/itens/lote', [\App\Http\Controllers\Admin\Estoque\InventarioController::class, 'atualizarLote'])->name('inventarios.itens.lote');
+                Route::resource('inventarios', \App\Http\Controllers\Admin\Estoque\InventarioController::class)
+                    ->only(['index', 'create', 'store', 'show']);
             });
 
             Route::prefix('configuracao/blog')->group(function () {

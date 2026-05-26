@@ -88,11 +88,11 @@ class EstoqueModulesSeeder extends Seeder
         [
             'slug'         => 'estoque.inventarios',
             'parent_slug'  => 'estoque',
-            'name'         => 'Inventários',
+            'name'         => 'Inventários e Alertas',
             'route_name'   => 'admin.estoque.inventarios.index',
             'icon'         => 'fa-solid fa-list-check',
             'sort_order'   => 5,
-            'show_in_menu' => false,
+            'show_in_menu' => true, // FASE 5 implementada
         ],
         [
             'slug'         => 'estoque.relatorios',
