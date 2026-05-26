@@ -107,7 +107,6 @@ class BiometriaController extends Controller
         $busca = trim($request->input('q', ''));
         $query = User::query()
             ->select('id', 'name', 'email', 'type')
-            ->whereNull('deleted_at')
             ->where('type', '!=', 'motorista')  // motorista usa app mobile próprio
             ->orderBy('name');
 

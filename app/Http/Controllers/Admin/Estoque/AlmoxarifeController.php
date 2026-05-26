@@ -32,9 +32,9 @@ class AlmoxarifeController extends Controller
 
         // Lista usuários com info se já são almoxarifes (can_update na empresa)
         $busca = trim($request->input('q', ''));
+        // users não tem soft delete (sem coluna deleted_at)
         $usersQuery = User::query()
             ->select('id', 'name', 'email', 'type')
-            ->whereNull('deleted_at')
             ->orderBy('name');
 
         if ($busca) {
