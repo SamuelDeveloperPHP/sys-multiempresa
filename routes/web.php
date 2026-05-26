@@ -746,6 +746,12 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::post('almoxarifes/toggle',   [\App\Http\Controllers\Admin\Estoque\AlmoxarifeController::class, 'toggle'])->name('almoxarifes.toggle');
                 Route::post('almoxarifes/bulk',     [\App\Http\Controllers\Admin\Estoque\AlmoxarifeController::class, 'bulkSync'])->name('almoxarifes.bulk');
 
+                // Sincronização do catálogo Leroy Merlin (scraping externo via fila)
+                // status (GET) vem antes pra não colidir com nada; iniciar (POST) dispara o job.
+                Route::get('sincronizacao-leroy/status',  [\App\Http\Controllers\Admin\Estoque\SincronizacaoLeroyController::class, 'status'])->name('sincronizacao-leroy.status');
+                Route::post('sincronizacao-leroy/iniciar', [\App\Http\Controllers\Admin\Estoque\SincronizacaoLeroyController::class, 'iniciar'])->name('sincronizacao-leroy.iniciar');
+                Route::get('sincronizacao-leroy',         [\App\Http\Controllers\Admin\Estoque\SincronizacaoLeroyController::class, 'index'])->name('sincronizacao-leroy.index');
+
                 // Relatórios gerenciais (FASE 6)
                 Route::prefix('relatorios')->name('relatorios.')->group(function () {
                     Route::get('/',                  [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'hub'])->name('hub');
