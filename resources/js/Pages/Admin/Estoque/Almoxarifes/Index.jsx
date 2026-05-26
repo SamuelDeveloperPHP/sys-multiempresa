@@ -5,7 +5,7 @@
 // na empresa selecionada. Padrão Rise.
 // -----------------------------------------------------------------------------
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
@@ -16,11 +16,23 @@ export default function AlmoxarifesIndex({ companies, companySelecionada, users,
     const [selecionados, setSelecionados] = useState([]);
 
     const aplicarFiltros = (extras = {}) => {
-        router.get(route('admin.estoque.almoxarifes.index'),
+        router.get(
+            route('admin.estoque.almoxarifes.index'),
             { q, company_id: companyId, ...extras },
-            { preserveState: true, preserveScroll: true }
+            { preserveState: true, preserveScroll: true, replace: true }
         );
     };
+
+    // Busca dinâmica com debounce de 350ms — sem precisar clicar em "Buscar"
+    const buscaInicialRef = useRef(busca || '');
+    useEffect(() => {
+        if (q === buscaInicialRef.current) return;
+        const t = setTimeout(() => {
+            buscaInicialRef.current = q;
+            aplicarFiltros();
+        }, 350);
+        return () => clearTimeout(t);
+    }, [q]);
 
     const toggle = (user, ativar) => {
         if (user.eh_super) {
@@ -116,15 +128,32 @@ export default function AlmoxarifesIndex({ companies, companySelecionada, users,
                     </div>
                 </div>
 
-                {/* Filtro de busca */}
-                <form onSubmit={(e) => { e.preventDefault(); aplicarFiltros(); }} className="bg-white border rounded-lg p-4 mb-4 grid grid-cols-1 md:grid-cols-4 gap-2">
-                    <input
-                        type="text" placeholder="Buscar por nome ou e-mail…"
-                        value={q} onChange={(e) => setQ(e.target.value)}
-                        className="md:col-span-3 border border-gray-300 rounded px-3 py-2 text-sm"
-                    />
-                    <button className="px-4 py-2 bg-gray-800 text-white rounded text-sm">Buscar</button>
-                </form>
+                {/* Filtro dinâmico — busca conforme digita (debounce 350ms) */}
+                <div className="bg-white border rounded-lg p-4 mb-4">
+                    <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+                            <i className="fa-solid fa-magnifying-glass" />
+                        </span>
+                        <input
+                            type="search"
+                            autoFocus
+                            placeholder="Buscar por nome ou e-mail… (busca enquanto digita)"
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            className="w-full border border-gray-300 rounded pl-10 pr-10 py-2 text-sm focus:border-rise-500 focus:ring-rise-500"
+                        />
+                        {q && (
+                            <button
+                                type="button"
+                                onClick={() => setQ('')}
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                                title="Limpar busca"
+                            >
+                                <i className="fa-solid fa-circle-xmark" />
+                            </button>
+                        )}
+                    </div>
+                </div>
 
                 {/* Bulk actions */}
                 {selecionados.length > 0 && (

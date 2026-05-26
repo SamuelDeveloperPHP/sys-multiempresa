@@ -3,7 +3,7 @@
 // Lista de requisições com filtros + contadores por status. Padrão Rise.
 // -----------------------------------------------------------------------------
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
@@ -35,24 +35,43 @@ export default function RequisicoesIndex({ requisicoes, obras, contadores, filtr
         data_ate:      filtros?.data_ate ?? '',
     });
 
-    const buscar = (e) => {
-        e?.preventDefault?.();
+    // Aplica filtros atuais (serializa apenas_minhas como 1/'' como o backend espera)
+    const aplicar = (next = f) => {
         router.get(route('admin.estoque.requisicoes.index'), {
-            ...f, apenas_minhas: f.apenas_minhas ? 1 : '',
-        }, { preserveState: true, preserveScroll: true });
+            ...next, apenas_minhas: next.apenas_minhas ? 1 : '',
+        }, { preserveState: true, preserveScroll: true, replace: true });
     };
+
+    // Selects/datas/checkbox aplicam imediato; o texto q é debounced (350ms)
+    const setFiltro = (key, value) => {
+        const next = { ...f, [key]: value };
+        setF(next);
+        if (key !== 'q') aplicar(next);
+    };
+
+    const qInicialRef = useRef(filtros?.q ?? '');
+    useEffect(() => {
+        if (f.q === qInicialRef.current) return;
+        const t = setTimeout(() => {
+            qInicialRef.current = f.q;
+            aplicar();
+        }, 350);
+        return () => clearTimeout(t);
+    }, [f.q]);
 
     const aplicarStatus = (status) => {
         const next = { ...f, status };
         setF(next);
-        router.get(route('admin.estoque.requisicoes.index'), {
-            ...next, apenas_minhas: next.apenas_minhas ? 1 : '',
-        }, { preserveState: true, preserveScroll: true });
+        aplicar(next);
     };
 
     const limpar = () => {
-        setF({ status: '', obra_id: '', q: '', apenas_minhas: false, data_de: '', data_ate: '' });
-        router.get(route('admin.estoque.requisicoes.index'), {}, { preserveState: true, preserveScroll: true });
+        const reset = { status: '', obra_id: '', q: '', apenas_minhas: false, data_de: '', data_ate: '' };
+        setF(reset);
+        qInicialRef.current = '';
+        router.get(route('admin.estoque.requisicoes.index'), {}, {
+            preserveState: true, preserveScroll: true, replace: true,
+        });
     };
 
     const moeda = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -114,17 +133,23 @@ export default function RequisicoesIndex({ requisicoes, obras, contadores, filtr
                     })}
                 </div>
 
-                <form onSubmit={buscar} className="bg-white rounded-lg border p-4 mb-4 grid grid-cols-1 md:grid-cols-6 gap-2">
-                    <input
-                        type="text"
-                        value={f.q}
-                        onChange={(e) => setF({ ...f, q: e.target.value })}
-                        placeholder="Buscar por número ou observação…"
-                        className="md:col-span-2 border border-gray-300 rounded px-3 py-2 text-sm"
-                    />
+                {/* Filtros dinâmicos — busca conforme digita / selects e checkbox aplicam ao mudar */}
+                <div className="bg-white rounded-lg border p-4 mb-4 grid grid-cols-1 md:grid-cols-6 gap-2">
+                    <div className="md:col-span-2 relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+                            <i className="fa-solid fa-magnifying-glass" />
+                        </span>
+                        <input
+                            type="search"
+                            value={f.q}
+                            onChange={(e) => setF({ ...f, q: e.target.value })}
+                            placeholder="Buscar por número ou observação…"
+                            className="w-full border border-gray-300 rounded pl-10 pr-3 py-2 text-sm"
+                        />
+                    </div>
                     <select
                         value={f.obra_id}
-                        onChange={(e) => setF({ ...f, obra_id: e.target.value })}
+                        onChange={(e) => setFiltro('obra_id', e.target.value)}
                         className="border border-gray-300 rounded px-3 py-2 text-sm"
                     >
                         <option value="">Todas as obras</option>
@@ -135,20 +160,20 @@ export default function RequisicoesIndex({ requisicoes, obras, contadores, filtr
                     <input
                         type="date" title="Data de"
                         value={f.data_de}
-                        onChange={(e) => setF({ ...f, data_de: e.target.value })}
+                        onChange={(e) => setFiltro('data_de', e.target.value)}
                         className="border border-gray-300 rounded px-3 py-2 text-sm"
                     />
                     <input
                         type="date" title="Data até"
                         value={f.data_ate}
-                        onChange={(e) => setF({ ...f, data_ate: e.target.value })}
+                        onChange={(e) => setFiltro('data_ate', e.target.value)}
                         className="border border-gray-300 rounded px-3 py-2 text-sm"
                     />
                     <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
                             type="checkbox"
                             checked={f.apenas_minhas}
-                            onChange={(e) => setF({ ...f, apenas_minhas: e.target.checked })}
+                            onChange={(e) => setFiltro('apenas_minhas', e.target.checked)}
                             className="h-4 w-4 text-rise-600 rounded"
                         />
                         Apenas minhas
@@ -156,11 +181,10 @@ export default function RequisicoesIndex({ requisicoes, obras, contadores, filtr
                     <div className="md:col-span-6 flex gap-2 justify-end">
                         <button type="button" onClick={limpar}
                             className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-sm">
-                            Limpar
+                            <i className="fa-solid fa-broom mr-1" /> Limpar filtros
                         </button>
-                        <button className="px-4 py-2 bg-gray-800 text-white rounded text-sm">Filtrar</button>
                     </div>
-                </form>
+                </div>
 
                 <div className="bg-white rounded-lg shadow border overflow-x-auto">
                     <table className="w-full text-sm">

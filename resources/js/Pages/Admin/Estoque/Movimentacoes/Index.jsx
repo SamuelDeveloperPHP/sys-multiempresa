@@ -3,7 +3,7 @@
 // Lista de movimentações com filtros + paginação. Padrão Rise.
 // -----------------------------------------------------------------------------
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
@@ -17,18 +17,36 @@ export default function MovimentacoesIndex({ movimentacoes, obras, tiposLabels, 
         data_ate:    filtros?.data_ate ?? '',
     });
 
-    const buscar = (e) => {
-        e?.preventDefault?.();
-        router.get(route('admin.estoque.movimentacoes.index'), f, {
-            preserveState: true, preserveScroll: true,
+    // Aplica filtros atuais — replace:true para não floodar histórico do browser
+    const aplicar = (next = f) => {
+        router.get(route('admin.estoque.movimentacoes.index'), next, {
+            preserveState: true, preserveScroll: true, replace: true,
         });
     };
+
+    // Selects/datas aplicam imediato; o texto q é debounced (350ms)
+    const setFiltro = (key, value) => {
+        const next = { ...f, [key]: value };
+        setF(next);
+        if (key !== 'q') aplicar(next);
+    };
+
+    const qInicialRef = useRef(filtros?.q ?? '');
+    useEffect(() => {
+        if (f.q === qInicialRef.current) return;
+        const t = setTimeout(() => {
+            qInicialRef.current = f.q;
+            aplicar();
+        }, 350);
+        return () => clearTimeout(t);
+    }, [f.q]);
 
     const limpar = () => {
         const reset = { tipo: '', obra_id: '', q: '', data_de: '', data_ate: '' };
         setF(reset);
+        qInicialRef.current = '';
         router.get(route('admin.estoque.movimentacoes.index'), {}, {
-            preserveState: true, preserveScroll: true,
+            preserveState: true, preserveScroll: true, replace: true,
         });
     };
 
@@ -105,17 +123,23 @@ export default function MovimentacoesIndex({ movimentacoes, obras, tiposLabels, 
                     </div>
                 )}
 
-                <form onSubmit={buscar} className="bg-white rounded-lg border p-4 mb-4 grid grid-cols-1 md:grid-cols-6 gap-2">
-                    <input
-                        type="text"
-                        value={f.q}
-                        onChange={(e) => setF({ ...f, q: e.target.value })}
-                        placeholder="Buscar produto (nome/SKU)…"
-                        className="md:col-span-2 border border-gray-300 rounded px-3 py-2 text-sm"
-                    />
+                {/* Filtros dinâmicos — busca conforme digita / selects aplicam ao mudar */}
+                <div className="bg-white rounded-lg border p-4 mb-4 grid grid-cols-1 md:grid-cols-6 gap-2">
+                    <div className="md:col-span-2 relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+                            <i className="fa-solid fa-magnifying-glass" />
+                        </span>
+                        <input
+                            type="search"
+                            value={f.q}
+                            onChange={(e) => setF({ ...f, q: e.target.value })}
+                            placeholder="Buscar produto (nome/SKU)…"
+                            className="w-full border border-gray-300 rounded pl-10 pr-3 py-2 text-sm"
+                        />
+                    </div>
                     <select
                         value={f.tipo}
-                        onChange={(e) => setF({ ...f, tipo: e.target.value })}
+                        onChange={(e) => setFiltro('tipo', e.target.value)}
                         className="border border-gray-300 rounded px-3 py-2 text-sm"
                     >
                         <option value="">Todos os tipos</option>
@@ -125,7 +149,7 @@ export default function MovimentacoesIndex({ movimentacoes, obras, tiposLabels, 
                     </select>
                     <select
                         value={f.obra_id}
-                        onChange={(e) => setF({ ...f, obra_id: e.target.value })}
+                        onChange={(e) => setFiltro('obra_id', e.target.value)}
                         className="border border-gray-300 rounded px-3 py-2 text-sm"
                     >
                         <option value="">Todas as obras</option>
@@ -136,25 +160,24 @@ export default function MovimentacoesIndex({ movimentacoes, obras, tiposLabels, 
                     <input
                         type="date"
                         value={f.data_de}
-                        onChange={(e) => setF({ ...f, data_de: e.target.value })}
+                        onChange={(e) => setFiltro('data_de', e.target.value)}
                         title="Data de"
                         className="border border-gray-300 rounded px-3 py-2 text-sm"
                     />
                     <input
                         type="date"
                         value={f.data_ate}
-                        onChange={(e) => setF({ ...f, data_ate: e.target.value })}
+                        onChange={(e) => setFiltro('data_ate', e.target.value)}
                         title="Data até"
                         className="border border-gray-300 rounded px-3 py-2 text-sm"
                     />
                     <div className="md:col-span-6 flex gap-2 justify-end">
                         <button type="button" onClick={limpar}
                             className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 text-sm">
-                            Limpar
+                            <i className="fa-solid fa-broom mr-1" /> Limpar filtros
                         </button>
-                        <button className="px-4 py-2 bg-gray-800 text-white rounded text-sm">Filtrar</button>
                     </div>
-                </form>
+                </div>
 
                 <div className="bg-white rounded-lg shadow border overflow-x-auto">
                     <table className="w-full text-sm">
