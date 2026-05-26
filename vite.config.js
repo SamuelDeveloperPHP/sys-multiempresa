@@ -42,7 +42,7 @@ export default defineConfig({
             manifest: {
                 name: 'SGA Engeativos',
                 short_name: 'SGA',
-                description: 'Sistema de Gestão de Ativos - Engetécnica',
+                description: 'Sistema de Gestão de Ativos - Engetecnica',
                 theme_color: '#557bbb',
                 background_color: '#ffffff',
                 display: 'standalone',
