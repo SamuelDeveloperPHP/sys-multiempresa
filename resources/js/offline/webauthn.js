@@ -103,14 +103,16 @@ export async function registerBiometric() {
  */
 export async function registerBiometricForUser(funcionarioId) {
     try {
+        // URLs estão sob /admin/estoque/biometria-funcionarios/* (dentro do
+        // grupo estoque). Os names correspondentes: admin.estoque.biometria-funcionarios.*
         const optionsJSON = await postJson(
-            `/admin/biometria-funcionarios/${funcionarioId}/options`
+            `/admin/estoque/biometria-funcionarios/${funcionarioId}/options`
         );
 
         const attestation = await startRegistration({ optionsJSON });
 
         await postJson(
-            `/admin/biometria-funcionarios/${funcionarioId}/register`,
+            `/admin/estoque/biometria-funcionarios/${funcionarioId}/register`,
             attestation
         );
 

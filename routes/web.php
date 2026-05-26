@@ -714,23 +714,26 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->only(['index', 'create', 'store', 'show']);
 
                 // Status biométrico de qualquer user — usado pela tela de SAÍDA
+                // Sai do grupo (nome direto sem prefix admin.estoque.) usando ->name('admin.biometria.status')
                 Route::get('biometria/status/{userId}', [\App\Http\Controllers\Admin\BiometriaController::class, 'statusUsuario'])
-                    ->name('admin.biometria.status');
+                    ->name('admin.biometria.status')->withoutMiddleware([]);
 
                 // Cadastro de biometria de TERCEIROS (almoxarife cadastra digital
                 // de outros funcionários presencialmente no terminal do almoxarifado).
+                // Estão dentro do grupo estoque, então o prefixo do nome vira
+                // automaticamente "admin.estoque." — declaramos só a parte específica.
                 Route::get('biometria-funcionarios',
                     [\App\Http\Controllers\Admin\BiometriaController::class, 'funcionariosIndex'])
-                    ->name('admin.estoque.biometria-funcionarios.index');
+                    ->name('biometria-funcionarios.index');
                 Route::post('biometria-funcionarios/{funcionario}/options',
                     [\App\Http\Controllers\Admin\BiometriaController::class, 'funcionarioOptions'])
-                    ->name('admin.estoque.biometria-funcionarios.options');
+                    ->name('biometria-funcionarios.options');
                 Route::post('biometria-funcionarios/{funcionario}/register',
                     [\App\Http\Controllers\Admin\BiometriaController::class, 'funcionarioRegister'])
-                    ->name('admin.estoque.biometria-funcionarios.register');
+                    ->name('biometria-funcionarios.register');
                 Route::delete('biometria-funcionarios/{funcionario}/credenciais/{credentialId}',
                     [\App\Http\Controllers\Admin\BiometriaController::class, 'funcionarioRevogarCredencial'])
-                    ->name('admin.estoque.biometria-funcionarios.credencial.destroy');
+                    ->name('biometria-funcionarios.credencial.destroy');
 
                 // Devoluções internas (FASE 7.B)
                 Route::post('devolucoes/{devolucao}/aprovar',  [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'aprovar'])->name('devolucoes.aprovar');
