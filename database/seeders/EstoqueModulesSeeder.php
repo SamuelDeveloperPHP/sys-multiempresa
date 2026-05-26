@@ -130,6 +130,15 @@ class EstoqueModulesSeeder extends Seeder
             'sort_order'   => 6,
             'show_in_menu' => true, // FASE 6 implementada
         ],
+        [
+            'slug'         => 'estoque.sincronizacao_leroy',
+            'parent_slug'  => 'estoque',
+            'name'         => 'Sincronização Leroy Merlin',
+            'route_name'   => 'admin.estoque.sincronizacao-leroy.index',
+            'icon'         => 'fa-solid fa-cloud-arrow-down',
+            'sort_order'   => 9,
+            'show_in_menu' => true, // catálogo de referência externo
+        ],
     ];
 
     public function run(): void
