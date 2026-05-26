@@ -20,11 +20,17 @@ export default function AuthenticatedLayout({ header, children }) {
             menuSections.forEach((section) => {
                 if (
                     section.items &&
-                    section.items.some(
-                        (i) =>
-                            route(i.route_name).includes(currentPath) ||
-                            currentPath.includes(route(i.route_name).replace(window.location.origin, ''))
-                    )
+                    section.items.some((i) => {
+                        // Guard defensivo: módulo pode ter route_name órfão (ex.: cadastrado
+                        // por seeder mas rota ainda não existe nesta branch/deploy). Sem isso,
+                        // o Ziggy lança e derruba o layout inteiro.
+                        if (!i.route_name || !route().has(i.route_name)) return false;
+                        const r = route(i.route_name);
+                        return (
+                            r.includes(currentPath) ||
+                            currentPath.includes(r.replace(window.location.origin, ''))
+                        );
+                    })
                 ) {
                     initials[section.label] = true;
                 }
