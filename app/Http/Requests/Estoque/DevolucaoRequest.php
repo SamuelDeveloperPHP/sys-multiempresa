@@ -19,7 +19,7 @@ class DevolucaoRequest extends FormRequest
         $companyId = CompanyContext::current()?->id;
 
         return [
-            'funcionario_user_id' => ['required', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
+            'funcionario_user_id' => ['required', 'integer', Rule::exists('users', 'id')], // users sem soft delete
             'produto_id'          => ['required', 'integer', Rule::exists('estoque_produtos', 'id')->whereNull('deleted_at')],
             'obra_id'             => [
                 'required', 'integer',

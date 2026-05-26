@@ -59,7 +59,7 @@ class MovimentacaoRequest extends FormRequest
             'retirante_user_id' => [
                 Rule::requiredIf(fn () => $ehSaida),
                 'nullable', 'integer',
-                Rule::exists('users', 'id')->whereNull('deleted_at'),
+                Rule::exists('users', 'id'), // users não tem soft delete
             ],
             'retirante_senha' => [
                 Rule::requiredIf(fn () => $ehSaida),
