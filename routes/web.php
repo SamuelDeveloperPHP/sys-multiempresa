@@ -700,6 +700,15 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::post('inventarios/{inventario}/itens/lote', [\App\Http\Controllers\Admin\Estoque\InventarioController::class, 'atualizarLote'])->name('inventarios.itens.lote');
                 Route::resource('inventarios', \App\Http\Controllers\Admin\Estoque\InventarioController::class)
                     ->only(['index', 'create', 'store', 'show']);
+
+                // Relatórios gerenciais (FASE 6)
+                Route::prefix('relatorios')->name('relatorios.')->group(function () {
+                    Route::get('/',                  [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'hub'])->name('hub');
+                    Route::get('/consumo-por-obra',  [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'consumoPorObra'])->name('consumo-por-obra');
+                    Route::get('/top-produtos',      [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'topProdutos'])->name('top-produtos');
+                    Route::get('/valor-estoque',     [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'valorEstoque'])->name('valor-estoque');
+                    Route::get('/giro-estoque',      [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'giroEstoque'])->name('giro-estoque');
+                });
             });
 
             Route::prefix('configuracao/blog')->group(function () {

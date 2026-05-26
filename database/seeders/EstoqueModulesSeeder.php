@@ -98,10 +98,10 @@ class EstoqueModulesSeeder extends Seeder
             'slug'         => 'estoque.relatorios',
             'parent_slug'  => 'estoque',
             'name'         => 'Relatórios',
-            'route_name'   => 'admin.estoque.relatorios.index',
+            'route_name'   => 'admin.estoque.relatorios.hub',
             'icon'         => 'fa-solid fa-chart-line',
             'sort_order'   => 6,
-            'show_in_menu' => false,
+            'show_in_menu' => true, // FASE 6 implementada
         ],
     ];
 
