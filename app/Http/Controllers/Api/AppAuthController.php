@@ -117,7 +117,7 @@ class AppAuthController extends Controller
                 'parent_id'   => $p->module->parent_id ?? null,
                 'can_view'    => (bool) $p->can_view,
                 'can_create'  => (bool) $p->can_create,
-                'can_update'  => (bool) ($p->can_update ?? false),
+                'can_edit'    => (bool) ($p->can_edit ?? false),
                 'can_delete'  => (bool) ($p->can_delete ?? false),
             ])
             ->values()

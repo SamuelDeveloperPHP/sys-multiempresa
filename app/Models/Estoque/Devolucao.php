@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Devolução interna de material.
  *
  * Fluxo: PENDENTE → APROVADA (gera mov DEVOLUCAO) ou REJEITADA.
- * Quem aprova precisa de can_update no módulo estoque.devolucoes
+ * Quem aprova precisa de can_edit no módulo estoque.devolucoes
  * (configurável por usuário/empresa).
  */
 class Devolucao extends Model

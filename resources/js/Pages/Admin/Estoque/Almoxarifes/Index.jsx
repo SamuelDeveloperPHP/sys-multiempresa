@@ -1,7 +1,7 @@
 // resources/js/Pages/Admin/Estoque/Almoxarifes/Index.jsx
 // -----------------------------------------------------------------------------
 // Tela de gestão de almoxarifes (aprovadores de devolução de estoque).
-// Toggle por usuário concede can_update no módulo estoque.devolucoes
+// Toggle por usuário concede can_edit no módulo estoque.devolucoes
 // na empresa selecionada. Padrão Rise.
 // -----------------------------------------------------------------------------
 
@@ -274,7 +274,7 @@ export default function AlmoxarifesIndex({ companies, companySelecionada, users,
                         <i className="fa-solid fa-circle-info mr-1" /> Como funciona
                     </p>
                     <ul className="list-disc list-inside space-y-1">
-                        <li>Almoxarifes podem <strong>aprovar/rejeitar devoluções</strong> com a própria senha (módulo estoque.devolucoes, can_update).</li>
+                        <li>Almoxarifes podem <strong>aprovar/rejeitar devoluções</strong> com a própria senha (módulo estoque.devolucoes, can_edit).</li>
                         <li>A permissão é <strong>por empresa</strong> — troque o seletor acima para configurar outras.</li>
                         <li>Super-admins têm acesso total automaticamente e não aparecem como toggle.</li>
                         <li>Para gestão mais granular (can_list/view/create/delete) use /admin/users/:id/edit.</li>

@@ -70,7 +70,7 @@ export default function DevolucoesIndex({ devolucoes, obras, contadores, podeApr
                     <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded p-3 mb-4 text-sm">
                         <i className="fa-solid fa-circle-info mr-1" />
                         Você pode <strong>criar</strong> devoluções, mas não tem permissão para aprová-las.
-                        Apenas usuários com <code className="bg-white px-1 rounded">can_update</code> no módulo
+                        Apenas usuários com <code className="bg-white px-1 rounded">can_edit</code> no módulo
                         <code className="bg-white px-1 rounded ml-1">estoque.devolucoes</code> (ou super-admin) podem aprovar.
                     </div>
                 )}

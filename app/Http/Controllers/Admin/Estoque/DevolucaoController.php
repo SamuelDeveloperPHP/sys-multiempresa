@@ -26,7 +26,7 @@ use Inertia\Inertia;
  * Permissões:
  *   - Criar devolução (POST): qualquer usuário autenticado (pode ser o
  *     próprio funcionário ou alguém em nome dele)
- *   - Aprovar/Rejeitar      : requer can_update no módulo estoque.devolucoes
+ *   - Aprovar/Rejeitar      : requer can_edit no módulo estoque.devolucoes
  *                              + senha do aprovador na hora.
  */
 class DevolucaoController extends Controller
@@ -250,7 +250,7 @@ class DevolucaoController extends Controller
      *
      * Regras:
      *   - super_admin sempre pode
-     *   - outros precisam de can_update no módulo estoque.devolucoes
+     *   - outros precisam de can_edit no módulo estoque.devolucoes
      *     na empresa atual.
      */
     protected function usuarioPodeAprovar(User $user): bool
@@ -266,7 +266,7 @@ class DevolucaoController extends Controller
         return ModulePermission::where('user_id', $user->id)
             ->where('module_id', $moduleId)
             ->where('company_id', $companyId)
-            ->where('can_update', true)
+            ->where('can_edit', true)
             ->exists();
     }
 }

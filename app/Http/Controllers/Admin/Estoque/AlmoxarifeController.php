@@ -14,7 +14,7 @@ use Inertia\Inertia;
 
 /**
  * Gestão de "almoxarifes" — usuários autorizados a aprovar/rejeitar
- * devoluções de estoque. Mapeia para permissão can_update no módulo
+ * devoluções de estoque. Mapeia para permissão can_edit no módulo
  * estoque.devolucoes (FASE 7.B).
  *
  * Por empresa: um usuário pode ser almoxarife da Empresa A mas não da B.
@@ -30,7 +30,7 @@ class AlmoxarifeController extends Controller
         $module = Module::where('slug', 'estoque.devolucoes')->first();
         abort_if(!$module, 500, 'Módulo estoque.devolucoes não está cadastrado. Rode o seeder.');
 
-        // Lista usuários com info se já são almoxarifes (can_update na empresa)
+        // Lista usuários com info se já são almoxarifes (can_edit na empresa)
         $busca = trim($request->input('q', ''));
         // users não tem soft delete (sem coluna deleted_at)
         $usersQuery = User::query()
@@ -48,11 +48,11 @@ class AlmoxarifeController extends Controller
 
         $users = $usersQuery->limit(200)->get();
 
-        // Mapa de quem já tem can_update na empresa selecionada
+        // Mapa de quem já tem can_edit na empresa selecionada
         $permissoesAtuais = ModulePermission::where('module_id', $module->id)
             ->where('company_id', $companySelecionada)
             ->whereIn('user_id', $users->pluck('id'))
-            ->where('can_update', true)
+            ->where('can_edit', true)
             ->pluck('user_id')
             ->all();
 
@@ -76,7 +76,7 @@ class AlmoxarifeController extends Controller
 
     /**
      * Alterna o status de almoxarife do user para a empresa selecionada.
-     * Sincroniza ModulePermission (can_list + can_view + can_update no módulo
+     * Sincroniza ModulePermission (can_list + can_view + can_edit no módulo
      * estoque.devolucoes — pra ele conseguir listar/ver E aprovar).
      */
     public function toggle(Request $request)
@@ -106,16 +106,16 @@ class AlmoxarifeController extends Controller
                         'can_list'   => true,
                         'can_view'   => true,
                         'can_create' => true,  // pode também registrar devolução em nome de alguém
-                        'can_update' => true,  // CHAVE — pode aprovar/rejeitar
+                        'can_edit'   => true,  // CHAVE — pode aprovar/rejeitar
                         'can_delete' => false,
                     ]
                 );
             } else {
-                // Remove a permissão de can_update (mantém can_list/view se quiser ver mas não aprovar)
+                // Remove a permissão de can_edit (mantém can_list/view se quiser ver mas não aprovar)
                 ModulePermission::where('user_id', $data['user_id'])
                     ->where('module_id', $module->id)
                     ->where('company_id', $data['company_id'])
-                    ->update(['can_update' => false]);
+                    ->update(['can_edit' => false]);
             }
         });
 
@@ -144,13 +144,13 @@ class AlmoxarifeController extends Controller
                 if ($data['ativar']) {
                     ModulePermission::updateOrCreate(
                         ['user_id' => $u->id, 'module_id' => $module->id, 'company_id' => $data['company_id']],
-                        ['can_list' => true, 'can_view' => true, 'can_create' => true, 'can_update' => true, 'can_delete' => false]
+                        ['can_list' => true, 'can_view' => true, 'can_create' => true, 'can_edit' => true, 'can_delete' => false]
                     );
                 } else {
                     ModulePermission::where('user_id', $u->id)
                         ->where('module_id', $module->id)
                         ->where('company_id', $data['company_id'])
-                        ->update(['can_update' => false]);
+                        ->update(['can_edit' => false]);
                 }
                 $afetados++;
             }
