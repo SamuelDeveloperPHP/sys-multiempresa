@@ -11,10 +11,15 @@ export default defineConfig({
         host: '127.0.0.1',
         port: 5173,
         strictPort: true,
-        // CORS: permite que o browser, ao bater em 127.0.0.1:8000 (Laravel),
-        // baixe assets do Vite em 127.0.0.1:5173 sem problemas.
+        // CORS: permite que o browser baixe assets do Vite em 127.0.0.1:5173
+        // independente da porta em que o Laravel esteja rodando.
+        // Use regex pra cobrir 127.0.0.1:<qualquer-porta> + localhost:<porta>
+        // (php artisan serve --port=8070 etc).
         cors: {
-            origin: ['http://127.0.0.1:8000', 'http://localhost:8000'],
+            origin: [
+                /^http:\/\/127\.0\.0\.1:\d+$/,
+                /^http:\/\/localhost:\d+$/,
+            ],
         },
         hmr: {
             host: '127.0.0.1',
