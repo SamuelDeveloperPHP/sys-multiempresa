@@ -137,6 +137,20 @@ export default function MovimentacaoShow({ movimentacao: m }) {
                             </div>
                         )}
 
+                        {m.retirante_user_id && m.retirante && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-5">
+                                <h3 className="text-sm font-semibold text-red-900 mb-2">
+                                    <i className="fa-solid fa-shield-halved mr-1" />
+                                    Validação da retirada
+                                </h3>
+                                <div className="text-sm text-red-900 space-y-1">
+                                    <p><strong>Retirante:</strong> {m.retirante.name} ({m.retirante.email})</p>
+                                    <p><strong>Método:</strong> {m.validacao_method === 'BIOMETRIA' ? 'Biometria (WebAuthn)' : 'Senha'}</p>
+                                    <p><strong>Validado em:</strong> {m.validado_em ? new Date(m.validado_em).toLocaleString('pt-BR') : '—'}</p>
+                                </div>
+                            </div>
+                        )}
+
                         {m.movimentacao_par_id && m.par && (
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
                                 <h3 className="text-sm font-semibold text-blue-900 mb-2">

@@ -24,9 +24,9 @@ class MovimentacaoRequest extends FormRequest
         $tiposTransf  = [Movimentacao::TIPO_TRANSF_OUT];
 
         $tiposPermitidos = array_merge($tiposEntrada, $tiposSaida, $tiposTransf);
-        // TRANSF_IN e AJUSTE_INVENTARIO NÃO são criados via UI direta —
-        // o primeiro é gerado pelo controller (par de TRANSF_OUT) e o
-        // segundo pelo fluxo de Inventário (FASE 5).
+
+        $ehSaida = $this->input('tipo') === Movimentacao::TIPO_SAIDA;
+        $ehTransf = $this->input('tipo') === Movimentacao::TIPO_TRANSF_OUT;
 
         return [
             'tipo' => ['required', Rule::in($tiposPermitidos)],
@@ -47,11 +47,23 @@ class MovimentacaoRequest extends FormRequest
             'nota_fiscal'      => ['nullable', 'string', 'max:50'],
             'data_nota_fiscal' => ['nullable', 'date'],
 
-            // Transferência: obra destino é obrigatória SE tipo=TRANSF_OUT
             'obra_destino_id' => [
-                Rule::requiredIf(fn () => $this->input('tipo') === Movimentacao::TIPO_TRANSF_OUT),
+                Rule::requiredIf(fn () => $ehTransf),
                 'nullable', 'integer', 'different:obra_id',
                 Rule::exists('obras', 'id')->where(fn ($q) => $companyId ? $q->where('company_id', $companyId) : $q),
+            ],
+
+            // ============= Validação de SAÍDA (FASE 7) =============
+            // SAÍDA exige IDENTIFICAÇÃO + SENHA do retirante. Almoxarife
+            // não pode dar baixa anônima de material.
+            'retirante_user_id' => [
+                Rule::requiredIf(fn () => $ehSaida),
+                'nullable', 'integer',
+                Rule::exists('users', 'id')->whereNull('deleted_at'),
+            ],
+            'retirante_senha' => [
+                Rule::requiredIf(fn () => $ehSaida),
+                'nullable', 'string',
             ],
         ];
     }
@@ -88,6 +100,8 @@ class MovimentacaoRequest extends FormRequest
             'obra_destino_id.required' => 'Em transferências, a obra de destino é obrigatória.',
             'obra_destino_id.different' => 'A obra de destino deve ser diferente da origem.',
             'data_movimento.before_or_equal' => 'Não é permitido lançar movimentação com data futura.',
+            'retirante_user_id.required' => 'Identifique o funcionário que está retirando o material.',
+            'retirante_senha.required'   => 'Senha do retirante é obrigatória para validar a saída.',
         ];
     }
 }

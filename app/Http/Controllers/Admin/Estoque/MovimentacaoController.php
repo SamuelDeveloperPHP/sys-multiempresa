@@ -11,8 +11,12 @@ use App\Models\Estoque\Produto;
 use App\Models\Estoque\Saldo;
 use App\Models\Fornecedor;
 use App\Models\Obra;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 /**
@@ -99,6 +103,8 @@ class MovimentacaoController extends Controller
             'obraContraparte:id,codigo_obra,nome_fantasia',
             'fornecedor:id,razao_social,nome_fantasia',
             'par',
+            'retirante:id,name,email',
+            'origem:id,tipo,quantidade,data_movimento',
         ]);
 
         return Inertia::render('Admin/Estoque/Movimentacoes/Show', [
@@ -161,6 +167,18 @@ class MovimentacaoController extends Controller
         }
 
         // ============= ENTRADA / SAÍDA / DEVOLUÇÃO =============
+        // Para SAÍDA, valida senha do retirante antes de criar a movimentação.
+        // Para entrada/devolução não é exigido (operação do almoxarife).
+        $auditValidacao = ['retirante_user_id' => null, 'validacao_method' => null, 'validado_em' => null];
+        if ($data['tipo'] === Movimentacao::TIPO_SAIDA) {
+            $retirante = $this->validarSenhaRetirante((int) $data['retirante_user_id'], (string) $data['retirante_senha']);
+            $auditValidacao = [
+                'retirante_user_id' => $retirante->id,
+                'validacao_method'  => 'SENHA',
+                'validado_em'       => now(),
+            ];
+        }
+
         $mov = Movimentacao::create([
             'company_id'        => $companyId,
             'produto_id'        => $data['produto_id'],
@@ -175,6 +193,7 @@ class MovimentacaoController extends Controller
             'nota_fiscal'       => $data['nota_fiscal'] ?? null,
             'data_nota_fiscal'  => $data['data_nota_fiscal'] ?? null,
             'user_create'       => $userEmail,
+            ...$auditValidacao,
         ]);
 
         // Em ENTRADA: atualiza valor_ultima_entrada do produto (para referência)
@@ -252,6 +271,65 @@ class MovimentacaoController extends Controller
             'quantidade'  => $saldo ? (float) $saldo->quantidade : 0,
             'valor_medio' => $saldo ? (float) $saldo->valor_medio : 0,
         ]);
+    }
+
+    /**
+     * Valida a senha do funcionário retirante. Aplica rate limit para evitar
+     * brute-force. Lança ValidationException com erro amigável se falhar.
+     *
+     * @return User  o usuário retirante (já carregado, ativo)
+     */
+    private function validarSenhaRetirante(int $userId, string $senha): User
+    {
+        // Rate limit: 5 tentativas / 5min por (operador, user-alvo)
+        $key = 'estoque-retirada:' . request()->user()->id . ':' . $userId;
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            $seconds = RateLimiter::availableIn($key);
+            throw ValidationException::withMessages([
+                'retirante_senha' => "Muitas tentativas. Aguarde {$seconds}s e tente novamente.",
+            ]);
+        }
+
+        $user = User::find($userId);
+        if (!$user) {
+            RateLimiter::hit($key, 300);
+            throw ValidationException::withMessages([
+                'retirante_user_id' => 'Funcionário não encontrado.',
+            ]);
+        }
+
+        if (!Hash::check($senha, $user->password)) {
+            RateLimiter::hit($key, 300);
+            throw ValidationException::withMessages([
+                'retirante_senha' => 'Senha do retirante incorreta.',
+            ]);
+        }
+
+        // Senha correta: zera contador de tentativas
+        RateLimiter::clear($key);
+        return $user;
+    }
+
+    /**
+     * Busca usuários para o autocomplete de retirante (mínimo 2 caracteres).
+     * Retorna apenas dados públicos — NUNCA password ou remember_token.
+     */
+    public function buscarFuncionarios(Request $request)
+    {
+        $q = trim($request->input('q', ''));
+        if (strlen($q) < 2) {
+            return response()->json(['data' => []]);
+        }
+        $users = User::query()
+            ->select('id', 'name', 'email', 'type')
+            ->where(function ($w) use ($q) {
+                $w->where('name', 'like', "%{$q}%")
+                  ->orWhere('email', 'like', "%{$q}%");
+            })
+            ->orderBy('name')
+            ->limit(15)
+            ->get();
+        return response()->json(['data' => $users]);
     }
 
     private function tiposLabels(): array

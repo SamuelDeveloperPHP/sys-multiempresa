@@ -95,6 +95,15 @@ class EstoqueModulesSeeder extends Seeder
             'show_in_menu' => true, // FASE 5 implementada
         ],
         [
+            'slug'         => 'estoque.devolucoes',
+            'parent_slug'  => 'estoque',
+            'name'         => 'Devoluções',
+            'route_name'   => 'admin.estoque.devolucoes.index',
+            'icon'         => 'fa-solid fa-rotate-left',
+            'sort_order'   => 5,
+            'show_in_menu' => true, // FASE 7.B
+        ],
+        [
             'slug'         => 'estoque.relatorios',
             'parent_slug'  => 'estoque',
             'name'         => 'Relatórios',

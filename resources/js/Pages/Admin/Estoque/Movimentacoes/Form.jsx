@@ -30,9 +30,14 @@ export default function MovimentacaoForm({ tipoInicial, obras, fornecedores }) {
         fornecedor_id:    '',
         nota_fiscal:      '',
         data_nota_fiscal: '',
+        // FASE 7.A — validação de retirada (só SAIDA)
+        retirante_user_id: '',
+        retirante_senha:   '',
     });
 
     const tipoAtual = TIPOS.find((t) => t.value === data.tipo) || TIPOS[0];
+    const isSaida = data.tipo === 'SAIDA';
+    const [retiranteSel, setRetiranteSel] = useState(null);
 
     // Produto selecionado (com cache visual)
     const [produtoSel, setProdutoSel] = useState(null);
@@ -258,6 +263,43 @@ export default function MovimentacaoForm({ tipoInicial, obras, fornecedores }) {
                             </Field>
                         </div>
 
+                        {/* ============= VALIDAÇÃO DO RETIRANTE (só SAÍDA) ============= */}
+                        {isSaida && (
+                            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                                <h3 className="text-sm font-bold text-red-800 mb-1">
+                                    <i className="fa-solid fa-shield-halved mr-1" />
+                                    Validação de retirada — obrigatória
+                                </h3>
+                                <p className="text-xs text-red-700 mb-3">
+                                    Identifique o funcionário que está retirando o material. Ele precisa confirmar com a própria senha.
+                                </p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <Field label="Funcionário retirante *" error={errors.retirante_user_id}>
+                                        <FuncionarioPicker
+                                            selecionado={retiranteSel}
+                                            onChange={(u) => {
+                                                setRetiranteSel(u);
+                                                setData('retirante_user_id', u?.id || '');
+                                                setData('retirante_senha', '');
+                                            }}
+                                        />
+                                    </Field>
+                                    <Field label="Senha do retirante *" error={errors.retirante_senha} hint="Digitada pelo próprio funcionário no momento da retirada">
+                                        <input
+                                            type="password"
+                                            value={data.retirante_senha}
+                                            onChange={(e) => setData('retirante_senha', e.target.value)}
+                                            autoComplete="new-password"
+                                            disabled={!data.retirante_user_id}
+                                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                                            placeholder={data.retirante_user_id ? '••••••••' : 'Selecione o funcionário primeiro'}
+                                        />
+                                    </Field>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex justify-end gap-2">
                             <Link
                                 href={route('admin.estoque.movimentacoes.index')}
@@ -434,12 +476,97 @@ function ProdutoPicker({ value, onChange, selecionado }) {
     );
 }
 
-function Field({ label, error, children }) {
+function Field({ label, hint, error, children }) {
     return (
         <div>
             {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
             {children}
+            {hint && !error && <p className="text-[11px] text-gray-400 mt-1">{hint}</p>}
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+        </div>
+    );
+}
+
+// =============================================================================
+// Autocomplete de FUNCIONÁRIO (retirante) — usa /admin/estoque/movimentacoes/buscar-funcionarios
+// =============================================================================
+function FuncionarioPicker({ selecionado, onChange }) {
+    const [q, setQ] = useState('');
+    const [resultados, setResultados] = useState([]);
+    const [aberto, setAberto] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const wrapRef = useRef(null);
+
+    useEffect(() => {
+        if (!q || q.length < 2) { setResultados([]); return; }
+        setLoading(true);
+        const t = setTimeout(() => {
+            axios.get(route('admin.estoque.movimentacoes.buscar-funcionarios'), { params: { q } })
+                .then((r) => { setResultados(r.data.data || []); setAberto(true); })
+                .finally(() => setLoading(false));
+        }, 250);
+        return () => clearTimeout(t);
+    }, [q]);
+
+    useEffect(() => {
+        const h = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setAberto(false); };
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
+    }, []);
+
+    const escolher = (u) => { onChange(u); setQ(''); setAberto(false); };
+    const limpar = () => { onChange(null); setQ(''); };
+
+    if (selecionado) {
+        return (
+            <div className="flex items-center gap-2 p-2 bg-white rounded border border-gray-300">
+                <div className="w-8 h-8 rounded-full bg-rise-100 text-rise-700 flex items-center justify-center font-bold text-xs">
+                    {selecionado.name?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{selecionado.name}</p>
+                    <p className="text-[11px] text-gray-500 truncate">{selecionado.email}</p>
+                </div>
+                <button type="button" onClick={limpar} className="text-gray-400 hover:text-red-600 px-1" title="Trocar">
+                    <i className="fa-solid fa-xmark" />
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div ref={wrapRef} className="relative">
+            <input
+                type="text" value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="Buscar por nome ou e-mail…"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            />
+            {loading && <i className="fa-solid fa-spinner fa-spin absolute right-3 top-3 text-gray-400" />}
+            {aberto && resultados.length > 0 && (
+                <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-72 overflow-y-auto">
+                    {resultados.map((u) => (
+                        <li key={u.id} onClick={() => escolher(u)}
+                            className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                        >
+                            <div className="w-7 h-7 rounded-full bg-rise-100 text-rise-700 flex items-center justify-center font-bold text-xs">
+                                {u.name?.[0]?.toUpperCase() || '?'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-900 truncate">{u.name}</p>
+                                <p className="text-[11px] text-gray-500 truncate">{u.email}</p>
+                            </div>
+                            {u.type && (
+                                <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{u.type}</span>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {aberto && q.length >= 2 && resultados.length === 0 && !loading && (
+                <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg px-3 py-3 text-sm text-gray-500">
+                    Nenhum funcionário encontrado.
+                </div>
+            )}
         </div>
     );
 }

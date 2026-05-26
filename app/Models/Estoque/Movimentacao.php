@@ -39,6 +39,9 @@ class Movimentacao extends Model
         'obra_contraparte_id', 'movimentacao_par_id',
         'requisicao_id', 'requisicao_item_id', 'inventario_id',
         'user_create',
+        // Validação / auditoria de saída e devolução (FASE 7)
+        'retirante_user_id', 'validacao_method', 'validado_em',
+        'movimentacao_origem_id',
     ];
 
     protected $casts = [
@@ -47,6 +50,7 @@ class Movimentacao extends Model
         'quantidade'        => 'decimal:3',
         'valor_unitario'    => 'decimal:2',
         'valor_total'       => 'decimal:2',
+        'validado_em'       => 'datetime',
     ];
 
     public function produto(): BelongsTo       { return $this->belongsTo(Produto::class); }
@@ -54,6 +58,8 @@ class Movimentacao extends Model
     public function obraContraparte(): BelongsTo { return $this->belongsTo(Obra::class, 'obra_contraparte_id'); }
     public function fornecedor(): BelongsTo    { return $this->belongsTo(Fornecedor::class); }
     public function par(): BelongsTo           { return $this->belongsTo(self::class, 'movimentacao_par_id'); }
+    public function origem(): BelongsTo        { return $this->belongsTo(self::class, 'movimentacao_origem_id'); }
+    public function retirante(): BelongsTo     { return $this->belongsTo(\App\Models\User::class, 'retirante_user_id'); }
     public function requisicao(): BelongsTo    { return $this->belongsTo(Requisicao::class); }
     public function inventario(): BelongsTo    { return $this->belongsTo(Inventario::class); }
 

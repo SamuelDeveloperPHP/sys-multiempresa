@@ -681,6 +681,9 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('movimentacoes.buscar-produtos');
                 Route::get('movimentacoes/saldo', [\App\Http\Controllers\Admin\Estoque\MovimentacaoController::class, 'saldoProdutoObra'])
                     ->name('movimentacoes.saldo');
+                // Autocomplete de funcionários (retirante na SAÍDA) — FASE 7.A
+                Route::get('movimentacoes/buscar-funcionarios', [\App\Http\Controllers\Admin\Estoque\MovimentacaoController::class, 'buscarFuncionarios'])
+                    ->name('movimentacoes.buscar-funcionarios');
                 Route::resource('movimentacoes', \App\Http\Controllers\Admin\Estoque\MovimentacaoController::class)
                     ->only(['index', 'create', 'store', 'show', 'destroy']);
 
@@ -699,6 +702,12 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::put('inventarios/{inventario}/itens/{item}', [\App\Http\Controllers\Admin\Estoque\InventarioController::class, 'atualizarItem'])->name('inventarios.itens.update');
                 Route::post('inventarios/{inventario}/itens/lote', [\App\Http\Controllers\Admin\Estoque\InventarioController::class, 'atualizarLote'])->name('inventarios.itens.lote');
                 Route::resource('inventarios', \App\Http\Controllers\Admin\Estoque\InventarioController::class)
+                    ->only(['index', 'create', 'store', 'show']);
+
+                // Devoluções internas (FASE 7.B)
+                Route::post('devolucoes/{devolucao}/aprovar',  [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'aprovar'])->name('devolucoes.aprovar');
+                Route::post('devolucoes/{devolucao}/rejeitar', [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'rejeitar'])->name('devolucoes.rejeitar');
+                Route::resource('devolucoes', \App\Http\Controllers\Admin\Estoque\DevolucaoController::class)
                     ->only(['index', 'create', 'store', 'show']);
 
                 // Relatórios gerenciais (FASE 6)
