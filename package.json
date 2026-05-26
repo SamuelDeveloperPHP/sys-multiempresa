@@ -24,6 +24,7 @@
         "@imgly/background-removal": "^1.7.0",
         "@inertiajs/react": "^3.0.3",
         "@laragear/webpass": "^2.1.2",
+        "@simplewebauthn/browser": "^13.3.0",
         "@vitejs/plugin-react": "^4.7.0",
         "dexie": "^4.4.2",
         "dexie-react-hooks": "^4.4.0",
