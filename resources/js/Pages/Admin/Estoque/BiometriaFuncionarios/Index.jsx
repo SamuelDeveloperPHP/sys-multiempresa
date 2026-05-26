@@ -5,7 +5,7 @@
 // WebAuthn vinculada ao funcionário-alvo (não ao almoxarife logado).
 // -----------------------------------------------------------------------------
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { registerBiometricForUser, isSupported as bioSupported, friendlyError } from '@/offline/webauthn';
@@ -16,12 +16,25 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
     const [working, setWorking] = useState(null); // userId em cadastro
     const [feedback, setFeedback] = useState(null); // { type: 'success'|'error', userId, msg }
     const [supported] = useState(() => bioSupported());
+    const buscaInicialRef = useRef(busca || '');
 
-    const filtrar = (e) => {
-        e?.preventDefault?.();
-        router.get(route('admin.estoque.biometria-funcionarios.index'), { q },
-            { preserveState: true, preserveScroll: true });
+    const aplicarBusca = (valor) => {
+        router.get(
+            route('admin.estoque.biometria-funcionarios.index'),
+            valor ? { q: valor } : {},
+            { preserveState: true, preserveScroll: true, replace: true, only: ['funcionarios', 'totalCompletos', 'totalParciais', 'totalZero', 'busca'] },
+        );
     };
+
+    // Busca dinâmica com debounce de 350ms — sem precisar clicar em "Buscar"
+    useEffect(() => {
+        if (q === buscaInicialRef.current) return;
+        const t = setTimeout(() => {
+            buscaInicialRef.current = q;
+            aplicarBusca(q);
+        }, 350);
+        return () => clearTimeout(t);
+    }, [q]);
 
     const cadastrar = async (funcionario) => {
         if (!supported) {
@@ -85,15 +98,32 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
                     <KpiCard label="Sem biometria"          total={totalZero}      cor="red"     icon="fa-circle-xmark" />
                 </div>
 
-                {/* Filtro */}
-                <form onSubmit={filtrar} className="bg-white rounded-lg border p-4 mb-4 grid grid-cols-1 md:grid-cols-4 gap-2">
-                    <input
-                        type="text" placeholder="Buscar funcionário por nome, matrícula ou CPF…"
-                        value={q} onChange={(e) => setQ(e.target.value)}
-                        className="md:col-span-3 border border-gray-300 rounded px-3 py-2 text-sm"
-                    />
-                    <button className="px-4 py-2 bg-gray-800 text-white rounded text-sm">Buscar</button>
-                </form>
+                {/* Filtro dinâmico — busca conforme digita (debounce 350ms) */}
+                <div className="bg-white rounded-lg border p-4 mb-4">
+                    <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+                            <i className="fa-solid fa-magnifying-glass" />
+                        </span>
+                        <input
+                            type="search"
+                            autoFocus
+                            placeholder="Buscar por nome, matrícula ou CPF… (busca enquanto digita)"
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            className="w-full border border-gray-300 rounded pl-10 pr-10 py-2 text-sm focus:border-rise-500 focus:ring-rise-500"
+                        />
+                        {q && (
+                            <button
+                                type="button"
+                                onClick={() => setQ('')}
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                                title="Limpar busca"
+                            >
+                                <i className="fa-solid fa-circle-xmark" />
+                            </button>
+                        )}
+                    </div>
+                </div>
 
                 {/* Lista */}
                 <div className="bg-white rounded-lg shadow border overflow-hidden">
