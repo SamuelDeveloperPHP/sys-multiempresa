@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Helpers\CompanyContext;
 use App\Http\Controllers\Controller;
+use App\Models\Funcionario;
 use App\Models\Module;
 use App\Models\ModulePermission;
 use App\Models\User;
@@ -98,45 +99,65 @@ class BiometriaController extends Controller
     // =======================================================================
 
     /**
-     * Tela de listagem: funcionários + status biométrico + botão "cadastrar".
+     * Tela de listagem: funcionários da OBRA + status biométrico + botão "cadastrar".
+     *
+     * Lista Funcionario (cadastro do RH com matrícula, função, foto) — não User.
+     * Credenciais WebAuthn ficam vinculadas via authenticatable_type=Funcionario.
      */
     public function funcionariosIndex(Request $request)
     {
         $this->autorizarCadastrarTerceiros($request->user());
 
+        $companyId = CompanyContext::current()?->id;
         $busca = trim($request->input('q', ''));
-        $query = User::query()
-            ->select('id', 'name', 'email', 'type')
-            ->where('type', '!=', 'motorista')  // motorista usa app mobile próprio
-            ->orderBy('name');
+
+        $query = Funcionario::query()
+            ->select('id', 'company_id', 'id_obra', 'id_funcao',
+                     'nome', 'matricula', 'cpf', 'imagem_usuario',
+                     'situacao', 'afastado')
+            ->with(['obra:id,codigo_obra,nome_fantasia', 'funcao:id,funcao'])
+            ->where('situacao', '!=', 'demitido')
+            ->where(function ($q) {
+                $q->whereNull('afastado')->orWhere('afastado', '!=', '1');
+            })
+            ->orderBy('nome');
+
+        if ($companyId) {
+            $query->where('company_id', $companyId);
+        }
 
         if ($busca) {
             $query->where(function ($w) use ($busca) {
-                $w->where('name', 'like', "%{$busca}%")
-                  ->orWhere('email', 'like', "%{$busca}%");
+                $w->where('nome', 'like', "%{$busca}%")
+                  ->orWhere('matricula', 'like', "%{$busca}%")
+                  ->orWhere('cpf', 'like', "%{$busca}%");
             });
         }
 
-        $users = $query->limit(200)->get();
+        $funcionarios = $query->limit(500)->get();
 
-        // Mapa de credenciais ativas por user (1 query, evita N+1)
-        $userClass = User::class;
+        // Mapa de credenciais WebAuthn por funcionário (1 query, sem N+1)
         $counts = WebAuthnCredential::query()
-            ->where('authenticatable_type', $userClass)
-            ->whereIn('authenticatable_id', $users->pluck('id'))
+            ->where('authenticatable_type', Funcionario::class)
+            ->whereIn('authenticatable_id', $funcionarios->pluck('id'))
             ->whereNull('disabled_at')
             ->selectRaw('authenticatable_id, COUNT(*) as total')
             ->groupBy('authenticatable_id')
             ->pluck('total', 'authenticatable_id')
             ->all();
 
-        $lista = $users->map(fn ($u) => [
-            'id'                => $u->id,
-            'name'              => $u->name,
-            'email'             => $u->email,
-            'type'              => $u->type,
-            'total_credenciais' => (int) ($counts[$u->id] ?? 0),
-            'atende_requisito'  => ((int) ($counts[$u->id] ?? 0)) >= 2,
+        $lista = $funcionarios->map(fn ($f) => [
+            'id'                => $f->id,
+            'nome'              => $f->nome,
+            'matricula'         => $f->matricula,
+            'cpf'               => $f->cpf,
+            'imagem_usuario'    => $f->imagem_usuario,
+            'funcao'            => $f->funcao?->funcao,
+            'obra'              => $f->obra
+                ? ['codigo_obra' => $f->obra->codigo_obra, 'nome_fantasia' => $f->obra->nome_fantasia]
+                : null,
+            'total_credenciais' => (int) ($counts[$f->id] ?? 0),
+            'atende_requisito'  => ((int) ($counts[$f->id] ?? 0)) >= 2,
         ]);
 
         return Inertia::render('Admin/Estoque/BiometriaFuncionarios/Index', [
@@ -154,8 +175,9 @@ class BiometriaController extends Controller
      *
      * Estratégia: usa Auth::setUser() temporário pra forçar o AttestationRequest
      * a montar as opções para o funcionário-alvo (e não pro operador logado).
+     * O Funcionario implementa WebAuthnAuthenticatable então é compatível.
      */
-    public function funcionarioOptions(Request $request, AttestationRequest $attestation, User $funcionario)
+    public function funcionarioOptions(Request $request, AttestationRequest $attestation, Funcionario $funcionario)
     {
         $this->autorizarCadastrarTerceiros($request->user());
 
@@ -171,7 +193,7 @@ class BiometriaController extends Controller
     /**
      * Grava a credencial WebAuthn no funcionário-alvo.
      */
-    public function funcionarioRegister(AttestedRequest $attested, Request $request, User $funcionario)
+    public function funcionarioRegister(AttestedRequest $attested, Request $request, Funcionario $funcionario)
     {
         $this->autorizarCadastrarTerceiros($request->user());
 
@@ -184,14 +206,14 @@ class BiometriaController extends Controller
     }
 
     /**
-     * Revoga credencial de um funcionário (almoxarife pode revogar
-     * digital de qualquer funcionário se tiver perdido confiança/funcionário saiu).
+     * Revoga credencial de um funcionário (almoxarife pode revogar digital
+     * de quem perdeu confiança/saiu da obra).
      */
-    public function funcionarioRevogarCredencial(Request $request, User $funcionario, string $credentialId)
+    public function funcionarioRevogarCredencial(Request $request, Funcionario $funcionario, string $credentialId)
     {
         $this->autorizarCadastrarTerceiros($request->user());
 
-        $cred = WebAuthnCredential::where('authenticatable_type', User::class)
+        $cred = WebAuthnCredential::where('authenticatable_type', Funcionario::class)
             ->where('authenticatable_id', $funcionario->id)
             ->where('id', $credentialId)
             ->first();
@@ -199,7 +221,7 @@ class BiometriaController extends Controller
         abort_if(!$cred, 404, 'Credencial não encontrada.');
         $cred->delete();
 
-        return back()->with('success', "Biometria de {$funcionario->name} revogada.");
+        return back()->with('success', "Biometria de {$funcionario->nome} revogada.");
     }
 
     /**

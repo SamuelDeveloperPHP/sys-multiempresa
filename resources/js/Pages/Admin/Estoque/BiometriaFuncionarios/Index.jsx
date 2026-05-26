@@ -38,9 +38,8 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
                 setFeedback({
                     type: 'success',
                     userId: funcionario.id,
-                    msg: `Digital de ${funcionario.name} cadastrada com sucesso!`,
+                    msg: `Digital de ${funcionario.nome} cadastrada com sucesso!`,
                 });
-                // Recarrega só os dados (sem mudar URL)
                 router.reload({ only: ['funcionarios', 'totalCompletos', 'totalParciais', 'totalZero'] });
             } else {
                 throw resp.error || new Error('Falha desconhecida.');
@@ -89,7 +88,7 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
                 {/* Filtro */}
                 <form onSubmit={filtrar} className="bg-white rounded-lg border p-4 mb-4 grid grid-cols-1 md:grid-cols-4 gap-2">
                     <input
-                        type="text" placeholder="Buscar funcionário por nome ou e-mail…"
+                        type="text" placeholder="Buscar funcionário por nome, matrícula ou CPF…"
                         value={q} onChange={(e) => setQ(e.target.value)}
                         className="md:col-span-3 border border-gray-300 rounded px-3 py-2 text-sm"
                     />
@@ -102,6 +101,7 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
                         <thead className="bg-gray-50 text-left font-semibold text-gray-700">
                             <tr>
                                 <th className="px-4 py-2">Funcionário</th>
+                                <th className="px-4 py-2">Função / Obra</th>
                                 <th className="px-4 py-2 text-center">Status</th>
                                 <th className="px-4 py-2 text-center">Digitais</th>
                                 <th className="px-4 py-2 text-right">Ação</th>
@@ -110,18 +110,18 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
                         <tbody className="divide-y">
                             {funcionarios.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="text-center text-gray-500 py-12">
+                                    <td colSpan={5} className="text-center text-gray-500 py-12">
                                         <i className="fa-solid fa-users text-3xl text-gray-300 mb-2 block" />
-                                        Nenhum funcionário encontrado.
+                                        Nenhum funcionário encontrado nesta empresa.
                                     </td>
                                 </tr>
-                            ) : funcionarios.map((u) => (
+                            ) : funcionarios.map((f) => (
                                 <FuncionarioRow
-                                    key={u.id}
-                                    funcionario={u}
-                                    working={working === u.id}
-                                    feedback={feedback?.userId === u.id ? feedback : null}
-                                    onCadastrar={() => cadastrar(u)}
+                                    key={f.id}
+                                    funcionario={f}
+                                    working={working === f.id}
+                                    feedback={feedback?.userId === f.id ? feedback : null}
+                                    onCadastrar={() => cadastrar(f)}
                                     disabled={!supported}
                                 />
                             ))}
@@ -150,28 +150,52 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
 }
 
 // =============================================================================
-// LINHA DO FUNCIONÁRIO
+// LINHA DO FUNCIONÁRIO (cadastro do RH: matrícula, função, foto)
 // =============================================================================
-function FuncionarioRow({ funcionario: u, working, feedback, onCadastrar, disabled }) {
+function FuncionarioRow({ funcionario: f, working, feedback, onCadastrar, disabled }) {
+    const fotoUrl = f.imagem_usuario
+        ? `https://sga-engeativos.com.br/build/images/users/${f.id}/${f.imagem_usuario}`
+        : null;
+
     return (
         <tr className={`hover:bg-gray-50 ${working ? 'bg-blue-50' : ''}`}>
             <td className="px-4 py-2">
-                <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-full bg-rise-100 text-rise-700 flex items-center justify-center font-bold text-sm">
-                        {u.name?.[0]?.toUpperCase() || '?'}
+                <div className="flex items-center gap-3">
+                    {fotoUrl ? (
+                        <img src={fotoUrl} alt={f.nome}
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                            className="w-10 h-10 rounded-full object-cover border" />
+                    ) : null}
+                    <div
+                        className="w-10 h-10 rounded-full bg-rise-100 text-rise-700 flex items-center justify-center font-bold text-sm"
+                        style={{ display: fotoUrl ? 'none' : 'flex' }}
+                    >
+                        {f.nome?.[0]?.toUpperCase() || '?'}
                     </div>
                     <div className="min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{u.name}</p>
-                        <p className="text-[11px] text-gray-500 truncate">{u.email}</p>
+                        <p className="font-medium text-gray-900 truncate">{f.nome}</p>
+                        <p className="text-[11px] text-gray-500 font-mono">
+                            Matr: <strong>{f.matricula || '—'}</strong>
+                            {f.cpf && <> · CPF: {f.cpf}</>}
+                        </p>
                     </div>
                 </div>
             </td>
+            <td className="px-4 py-2">
+                <p className="text-sm text-gray-700">{f.funcao || <span className="text-gray-400">—</span>}</p>
+                {f.obra && (
+                    <p className="text-[11px] text-gray-500">
+                        <i className="fa-solid fa-location-dot mr-1" />
+                        {f.obra.codigo_obra}
+                    </p>
+                )}
+            </td>
             <td className="px-4 py-2 text-center">
-                {u.total_credenciais === 0 ? (
+                {f.total_credenciais === 0 ? (
                     <span className="text-[11px] bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
                         <i className="fa-solid fa-circle-xmark mr-1" /> Sem biometria
                     </span>
-                ) : u.total_credenciais === 1 ? (
+                ) : f.total_credenciais === 1 ? (
                     <span className="text-[11px] bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">
                         <i className="fa-solid fa-triangle-exclamation mr-1" /> Parcial
                     </span>
@@ -182,7 +206,7 @@ function FuncionarioRow({ funcionario: u, working, feedback, onCadastrar, disabl
                 )}
             </td>
             <td className="px-4 py-2 text-center">
-                <span className="font-bold text-lg text-gray-700">{u.total_credenciais}</span>
+                <span className="font-bold text-lg text-gray-700">{f.total_credenciais}</span>
                 <span className="text-gray-400 text-xs"> / 2</span>
             </td>
             <td className="px-4 py-2 text-right">
@@ -194,7 +218,7 @@ function FuncionarioRow({ funcionario: u, working, feedback, onCadastrar, disabl
                         className={`px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap shadow-sm ${
                             working
                                 ? 'bg-blue-500 text-white animate-pulse cursor-wait'
-                                : u.atende_requisito
+                                : f.atende_requisito
                                     ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300'
                                     : 'bg-rise-600 hover:bg-rise-700 text-white'
                         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
