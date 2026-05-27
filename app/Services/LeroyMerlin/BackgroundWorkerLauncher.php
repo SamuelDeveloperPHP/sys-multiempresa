@@ -24,7 +24,7 @@ class BackgroundWorkerLauncher
      *
      * @return int quantos workers foram efetivamente disparados
      */
-    public function spawn(int $quantidade, string $fila, int $timeout = 1800, int $tries = 2): int
+    public function spawn(int $quantidade, string $fila, int $timeout = 1800, int $tries = 2, int $memory = 1024): int
     {
         if ($quantidade < 1 || !$this->spawnSuportado()) {
             return 0;
@@ -36,7 +36,7 @@ class BackgroundWorkerLauncher
 
         $lancados = 0;
         for ($i = 0; $i < $quantidade; $i++) {
-            if ($this->lancarUm($php, $artisan, $base, $fila, $timeout, $tries)) {
+            if ($this->lancarUm($php, $artisan, $base, $fila, $timeout, $tries, $memory)) {
                 $lancados++;
             }
         }
@@ -52,18 +52,19 @@ class BackgroundWorkerLauncher
         return function_exists('exec') && !in_array('exec', $disabled, true);
     }
 
-    private function lancarUm(string $php, string $artisan, string $base, string $fila, int $timeout, int $tries): bool
+    private function lancarUm(string $php, string $artisan, string $base, string $fila, int $timeout, int $tries, int $memory = 1024): bool
     {
         // $fila vem de config/leroy.php (slug confiável, ex.: 'leroy').
         $fila = preg_replace('/[^a-zA-Z0-9_\-]/', '', $fila) ?: 'leroy';
 
         $cmdBase = sprintf(
-            '"%s" "%s" queue:work --stop-when-empty --queue=%s --tries=%d --timeout=%d --sleep=1 --no-interaction',
+            '"%s" "%s" queue:work --stop-when-empty --queue=%s --tries=%d --timeout=%d --memory=%d --sleep=1 --no-interaction',
             $php,
             $artisan,
             $fila,
             $tries,
-            $timeout
+            $timeout,
+            $memory
         );
 
         try {

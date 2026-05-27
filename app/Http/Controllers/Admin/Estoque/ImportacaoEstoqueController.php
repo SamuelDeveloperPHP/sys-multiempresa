@@ -67,6 +67,7 @@ class ImportacaoEstoqueController extends Controller
                 $fila,
                 (int) config('leroy.worker_timeout', 1800),
                 (int) config('leroy.worker_tries', 2),
+                (int) config('leroy.worker_memory', 1024),
             );
         }
 

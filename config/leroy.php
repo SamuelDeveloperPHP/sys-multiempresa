@@ -38,4 +38,5 @@ return [
     */
     'worker_timeout' => (int) env('LEROY_WORKER_TIMEOUT', 1800),
     'worker_tries'   => (int) env('LEROY_WORKER_TRIES', 2),
+    'worker_memory'  => (int) env('LEROY_WORKER_MEMORY', 1024), // MB — reinicia o worker se estourar
 ];
