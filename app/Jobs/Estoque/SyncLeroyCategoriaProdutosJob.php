@@ -55,27 +55,39 @@ class SyncLeroyCategoriaProdutosJob implements ShouldQueue
 
         $gravados = 0;
         foreach ($produtos as $p) {
+            // PDM (Padrão de Descrição do Material) — identidade única do produto.
+            $chavePdm = LeroyProduto::montarChavePdm($p['nome'] ?? null, $p['marca'] ?? null);
+
+            // PRODUTO ÚNICO: se esse PDM já existe (de outra categoria/repetição da
+            // Leroy), pula — não rebaixa imagem nem cria linha duplicada.
+            if (LeroyProduto::where('chave_pdm', $chavePdm)->exists()) {
+                continue;
+            }
+
             try {
                 $imagemPath = $scraper->downloadImage($p['imagem_url'] ?? null, "leroy_merlin/{$p['leroy_id']}");
 
-                LeroyProduto::updateOrCreate(
-                    ['leroy_id' => $p['leroy_id']],
-                    [
-                        'categoria_principal_id'  => $this->contexto['principal_id'],
-                        'categoria_primaria_id'   => $this->contexto['primaria_id'],
-                        'categoria_secundaria_id' => $this->contexto['secundaria_id'],
-                        'nome'                    => $p['nome'],
-                        'marca'                   => $p['marca'] ?? null,
-                        'valor_unitario'          => $p['valor'] ?? 0,
-                        'unidade'                 => $p['unidade'] ?? 'UN',
-                        'imagem_path'             => $imagemPath,
-                        'imagem_url_original'     => $p['imagem_url'] ?? null,
-                        'ativo'                   => true,
-                        'ultimo_sync_user_id'     => $this->contexto['user_id'] ?? null,
-                        'ultimo_sync_at'          => Carbon::now(),
-                    ]
-                );
+                LeroyProduto::create([
+                    'leroy_id'                => $p['leroy_id'],
+                    'chave_pdm'               => $chavePdm,
+                    'categoria_principal_id'  => $this->contexto['principal_id'],
+                    'categoria_primaria_id'   => $this->contexto['primaria_id'],
+                    'categoria_secundaria_id' => $this->contexto['secundaria_id'],
+                    'nome'                    => $p['nome'],
+                    'marca'                   => $p['marca'] ?? null,
+                    'valor_unitario'          => $p['valor'] ?? 0,
+                    'unidade'                 => $p['unidade'] ?? 'UN',
+                    'imagem_path'             => $imagemPath,
+                    'imagem_url_original'     => $p['imagem_url'] ?? null,
+                    'ativo'                   => true,
+                    'ultimo_sync_user_id'     => $this->contexto['user_id'] ?? null,
+                    'ultimo_sync_at'          => Carbon::now(),
+                ]);
                 $gravados++;
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Corrida entre workers paralelos: outro criou o mesmo PDM/leroy_id
+                // nesse instante e o UNIQUE barrou. Tratamos como repetido (ok).
+                continue;
             } catch (\Throwable $e) {
                 $this->incrementar('total_falhas', 1);
                 Log::warning("Leroy: falha ao gravar produto {$p['leroy_id']}: {$e->getMessage()}");

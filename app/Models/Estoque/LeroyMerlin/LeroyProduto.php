@@ -22,6 +22,7 @@ class LeroyProduto extends Model
 
     protected $fillable = [
         'leroy_id',
+        'chave_pdm',
         'categoria_principal_id',
         'categoria_primaria_id',
         'categoria_secundaria_id',
@@ -70,5 +71,24 @@ class LeroyProduto extends Model
         return $this->imagem_path
             ? asset('storage/' . ltrim($this->imagem_path, '/'))
             : null;
+    }
+
+    /**
+     * Monta a chave PDM (Padrão de Descrição do Material) usada pra deduplicar.
+     * Normaliza nome + marca: sem acento, minúsculas, só alfanumérico, espaços
+     * colapsados. Dois produtos com a MESMA descrição => mesma chave => 1 linha.
+     *
+     * O tamanho/medida faz parte do nome (ex.: "...44"), então variações
+     * legítimas (44 vs 42) geram chaves distintas — só os repetidos exatos colapsam.
+     */
+    public static function montarChavePdm(?string $nome, ?string $marca = null): string
+    {
+        $base = trim(($nome ?? '') . ' ' . ($marca ?? ''));
+        $base = \Illuminate\Support\Str::ascii($base);     // remove acentos
+        $base = mb_strtolower($base);
+        $base = preg_replace('/[^a-z0-9]+/', ' ', $base);  // só alfanumérico
+        $base = trim(preg_replace('/\s+/', ' ', $base));   // colapsa espaços
+
+        return mb_substr($base !== '' ? $base : 'sem-descricao', 0, 191);
     }
 }
