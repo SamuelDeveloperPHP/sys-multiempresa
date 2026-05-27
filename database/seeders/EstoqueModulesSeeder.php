@@ -139,6 +139,15 @@ class EstoqueModulesSeeder extends Seeder
             'sort_order'   => 9,
             'show_in_menu' => true, // catálogo de referência externo
         ],
+        [
+            'slug'         => 'estoque.importacao',
+            'parent_slug'  => 'estoque',
+            'name'         => 'Importar p/ Estoque',
+            'route_name'   => 'admin.estoque.importacao.index',
+            'icon'         => 'fa-solid fa-arrow-right-arrow-left',
+            'sort_order'   => 10,
+            'show_in_menu' => true, // ponte Leroy -> estoque operacional
+        ],
     ];
 
     public function run(): void

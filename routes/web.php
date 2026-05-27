@@ -752,6 +752,11 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::post('sincronizacao-leroy/iniciar', [\App\Http\Controllers\Admin\Estoque\SincronizacaoLeroyController::class, 'iniciar'])->name('sincronizacao-leroy.iniciar');
                 Route::get('sincronizacao-leroy',         [\App\Http\Controllers\Admin\Estoque\SincronizacaoLeroyController::class, 'index'])->name('sincronizacao-leroy.index');
 
+                // Ponte: importar catálogo Leroy -> estoque_produtos (operacional, global)
+                Route::get('importacao/status',  [\App\Http\Controllers\Admin\Estoque\ImportacaoEstoqueController::class, 'status'])->name('importacao.status');
+                Route::post('importacao/iniciar', [\App\Http\Controllers\Admin\Estoque\ImportacaoEstoqueController::class, 'iniciar'])->name('importacao.iniciar');
+                Route::get('importacao',         [\App\Http\Controllers\Admin\Estoque\ImportacaoEstoqueController::class, 'index'])->name('importacao.index');
+
                 // Relatórios gerenciais (FASE 6)
                 Route::prefix('relatorios')->name('relatorios.')->group(function () {
                     Route::get('/',                  [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'hub'])->name('hub');

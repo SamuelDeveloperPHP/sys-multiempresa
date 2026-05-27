@@ -11,6 +11,8 @@ const UNIDADES = ['UN', 'PC', 'PAR', 'CX', 'PCT', 'KG', 'G', 'L', 'ML', 'M', 'M2
 
 export default function ProdutoForm({ produto, categorias, fornecedores }) {
     const isEdit = !!produto?.id;
+    // Produto vindo do catálogo Leroy: preço é só referência (campo travado).
+    const isLeroy = produto?.origem === 'leroy_merlin';
 
     const { data, setData, post, processing, errors } = useForm({
         categoria_id: produto?.categoria_id ?? '',
@@ -205,13 +207,31 @@ export default function ProdutoForm({ produto, categorias, fornecedores }) {
                                         className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                                     />
                                 </Field>
-                                <Field label="Valor unitário (R$)" error={errors.valor_unitario}>
-                                    <input
-                                        type="number" step="0.01" min="0"
-                                        value={data.valor_unitario}
-                                        onChange={(e) => setData('valor_unitario', e.target.value)}
-                                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                                    />
+                                <Field
+                                    label={isLeroy ? 'Valor de referência (R$)' : 'Valor unitário (R$)'}
+                                    hint={isLeroy ? 'Preço de referência da Leroy — somente consulta' : undefined}
+                                    error={errors.valor_unitario}
+                                >
+                                    <div className="relative">
+                                        <input
+                                            type="number" step="0.01" min="0"
+                                            value={data.valor_unitario}
+                                            onChange={(e) => !isLeroy && setData('valor_unitario', e.target.value)}
+                                            readOnly={isLeroy}
+                                            disabled={isLeroy}
+                                            title={isLeroy ? 'Valor de referência — não editável' : undefined}
+                                            className={`w-full border rounded px-3 py-2 text-sm ${
+                                                isLeroy
+                                                    ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed pr-9'
+                                                    : 'border-gray-300'
+                                            }`}
+                                        />
+                                        {isLeroy && (
+                                            <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400" title="Somente consulta">
+                                                <i className="fa-solid fa-lock text-xs" />
+                                            </span>
+                                        )}
+                                    </div>
                                 </Field>
                             </div>
 

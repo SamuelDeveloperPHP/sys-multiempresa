@@ -145,6 +145,12 @@ class ProdutoController extends Controller
             $data['imagem'] = $request->file('imagem')->store('estoque/produtos', 'public');
         }
 
+        // Produto do catálogo Leroy: preço é SOMENTE REFERÊNCIA — bloqueia edição
+        // server-side (defesa em profundidade, além do campo travado no front).
+        if ($produto->origem === Produto::ORIGEM_LEROY) {
+            unset($data['valor_unitario'], $data['valor_referencia']);
+        }
+
         $produto->update($data);
 
         return redirect()->route('admin.estoque.produtos.show', $produto)
