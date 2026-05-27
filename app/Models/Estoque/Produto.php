@@ -30,9 +30,10 @@ class Produto extends Model
         'company_id', 'categoria_id', 'fornecedor_padrao_id',
         'sku', 'codigo_barras', 'nome', 'marca', 'descricao',
         'unidade', 'peso_kg',
-        'valor_unitario', 'valor_ultima_entrada',
+        'valor_unitario', 'valor_ultima_entrada', 'valor_referencia',
         'estoque_minimo', 'estoque_maximo',
         'imagem', 'ativo',
+        'origem', 'chave_pdm', 'leroy_id_ref',
         'legacy_sku',
         'legacy_id_categoria_principal',
         'legacy_id_categoria_primaria',
@@ -45,9 +46,14 @@ class Produto extends Model
         'peso_kg'               => 'decimal:3',
         'valor_unitario'        => 'decimal:2',
         'valor_ultima_entrada'  => 'decimal:2',
+        'valor_referencia'      => 'decimal:2',
         'estoque_minimo'        => 'decimal:3',
         'estoque_maximo'        => 'decimal:3',
     ];
+
+    public const ORIGEM_MANUAL = 'manual';
+    public const ORIGEM_LEGADO = 'legado';
+    public const ORIGEM_LEROY  = 'leroy_merlin';
 
     public function categoria(): BelongsTo
     {
