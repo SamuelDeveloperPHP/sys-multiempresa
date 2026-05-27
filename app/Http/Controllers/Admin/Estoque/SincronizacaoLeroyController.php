@@ -9,6 +9,7 @@ use App\Models\Estoque\LeroyMerlin\LeroySyncRun;
 use App\Services\LeroyMerlin\BackgroundWorkerLauncher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -35,7 +36,9 @@ class SincronizacaoLeroyController extends Controller
             'historico'  => LeroySyncRun::with('user:id,name')
                 ->latest('id')->limit(10)->get()
                 ->map(fn ($r) => $this->serializeRun($r)),
-            'totais'     => $this->totais(),
+            'totais'          => $this->totais(),
+            'naFila'          => $this->categoriasNaFila(),
+            'ultimosProdutos' => $this->ultimosProdutos(),
             'podeIniciar' => in_array($request->user()->type, self::TIPOS_AUTORIZADOS, true),
         ]);
     }
@@ -85,8 +88,10 @@ class SincronizacaoLeroyController extends Controller
         $run = $this->runAtivo() ?? LeroySyncRun::latest('id')->first();
 
         return response()->json([
-            'run'    => $this->serializeRun($run),
-            'totais' => $this->totais(),
+            'run'              => $this->serializeRun($run),
+            'totais'           => $this->totais(),
+            'na_fila'          => $this->categoriasNaFila(),
+            'ultimos_produtos' => $this->ultimosProdutos(),
         ]);
     }
 
@@ -104,6 +109,26 @@ class SincronizacaoLeroyController extends Controller
         return [
             'produtos' => LeroyProduto::count(),
         ];
+    }
+
+    /** Categorias-folha ainda na fila (jobs aguardando worker). */
+    private function categoriasNaFila(): int
+    {
+        return (int) DB::table('jobs')->where('queue', config('leroy.queue', 'leroy'))->count();
+    }
+
+    /** Últimos produtos gravados — alimenta o Live Feed em tempo real. */
+    private function ultimosProdutos(int $limite = 15): array
+    {
+        return LeroyProduto::latest('id')
+            ->limit($limite)
+            ->get(['id', 'leroy_id', 'nome', 'marca'])
+            ->map(fn ($p) => [
+                'id'    => $p->leroy_id ?: (string) $p->id,
+                'nome'  => $p->nome,
+                'marca' => $p->marca,
+            ])
+            ->all();
     }
 
     private function serializeRun(?LeroySyncRun $run): ?array
