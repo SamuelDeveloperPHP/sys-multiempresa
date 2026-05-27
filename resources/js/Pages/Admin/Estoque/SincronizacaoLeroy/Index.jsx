@@ -111,6 +111,16 @@ export default function SincronizacaoLeroyIndex({ runAtivo, ultimoRun, historico
         });
     };
 
+    const cancelar = () => {
+        if (!confirm('Parar a sincronização em andamento? Os produtos já gravados permanecem; você pode iniciar de novo depois.')) {
+            return;
+        }
+        router.post(route('admin.estoque.sincronizacao-leroy.cancelar'), {}, {
+            preserveScroll: true,
+            onSuccess: () => router.reload({ only: ['runAtivo', 'ultimoRun', 'historico', 'totais', 'naFila', 'ultimosProdutos'] }),
+        });
+    };
+
     const t = run?.totais || { principais: 0, primarias: 0, secundarias: 0, produtos: 0, falhas: 0 };
 
     const cards = [
@@ -148,25 +158,37 @@ export default function SincronizacaoLeroyIndex({ runAtivo, ultimoRun, historico
                             Importa categorias e produtos de referência da Leroy Merlin. Roda em segundo plano (fila).
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={iniciar}
-                        disabled={!podeIniciar || ativo || iniciando}
-                        className={`inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-bold shadow transition-colors ${
-                            !podeIniciar || ativo || iniciando
-                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                : 'bg-rise-600 text-white hover:bg-rise-700'
-                        }`}
-                        title={!podeIniciar ? 'Apenas super-admin ou manager pode iniciar' : ''}
-                    >
-                        {ativo ? (
-                            <><i className="fa-solid fa-spinner fa-spin mr-2" /> Sincronização em andamento…</>
-                        ) : iniciando ? (
-                            <><i className="fa-solid fa-spinner fa-spin mr-2" /> Enfileirando…</>
-                        ) : (
-                            <><i className="fa-solid fa-play mr-2" /> Iniciar sincronização</>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={iniciar}
+                            disabled={!podeIniciar || ativo || iniciando}
+                            className={`inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-bold shadow transition-colors ${
+                                !podeIniciar || ativo || iniciando
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                    : 'bg-rise-600 text-white hover:bg-rise-700'
+                            }`}
+                            title={!podeIniciar ? 'Apenas super-admin ou manager pode iniciar' : ''}
+                        >
+                            {ativo ? (
+                                <><i className="fa-solid fa-spinner fa-spin mr-2" /> Sincronização em andamento…</>
+                            ) : iniciando ? (
+                                <><i className="fa-solid fa-spinner fa-spin mr-2" /> Enfileirando…</>
+                            ) : (
+                                <><i className="fa-solid fa-play mr-2" /> Iniciar sincronização</>
+                            )}
+                        </button>
+                        {ativo && podeIniciar && (
+                            <button
+                                type="button"
+                                onClick={cancelar}
+                                className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-bold shadow bg-red-600 text-white hover:bg-red-700 transition-colors"
+                                title="Parar a sincronização em andamento"
+                            >
+                                <i className="fa-solid fa-stop mr-2" /> Parar
+                            </button>
                         )}
-                    </button>
+                    </div>
                 </div>
 
                 {/* Cards de métricas */}

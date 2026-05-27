@@ -750,6 +750,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 // status (GET) vem antes pra não colidir com nada; iniciar (POST) dispara o job.
                 Route::get('sincronizacao-leroy/status',  [\App\Http\Controllers\Admin\Estoque\SincronizacaoLeroyController::class, 'status'])->name('sincronizacao-leroy.status');
                 Route::post('sincronizacao-leroy/iniciar', [\App\Http\Controllers\Admin\Estoque\SincronizacaoLeroyController::class, 'iniciar'])->name('sincronizacao-leroy.iniciar');
+                Route::post('sincronizacao-leroy/cancelar', [\App\Http\Controllers\Admin\Estoque\SincronizacaoLeroyController::class, 'cancelar'])->name('sincronizacao-leroy.cancelar');
                 Route::get('sincronizacao-leroy',         [\App\Http\Controllers\Admin\Estoque\SincronizacaoLeroyController::class, 'index'])->name('sincronizacao-leroy.index');
 
                 // Ponte: importar catálogo Leroy -> estoque_produtos (operacional, global)

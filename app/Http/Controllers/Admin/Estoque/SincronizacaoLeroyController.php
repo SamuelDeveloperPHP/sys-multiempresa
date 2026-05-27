@@ -9,6 +9,7 @@ use App\Models\Estoque\LeroyMerlin\LeroySyncRun;
 use App\Services\LeroyMerlin\BackgroundWorkerLauncher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -82,6 +83,37 @@ class SincronizacaoLeroyController extends Controller
             : "Sincronização enfileirada na fila \"{$fila}\". Workers automáticos desligados — garanta um worker/cron ativo nessa fila.";
 
         return back()->with('success', $msg);
+    }
+
+    public function cancelar(Request $request)
+    {
+        abort_unless(
+            in_array($request->user()->type, self::TIPOS_AUTORIZADOS, true),
+            403,
+            'Apenas super-admin ou manager pode cancelar.'
+        );
+
+        $run = $this->runAtivo();
+        if (!$run) {
+            return back()->with('error', 'Nenhuma sincronização ativa para cancelar.');
+        }
+
+        // 1) Cancela o batch — filhos ainda não iniciados checam batch()->cancelled() e abortam.
+        $batch = DB::table('job_batches')->where('name', "leroy-sync-{$run->id}")->first();
+        if ($batch) {
+            Bus::findBatch($batch->id)?->cancel();
+        }
+
+        // 2) Remove os jobs pendentes da fila (workers --stop-when-empty encerram sozinhos).
+        DB::table('jobs')->where('queue', config('leroy.queue', 'leroy'))->delete();
+
+        // 3) Marca o run como cancelado (libera o botão Iniciar de novo).
+        $run->update([
+            'status'      => LeroySyncRun::STATUS_CANCELLED,
+            'finished_at' => now(),
+        ]);
+
+        return back()->with('success', 'Sincronização cancelada. Você já pode iniciar de novo.');
     }
 
     public function status(): JsonResponse
