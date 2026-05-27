@@ -253,10 +253,11 @@ export default function SincronizacaoLeroyIndex({ runAtivo, ultimoRun, historico
                     <p className="font-semibold mb-1"><i className="fa-solid fa-circle-info mr-1" /> Como funciona</p>
                     <ul className="space-y-1 list-disc list-inside">
                         <li>O catálogo é uma <strong>referência de mercado</strong> (mesma pra todas as empresas), não é o estoque real.</li>
-                        <li>A sincronização lê a árvore de categorias da Leroy e baixa os produtos de cada categoria-folha.</li>
+                        <li>A sincronização lê a árvore de categorias da Leroy e processa os produtos de cada categoria <strong>em paralelo</strong>.</li>
                         <li>Imagens são salvas em <code className="bg-white px-1 rounded">storage/app/public/leroy_merlin/</code>.</li>
-                        <li>Roda em <strong>fila</strong> (precisa de worker ativo: <code className="bg-white px-1 rounded">php artisan queue:work</code>).</li>
-                        <li>Só uma sincronização roda por vez.</li>
+                        <li>Ao clicar <strong>Iniciar</strong>, o sistema sobe <strong>2 workers automaticamente</strong> em segundo plano — não precisa abrir terminal.</li>
+                        <li>Os workers param sozinhos quando a fila esvazia (<code className="bg-white px-1 rounded">--stop-when-empty</code>).</li>
+                        <li>Só uma sincronização roda por vez. (Em hospedagem que bloqueia processos em background, use cron na fila <code className="bg-white px-1 rounded">leroy</code>.)</li>
                     </ul>
                 </div>
             </div>

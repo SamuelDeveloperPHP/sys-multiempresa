@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\Estoque\SyncLeroyMerlinJob;
 use App\Models\Estoque\LeroyMerlin\LeroyProduto;
 use App\Models\Estoque\LeroyMerlin\LeroySyncRun;
+use App\Services\LeroyMerlin\BackgroundWorkerLauncher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -39,7 +40,7 @@ class SincronizacaoLeroyController extends Controller
         ]);
     }
 
-    public function iniciar(Request $request)
+    public function iniciar(Request $request, BackgroundWorkerLauncher $launcher)
     {
         abort_unless(
             in_array($request->user()->type, self::TIPOS_AUTORIZADOS, true),
@@ -57,9 +58,26 @@ class SincronizacaoLeroyController extends Controller
             'queued_at' => now(),
         ]);
 
-        SyncLeroyMerlinJob::dispatch($run->id);
+        $fila = config('leroy.queue', 'leroy');
+        SyncLeroyMerlinJob::dispatch($run->id)->onQueue($fila);
 
-        return back()->with('success', 'Sincronização enfileirada. Acompanhe o progresso abaixo.');
+        // Sobe os workers em background — operador não precisa abrir terminal.
+        // Em cPanel (proc bloqueado): LEROY_AUTO_SPAWN=false + cron na fila.
+        $workers = 0;
+        if (config('leroy.auto_spawn_workers', true)) {
+            $workers = $launcher->spawn(
+                (int) config('leroy.workers', 2),
+                $fila,
+                (int) config('leroy.worker_timeout', 1800),
+                (int) config('leroy.worker_tries', 2),
+            );
+        }
+
+        $msg = $workers > 0
+            ? "Sincronização iniciada — {$workers} worker(s) processando em segundo plano. Acompanhe o progresso abaixo."
+            : "Sincronização enfileirada na fila \"{$fila}\". Workers automáticos desligados — garanta um worker/cron ativo nessa fila.";
+
+        return back()->with('success', $msg);
     }
 
     public function status(): JsonResponse
