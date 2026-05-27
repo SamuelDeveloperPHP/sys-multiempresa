@@ -31,10 +31,32 @@ function StatusBadge({ status }) {
 const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
 const fmtData = (iso) => { try { return iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' }) : '—'; } catch { return iso; } };
 
-export default function ImportacaoEstoqueIndex({ importacaoAtiva, ultima, historico, totais, podeIniciar }) {
+// Gráfico de linha leve (SVG puro, sem dependência) — "ritmo de importação".
+function Sparkline({ data = [], height = 140 }) {
+    const pts = data.length >= 2 ? data : [...data, ...data];
+    const w = 600;
+    const min = Math.min(...pts);
+    const max = Math.max(...pts);
+    const span = max - min || 1;
+    const stepX = w / (pts.length - 1);
+    const coords = pts.map((v, i) => [i * stepX, height - ((v - min) / span) * (height - 16) - 8]);
+    const line = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+    const area = `${line} L${w},${height} L0,${height} Z`;
+    return (
+        <svg viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }}>
+            <path d={area} fill="rgba(67,102,168,0.12)" />
+            <path d={line} fill="none" stroke="#4366a8" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+export default function ImportacaoEstoqueIndex({ importacaoAtiva, ultima, historico, totais, naFila, ultimosProdutos, podeIniciar }) {
     const { flash } = usePage().props;
     const [run, setRun] = useState(importacaoAtiva || ultima);
     const [tot, setTot] = useState(totais);
+    const [fila, setFila] = useState(naFila || 0);
+    const [feed, setFeed] = useState(ultimosProdutos || []);
+    const [volumeHist, setVolumeHist] = useState(() => [Number(totais?.produtos_do_leroy || 0)]);
     const [iniciando, setIniciando] = useState(false);
     const pollRef = useRef(null);
 
@@ -48,8 +70,11 @@ export default function ImportacaoEstoqueIndex({ importacaoAtiva, ultima, histor
                 const { data } = await axios.get(route('admin.estoque.importacao.status'));
                 setRun(data.run);
                 setTot(data.totais);
+                setFila(data.na_fila ?? 0);
+                if (Array.isArray(data.ultimos_produtos)) setFeed(data.ultimos_produtos);
+                setVolumeHist((h) => [...h, Number(data.totais?.produtos_do_leroy || 0)].slice(-40));
                 if (data.run && !data.run.is_ativo) {
-                    router.reload({ only: ['importacaoAtiva', 'ultima', 'historico', 'totais'] });
+                    router.reload({ only: ['importacaoAtiva', 'ultima', 'historico', 'totais', 'naFila', 'ultimosProdutos'] });
                 }
             } catch (e) { /* tenta no próximo tick */ }
         }, 2000);
@@ -62,7 +87,15 @@ export default function ImportacaoEstoqueIndex({ importacaoAtiva, ultima, histor
         router.post(route('admin.estoque.importacao.iniciar'), {}, {
             preserveScroll: true,
             onFinish: () => setIniciando(false),
-            onSuccess: () => router.reload({ only: ['importacaoAtiva', 'ultima', 'historico', 'totais'] }),
+            onSuccess: () => router.reload({ only: ['importacaoAtiva', 'ultima', 'historico', 'totais', 'naFila', 'ultimosProdutos'] }),
+        });
+    };
+
+    const cancelar = () => {
+        if (!confirm('Parar a importação em andamento? Os produtos já importados permanecem; você pode iniciar de novo depois.')) return;
+        router.post(route('admin.estoque.importacao.cancelar'), {}, {
+            preserveScroll: true,
+            onSuccess: () => router.reload({ only: ['importacaoAtiva', 'ultima', 'historico', 'totais', 'naFila', 'ultimosProdutos'] }),
         });
     };
 
@@ -71,7 +104,7 @@ export default function ImportacaoEstoqueIndex({ importacaoAtiva, ultima, histor
     const cards = [
         { label: 'Produtos no estoque', valor: tot?.produtos_estoque, icon: 'fa-box', cor: 'text-emerald-600' },
         { label: 'Vindos da Leroy', valor: tot?.produtos_do_leroy, icon: 'fa-cloud-arrow-down', cor: 'text-rise-600' },
-        { label: 'Disponíveis p/ importar', valor: tot?.leroy_disponiveis, icon: 'fa-layer-group', cor: 'text-blue-600' },
+        { label: 'Categorias na fila', valor: fila, icon: 'fa-layer-group', cor: 'text-blue-600', pulse: ativo && fila > 0 },
         { label: 'Falhas (execução)', valor: t.falhas, icon: 'fa-triangle-exclamation', cor: t.falhas > 0 ? 'text-red-600' : 'text-gray-400' },
     ];
 
@@ -102,21 +135,33 @@ export default function ImportacaoEstoqueIndex({ importacaoAtiva, ultima, histor
                             Transfere os produtos únicos da Leroy para o estoque operacional (global, movimentável).
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={iniciar}
-                        disabled={!podeIniciar || ativo || iniciando}
-                        className={`inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-bold shadow transition-colors ${
-                            !podeIniciar || ativo || iniciando
-                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                : 'bg-rise-600 text-white hover:bg-rise-700'
-                        }`}
-                        title={!podeIniciar ? 'Apenas super-admin ou manager' : ''}
-                    >
-                        {ativo ? <><i className="fa-solid fa-spinner fa-spin mr-2" /> Importando…</>
-                            : iniciando ? <><i className="fa-solid fa-spinner fa-spin mr-2" /> Enfileirando…</>
-                            : <><i className="fa-solid fa-download mr-2" /> Importar agora</>}
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={iniciar}
+                            disabled={!podeIniciar || ativo || iniciando}
+                            className={`inline-flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-bold shadow transition-colors ${
+                                !podeIniciar || ativo || iniciando
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                    : 'bg-rise-600 text-white hover:bg-rise-700'
+                            }`}
+                            title={!podeIniciar ? 'Apenas super-admin ou manager' : ''}
+                        >
+                            {ativo ? <><i className="fa-solid fa-spinner fa-spin mr-2" /> Importando…</>
+                                : iniciando ? <><i className="fa-solid fa-spinner fa-spin mr-2" /> Enfileirando…</>
+                                : <><i className="fa-solid fa-download mr-2" /> Importar agora</>}
+                        </button>
+                        {ativo && podeIniciar && (
+                            <button
+                                type="button"
+                                onClick={cancelar}
+                                className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-bold shadow bg-red-600 text-white hover:bg-red-700 transition-colors"
+                                title="Parar a importação em andamento"
+                            >
+                                <i className="fa-solid fa-stop mr-2" /> Parar
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* BARRA DE PROGRESSO */}
@@ -201,7 +246,7 @@ export default function ImportacaoEstoqueIndex({ importacaoAtiva, ultima, histor
                 {/* Cards de métricas */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     {cards.map((c) => (
-                        <div key={c.label} className="bg-white rounded-xl shadow-sm border p-5">
+                        <div key={c.label} className={`bg-white rounded-xl shadow-sm border p-5 ${c.pulse ? 'ring-2 ring-rise-300 animate-pulse' : ''}`}>
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{c.label}</span>
                                 <i className={`fa-solid ${c.icon} ${c.cor}`} />
@@ -209,6 +254,44 @@ export default function ImportacaoEstoqueIndex({ importacaoAtiva, ultima, histor
                             <p className={`text-3xl font-extrabold mt-2 ${c.cor}`}>{fmt(c.valor)}</p>
                         </div>
                     ))}
+                </div>
+
+                {/* Tempo real: Ritmo de importação + Live Feed de produtos */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                    <div className="bg-white rounded-xl shadow-sm border p-5">
+                        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                            <i className="fa-solid fa-chart-line text-rise-600" /> Ritmo de importação (produtos no estoque)
+                        </h3>
+                        <Sparkline data={volumeHist} />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                            <span>{fmt(volumeHist[0])}</span>
+                            <span className="font-semibold text-rise-600">{fmt(volumeHist[volumeHist.length - 1])} produtos</span>
+                        </div>
+                    </div>
+
+                    <div className="bg-gray-900 rounded-xl shadow-sm border border-gray-800 overflow-hidden flex flex-col">
+                        <div className="px-4 py-2.5 border-b border-gray-800 flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                                <i className="fa-solid fa-terminal text-emerald-400" /> Live Feed (produtos importados)
+                            </h3>
+                            {ativo && <span className="text-[10px] text-emerald-400 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> AO VIVO</span>}
+                        </div>
+                        <div className="p-3 font-mono text-xs text-emerald-300 h-56 overflow-y-auto space-y-1">
+                            {feed.length === 0 ? (
+                                <p className="text-gray-500 text-center mt-8">Aguardando dados…</p>
+                            ) : (
+                                feed.map((p, i) => (
+                                    <div key={`${p.id}-${i}`} className="flex gap-2 border-b border-gray-800/60 pb-0.5">
+                                        <span className="text-gray-500 whitespace-nowrap">#{p.id}</span>
+                                        <span className="text-emerald-300 truncate">{p.nome}</span>
+                                        <span className="text-gray-500 whitespace-nowrap ml-auto">
+                                            {p.marca || '—'}{p.valor ? ` · R$ ${p.valor}` : ''}
+                                        </span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Histórico */}

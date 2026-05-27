@@ -10,6 +10,8 @@ use App\Models\Estoque\Produto;
 use App\Services\LeroyMerlin\BackgroundWorkerLauncher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -32,6 +34,8 @@ class ImportacaoEstoqueController extends Controller
                 ->latest('id')->limit(10)->get()
                 ->map(fn ($r) => $this->serialize($r)),
             'totais'          => $this->totais(),
+            'naFila'          => $this->categoriasNaFila(),
+            'ultimosProdutos' => $this->ultimosProdutos(),
             'podeIniciar'     => in_array($request->user()->type, self::TIPOS_AUTORIZADOS, true),
         ]);
     }
@@ -78,17 +82,69 @@ class ImportacaoEstoqueController extends Controller
         return back()->with('success', $msg);
     }
 
+    public function cancelar(Request $request)
+    {
+        abort_unless(
+            in_array($request->user()->type, self::TIPOS_AUTORIZADOS, true),
+            403,
+            'Apenas super-admin ou manager pode cancelar.'
+        );
+
+        $imp = $this->runAtivo();
+        if (!$imp) {
+            return back()->with('error', 'Nenhuma importação ativa para cancelar.');
+        }
+
+        // Cancela o batch (filhos não iniciados abortam via batch()->cancelled()).
+        $batch = DB::table('job_batches')->where('name', "estoque-import-{$imp->id}")->first();
+        if ($batch) {
+            Bus::findBatch($batch->id)?->cancel();
+        }
+        // Limpa os jobs pendentes da fila (workers --stop-when-empty encerram sozinhos).
+        DB::table('jobs')->where('queue', config('leroy.queue_import', 'estoque-import'))->delete();
+        // Marca como cancelada (libera o botão Importar).
+        $imp->update([
+            'status'      => EstoqueImportacao::STATUS_CANCELLED,
+            'finished_at' => now(),
+        ]);
+
+        return back()->with('success', 'Importação cancelada. Você já pode iniciar de novo.');
+    }
+
     public function status(): JsonResponse
     {
         $run = $this->runAtivo() ?? EstoqueImportacao::latest('id')->first();
 
         return response()->json([
-            'run'    => $this->serialize($run),
-            'totais' => $this->totais(),
+            'run'              => $this->serialize($run),
+            'totais'           => $this->totais(),
+            'na_fila'          => $this->categoriasNaFila(),
+            'ultimos_produtos' => $this->ultimosProdutos(),
         ]);
     }
 
     /* ---------------------------------------------------------------------- */
+
+    /** Categorias-folha ainda na fila de importação (jobs aguardando worker). */
+    private function categoriasNaFila(): int
+    {
+        return (int) DB::table('jobs')->where('queue', config('leroy.queue_import', 'estoque-import'))->count();
+    }
+
+    /** Últimos produtos importados pra estoque (alimenta o Live Feed). */
+    private function ultimosProdutos(int $limite = 15): array
+    {
+        return Produto::where('origem', Produto::ORIGEM_LEROY)
+            ->latest('id')->limit($limite)
+            ->get(['id', 'nome', 'marca', 'valor_referencia'])
+            ->map(fn ($p) => [
+                'id'    => $p->id,
+                'nome'  => $p->nome,
+                'marca' => $p->marca,
+                'valor' => $p->valor_referencia,
+            ])
+            ->all();
+    }
 
     private function runAtivo(): ?EstoqueImportacao
     {

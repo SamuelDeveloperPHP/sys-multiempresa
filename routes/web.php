@@ -756,6 +756,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 // Ponte: importar catálogo Leroy -> estoque_produtos (operacional, global)
                 Route::get('importacao/status',  [\App\Http\Controllers\Admin\Estoque\ImportacaoEstoqueController::class, 'status'])->name('importacao.status');
                 Route::post('importacao/iniciar', [\App\Http\Controllers\Admin\Estoque\ImportacaoEstoqueController::class, 'iniciar'])->name('importacao.iniciar');
+                Route::post('importacao/cancelar', [\App\Http\Controllers\Admin\Estoque\ImportacaoEstoqueController::class, 'cancelar'])->name('importacao.cancelar');
                 Route::get('importacao',         [\App\Http\Controllers\Admin\Estoque\ImportacaoEstoqueController::class, 'index'])->name('importacao.index');
 
                 // Relatórios gerenciais (FASE 6)
