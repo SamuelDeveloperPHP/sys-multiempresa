@@ -39,4 +39,27 @@ return [
     'worker_timeout' => (int) env('LEROY_WORKER_TIMEOUT', 1800),
     'worker_tries'   => (int) env('LEROY_WORKER_TRIES', 2),
     'worker_memory'  => (int) env('LEROY_WORKER_MEMORY', 1024), // MB — reinicia o worker se estourar
+
+    /*
+    |--------------------------------------------------------------------------
+    | Credenciais Algolia (busca de produtos da Leroy)
+    |--------------------------------------------------------------------------
+    | A Leroy ROTACIONA a api_key periodicamente (a antiga dá HTTP 403
+    | "Invalid Application-ID or API key"). Quando isso acontece, pegue a chave
+    | nova no navegador:
+    |   1) Abra leroymerlin.com.br, faça uma busca/abra uma categoria.
+    |   2) DevTools (F12) > aba Network > filtro "queries" (ou "algolia").
+    |   3) Ache o POST p/ (algolia.net) ...1/indexes/(asterisco)/queries
+    |   4) Copie os headers x-algolia-application-id e x-algolia-api-key
+    |      (ou os params na query string da URL).
+    |   5) Cole no .env (LEROY_ALGOLIA_API_KEY=...) e rode `php artisan config:clear`.
+    |
+    | O host é derivado do app_id automaticamente no scraper.
+    */
+    'algolia' => [
+        'app_id'  => env('LEROY_ALGOLIA_APP_ID', '1CF3ZT43ZU'),
+        'api_key' => env('LEROY_ALGOLIA_API_KEY', '150c68d1c61fc1835826a57a203dab72'),
+        'index'   => env('LEROY_ALGOLIA_INDEX', 'production_products'),
+        'regiao'  => env('LEROY_ALGOLIA_REGIAO', 'curitiba'),
+    ],
 ];

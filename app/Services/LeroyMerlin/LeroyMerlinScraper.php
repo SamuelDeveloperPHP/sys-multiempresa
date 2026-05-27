@@ -33,6 +33,14 @@ class LeroyMerlinScraper
 
     public function __construct(array $overrides = [])
     {
+        // Credenciais vêm do config (env) — a Leroy rotaciona a api_key.
+        $this->algoliaAppId  = (string) config('leroy.algolia.app_id', $this->algoliaAppId);
+        $this->algoliaApiKey = (string) config('leroy.algolia.api_key', $this->algoliaApiKey);
+        $this->algoliaIndex  = (string) config('leroy.algolia.index', $this->algoliaIndex);
+        $this->regiao        = (string) config('leroy.algolia.regiao', $this->regiao);
+        // Host do Algolia é derivado do app_id (DSN em minúsculas).
+        $this->algoliaHost   = 'https://' . strtolower($this->algoliaAppId) . '-dsn.algolia.net';
+
         foreach ($overrides as $k => $v) {
             if (property_exists($this, $k)) {
                 $this->$k = $v;
