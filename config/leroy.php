@@ -11,6 +11,12 @@ return [
     'queue' => env('LEROY_QUEUE', 'leroy'),
 
     /*
+    | Fila da PONTE de importação (Leroy -> estoque_produtos). Separada da
+    | sincronização pra não competirem por workers.
+    */
+    'queue_import' => env('LEROY_QUEUE_IMPORT', 'estoque-import'),
+
+    /*
     |--------------------------------------------------------------------------
     | Auto-spawn de workers ao clicar "Iniciar sincronização"
     |--------------------------------------------------------------------------
