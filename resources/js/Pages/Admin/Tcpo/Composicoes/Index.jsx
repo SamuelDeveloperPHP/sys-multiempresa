@@ -60,6 +60,13 @@ export default function ComposicoesIndex({ composicoes, arvore, caminho, bases, 
                         >
                             <i className="fa-solid fa-file-csv mr-2 text-green-600" />Exportar CSV
                         </a>
+                        <a
+                            href={route('admin.tcpo.composicoes.export-xlsx')}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                            title="Base completa em xlsx — 2 abas: blocos por composição + itens (flat)"
+                        >
+                            <i className="fa-solid fa-file-excel mr-2 text-emerald-600" />Exportar base (xlsx)
+                        </a>
                         <Link href={route('admin.tcpo.insumos.index')} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
                             <i className="fa-solid fa-cubes mr-2 text-gray-400" />Ver insumos
                         </Link>

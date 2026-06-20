@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Tcpo\TcpoCategoria;
 use App\Models\Tcpo\TcpoComposicao;
 use App\Models\Tcpo\TcpoInsumo;
+use App\Services\Tcpo\TcpoXlsxExport;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -100,6 +101,20 @@ class ComposicaoController extends Controller
             'Content-Type'        => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="' . $nome . '"',
         ]);
+    }
+
+    /**
+     * Exporta a BASE TODA em xlsx (2 abas: blocos por composição + itens flat),
+     * no formato do modelo PINI. Ignora filtros (é o catálogo completo).
+     */
+    public function exportarXlsxBase(TcpoXlsxExport $export)
+    {
+        $path = $export->gerar();
+        $nome = 'tcpo_base_completa_' . now()->format('Y-m-d_His') . '.xlsx';
+
+        return response()->download($path, $nome, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
     }
 
     /**
