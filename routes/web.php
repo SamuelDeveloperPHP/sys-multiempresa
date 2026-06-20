@@ -877,6 +877,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             // =================================================================
             Route::prefix('tcpo')->name('admin.tcpo.')->group(function () {
                 Route::get('composicoes',               [\App\Http\Controllers\Admin\Tcpo\ComposicaoController::class, 'index'])->name('composicoes.index');
+                Route::get('composicoes/exportar',      [\App\Http\Controllers\Admin\Tcpo\ComposicaoController::class, 'exportarCsv'])->name('composicoes.export');
                 Route::get('composicoes/{composicao}',  [\App\Http\Controllers\Admin\Tcpo\ComposicaoController::class, 'show'])->name('composicoes.show');
                 Route::get('insumos',                   [\App\Http\Controllers\Admin\Tcpo\InsumoController::class, 'index'])->name('insumos.index');
             });

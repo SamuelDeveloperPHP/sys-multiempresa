@@ -11,16 +11,105 @@ use Inertia\Inertia;
 
 /**
  * Navegação do catálogo TCPO importado (composições/serviços). Somente leitura
- * — o catálogo é populado pela importação (tcpo:importar). Global, sem escopo
+ * — o catálogo é populado pela importação (tcpo:importar-*). Global, sem escopo
  * por empresa.
  */
 class ComposicaoController extends Controller
 {
     public function index(Request $request)
     {
+        $ctx = $this->filtrar($request);
+
+        $composicoes = $ctx['query']->orderBy('codigo_alt')->orderBy('codigo')
+            ->paginate(20)->withQueryString();
+
+        return Inertia::render('Admin/Tcpo/Composicoes/Index', [
+            'composicoes' => $composicoes,
+            'arvore'      => $ctx['arvore'],
+            'caminho'     => $ctx['caminho'],
+            'bases'       => TcpoComposicao::query()->select('base')->distinct()->orderBy('base')->pluck('base'),
+            'tipos'       => TcpoComposicao::query()->whereNotNull('tipo')->select('tipo')->distinct()->orderBy('tipo')->pluck('tipo'),
+            'filtros'     => $request->only(['q', 'base', 'tipo', 'categoria_id']),
+            'totais'      => [
+                'composicoes' => TcpoComposicao::count(),
+                'insumos'     => TcpoInsumo::count(),
+            ],
+        ]);
+    }
+
+    public function show(TcpoComposicao $composicao)
+    {
+        $composicao->load([
+            'categoria',
+            'itens' => fn ($q) => $q->orderBy('ordem'),
+            'itens.insumo:id,codigo,descricao,classe',
+        ]);
+
+        return Inertia::render('Admin/Tcpo/Composicoes/Show', [
+            'composicao' => $composicao,
+        ]);
+    }
+
+    /**
+     * Exporta a lista filtrada de composições em CSV (separador ';', BOM UTF-8,
+     * decimal com vírgula — abre direto no Excel pt-BR). Respeita q/base/tipo/categoria.
+     */
+    public function exportarCsv(Request $request)
+    {
+        $ctx  = $this->filtrar($request);
+        $rows = $ctx['query']->orderBy('codigo_alt')->orderBy('codigo')->get();
+
+        // mapa id -> caminho completo da categoria (memoizado)
+        $byId = $ctx['cats']->keyBy('id');
+        $cache = [];
+        $pathOf = function ($id) use (&$pathOf, $byId, &$cache) {
+            if (!$id) {
+                return '';
+            }
+            if (isset($cache[$id])) {
+                return $cache[$id];
+            }
+            $c = $byId->get($id);
+            if (!$c) {
+                return '';
+            }
+            $pai = $c->parent_id ? $pathOf($c->parent_id) : '';
+            return $cache[$id] = ($pai ? $pai . ' > ' : '') . $c->nome;
+        };
+
+        $nome = 'tcpo_composicoes_' . now()->format('Y-m-d_His') . '.csv';
+
+        return response()->streamDownload(function () use ($rows, $pathOf) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF"); // BOM
+            fputcsv($out, ['Código EAP', 'Código', 'Descrição', 'Unidade', 'Tipo', 'Categoria', 'Base', 'Total sem taxas'], ';');
+            foreach ($rows as $c) {
+                fputcsv($out, [
+                    $c->codigo_alt ?: $c->codigo,
+                    $c->codigo,
+                    $c->descricao,
+                    $c->unidade,
+                    $c->tipo,
+                    $pathOf($c->categoria_id),
+                    $c->base,
+                    $c->total_sem_taxas !== null ? number_format((float) $c->total_sem_taxas, 2, ',', '') : '',
+                ], ';');
+            }
+            fclose($out);
+        }, $nome, [
+            'Content-Type'        => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $nome . '"',
+        ]);
+    }
+
+    /**
+     * Monta a árvore de categorias + a query já filtrada (q/base/tipo/categoria
+     * com descendentes) + o breadcrumb. Compartilhado por index() e exportarCsv().
+     */
+    private function filtrar(Request $request): array
+    {
         $base = $request->input('base');
 
-        // --- Árvore de categorias (para navegação tipo TCPOweb) ---
         $cats = TcpoCategoria::query()
             ->when($base, fn ($q) => $q->where('base', $base))
             ->orderBy('nivel')->orderBy('codigo')->orderBy('nome')
@@ -55,7 +144,6 @@ class ComposicaoController extends Controller
             $query->where('tipo', $tipo);
         }
 
-        // --- Filtro por categoria (inclui descendentes) + breadcrumb ---
         $caminho = [];
         if ($catId = (int) $request->input('categoria_id')) {
             $ids = [];
@@ -75,33 +163,6 @@ class ComposicaoController extends Controller
             }
         }
 
-        $composicoes = $query->orderBy('codigo_alt')->orderBy('codigo')
-            ->paginate(20)->withQueryString();
-
-        return Inertia::render('Admin/Tcpo/Composicoes/Index', [
-            'composicoes'   => $composicoes,
-            'arvore'        => $arvore,
-            'caminho'       => $caminho,
-            'bases'         => TcpoComposicao::query()->select('base')->distinct()->orderBy('base')->pluck('base'),
-            'tipos'         => TcpoComposicao::query()->whereNotNull('tipo')->select('tipo')->distinct()->orderBy('tipo')->pluck('tipo'),
-            'filtros'       => $request->only(['q', 'base', 'tipo', 'categoria_id']),
-            'totais'        => [
-                'composicoes' => TcpoComposicao::count(),
-                'insumos'     => TcpoInsumo::count(),
-            ],
-        ]);
-    }
-
-    public function show(TcpoComposicao $composicao)
-    {
-        $composicao->load([
-            'categoria',
-            'itens' => fn ($q) => $q->orderBy('ordem'),
-            'itens.insumo:id,codigo,descricao,classe',
-        ]);
-
-        return Inertia::render('Admin/Tcpo/Composicoes/Show', [
-            'composicao' => $composicao,
-        ]);
+        return ['query' => $query, 'arvore' => $arvore, 'caminho' => $caminho, 'cats' => $cats, 'porPai' => $porPai];
     }
 }

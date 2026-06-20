@@ -53,9 +53,17 @@ export default function ComposicoesIndex({ composicoes, arvore, caminho, bases, 
                             Catálogo de referência (PINI) — {totais?.composicoes ?? 0} composições, {totais?.insumos ?? 0} insumos
                         </p>
                     </div>
-                    <Link href={route('admin.tcpo.insumos.index')} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
-                        <i className="fa-solid fa-cubes mr-2 text-gray-400" />Ver insumos
-                    </Link>
+                    <div className="flex gap-2">
+                        <a
+                            href={route('admin.tcpo.composicoes.export', { q: f.q, base: f.base, tipo: f.tipo, categoria_id: catSelecionada ?? '' })}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                        >
+                            <i className="fa-solid fa-file-csv mr-2 text-green-600" />Exportar CSV
+                        </a>
+                        <Link href={route('admin.tcpo.insumos.index')} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+                            <i className="fa-solid fa-cubes mr-2 text-gray-400" />Ver insumos
+                        </Link>
+                    </div>
                 </header>
 
                 {flash?.success && (
