@@ -30,9 +30,11 @@ export default function MovimentacaoForm({ tipoInicial, obras, fornecedores }) {
         fornecedor_id:    '',
         nota_fiscal:      '',
         data_nota_fiscal: '',
-        // FASE 7.A — validação de retirada (só SAIDA)
-        retirante_user_id: '',
-        retirante_senha:   '',
+        // SAIDA — caminhos de retirante (Fase 1: funcionário sem login é o default)
+        modo_retirante:           'funcionario',  // 'funcionario' | 'usuario'
+        retirante_user_id:        '',
+        retirante_funcionario_id: '',
+        retirante_senha:          '',
     });
 
     const tipoAtual = TIPOS.find((t) => t.value === data.tipo) || TIPOS[0];
@@ -285,35 +287,114 @@ export default function MovimentacaoForm({ tipoInicial, obras, fornecedores }) {
                                     Validação de retirada — obrigatória
                                 </h3>
                                 <p className="text-xs text-red-700 mb-3">
-                                    Identifique o funcionário que está retirando o material. Ele precisa confirmar com a própria senha.
+                                    Identifique quem está retirando o material e confirme com a senha.
                                 </p>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <Field label="Funcionário retirante *" error={errors.retirante_user_id}>
-                                        <FuncionarioPicker
-                                            selecionado={retiranteSel}
-                                            onChange={(u) => {
-                                                setRetiranteSel(u);
-                                                setData('retirante_user_id', u?.id || '');
-                                                setData('retirante_senha', '');
-                                            }}
-                                        />
-                                    </Field>
-                                    <Field label="Senha do retirante *" error={errors.retirante_senha} hint="Digitada pelo próprio funcionário no momento da retirada">
-                                        <input
-                                            type="password"
-                                            value={data.retirante_senha}
-                                            onChange={(e) => setData('retirante_senha', e.target.value)}
-                                            autoComplete="new-password"
-                                            disabled={!data.retirante_user_id}
-                                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
-                                            placeholder={data.retirante_user_id ? '••••••••' : 'Selecione o funcionário primeiro'}
-                                        />
-                                    </Field>
+                                {/* Toggle: funcionário sem login (default) ou usuário do sistema */}
+                                <div className="flex gap-2 mb-3 text-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setData('modo_retirante', 'funcionario');
+                                            setData('retirante_user_id', '');
+                                            setData('retirante_senha', '');
+                                            setRetiranteSel(null);
+                                        }}
+                                        className={`px-3 py-1.5 rounded-full font-semibold ${
+                                            data.modo_retirante === 'funcionario'
+                                                ? 'bg-red-600 text-white'
+                                                : 'bg-white text-red-700 border border-red-300'
+                                        }`}
+                                    >
+                                        👷 Funcionário (sem login)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setData('modo_retirante', 'usuario');
+                                            setData('retirante_funcionario_id', '');
+                                            setData('retirante_senha', '');
+                                            setRetiranteSel(null);
+                                        }}
+                                        className={`px-3 py-1.5 rounded-full font-semibold ${
+                                            data.modo_retirante === 'usuario'
+                                                ? 'bg-red-600 text-white'
+                                                : 'bg-white text-red-700 border border-red-300'
+                                        }`}
+                                    >
+                                        🖥 Usuário do sistema
+                                    </button>
                                 </div>
 
-                                {/* Status biométrico do retirante selecionado */}
-                                {bioStatus && bioStatus.existe && (
+                                {data.modo_retirante === 'funcionario' ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <Field label="Funcionário retirante *" error={errors.retirante_funcionario_id}>
+                                            <FuncionarioRetiradaPicker
+                                                selecionado={retiranteSel}
+                                                onChange={(f) => {
+                                                    setRetiranteSel(f);
+                                                    setData('retirante_funcionario_id', f?.id || '');
+                                                    setData('retirante_senha', '');
+                                                }}
+                                            />
+                                            {retiranteSel && retiranteSel.tem_senha === false && (
+                                                <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded p-2 mt-2">
+                                                    ⚠ Este funcionário ainda <strong>não tem senha de retirada</strong>.
+                                                    Cadastre antes em{' '}
+                                                    <Link
+                                                        href={route('admin.funcionarios.show', retiranteSel.id)}
+                                                        className="underline font-semibold"
+                                                    >
+                                                        perfil do funcionário → aba Estoque
+                                                    </Link>.
+                                                </p>
+                                            )}
+                                        </Field>
+                                        <Field label="Senha de retirada *" error={errors.retirante_senha}
+                                               hint="Senha simples do funcionário (4–8 dígitos), digitada por ele mesmo na hora">
+                                            <input
+                                                type="password"
+                                                value={data.retirante_senha}
+                                                onChange={(e) => setData('retirante_senha', e.target.value)}
+                                                autoComplete="new-password"
+                                                disabled={!data.retirante_funcionario_id || retiranteSel?.tem_senha === false}
+                                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                                                placeholder={
+                                                    !data.retirante_funcionario_id ? 'Selecione o funcionário primeiro'
+                                                    : retiranteSel?.tem_senha === false ? 'Funcionário sem senha cadastrada'
+                                                    : '••••••••'
+                                                }
+                                            />
+                                        </Field>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <Field label="Usuário do sistema *" error={errors.retirante_user_id}>
+                                            <FuncionarioPicker
+                                                selecionado={retiranteSel}
+                                                onChange={(u) => {
+                                                    setRetiranteSel(u);
+                                                    setData('retirante_user_id', u?.id || '');
+                                                    setData('retirante_senha', '');
+                                                }}
+                                            />
+                                        </Field>
+                                        <Field label="Senha do usuário *" error={errors.retirante_senha}>
+                                            <input
+                                                type="password"
+                                                value={data.retirante_senha}
+                                                onChange={(e) => setData('retirante_senha', e.target.value)}
+                                                autoComplete="new-password"
+                                                disabled={!data.retirante_user_id}
+                                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm disabled:bg-gray-100"
+                                                placeholder={data.retirante_user_id ? '••••••••' : 'Selecione o usuário primeiro'}
+                                            />
+                                        </Field>
+                                    </div>
+                                )}
+
+                                {/* Status biométrico (só no modo Usuário, por ora) */}
+                                {data.modo_retirante === 'usuario' && bioStatus && bioStatus.existe && (
                                     <div className={`mt-3 px-3 py-2 rounded text-xs flex items-center gap-2 ${
                                         bioStatus.nivel === 'completa' ? 'bg-emerald-100 text-emerald-900' :
                                         bioStatus.nivel === 'incompleta' ? 'bg-amber-100 text-amber-900' :
@@ -323,9 +404,9 @@ export default function MovimentacaoForm({ tipoInicial, obras, fornecedores }) {
                                         <span>
                                             <strong>Biometria do retirante:</strong>{' '}
                                             {bioStatus.nivel === 'completa' &&
-                                                <>✓ {bioStatus.total_credenciais} digitais cadastradas — funcionário pode usar biometria como autenticação.</>}
+                                                <>✓ {bioStatus.total_credenciais} digitais cadastradas.</>}
                                             {bioStatus.nivel === 'incompleta' &&
-                                                <>⚠ apenas {bioStatus.total_credenciais} digital — recomendado cadastrar ≥ 2 (em /admin/perfil/biometria).</>}
+                                                <>⚠ apenas {bioStatus.total_credenciais} digital — recomendado cadastrar ≥ 2.</>}
                                             {bioStatus.nivel === 'sem_biometria' &&
                                                 <>Sem biometria cadastrada. Use senha por enquanto.</>}
                                         </span>
@@ -591,6 +672,103 @@ function FuncionarioPicker({ selecionado, onChange }) {
                             </div>
                             {u.type && (
                                 <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{u.type}</span>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {aberto && q.length >= 2 && resultados.length === 0 && !loading && (
+                <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg px-3 py-3 text-sm text-gray-500">
+                    Nenhum funcionário encontrado.
+                </div>
+            )}
+        </div>
+    );
+}
+
+// =============================================================================
+// FuncionarioRetiradaPicker — autocomplete em FUNCIONÁRIOS (não usuários).
+// Backend: /admin/estoque/movimentacoes/buscar-funcionarios-retirada
+// Mostra matrícula + indica se o funcionário tem senha cadastrada.
+// =============================================================================
+function FuncionarioRetiradaPicker({ selecionado, onChange }) {
+    const [q, setQ] = useState('');
+    const [resultados, setResultados] = useState([]);
+    const [aberto, setAberto] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const wrapRef = useRef(null);
+
+    useEffect(() => {
+        if (!q || q.length < 2) { setResultados([]); return; }
+        setLoading(true);
+        const t = setTimeout(() => {
+            axios.get(route('admin.estoque.movimentacoes.buscar-funcionarios-retirada'), { params: { q } })
+                .then((r) => { setResultados(r.data.data || []); setAberto(true); })
+                .finally(() => setLoading(false));
+        }, 250);
+        return () => clearTimeout(t);
+    }, [q]);
+
+    useEffect(() => {
+        const h = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setAberto(false); };
+        document.addEventListener('mousedown', h);
+        return () => document.removeEventListener('mousedown', h);
+    }, []);
+
+    const escolher = (f) => { onChange(f); setQ(''); setAberto(false); };
+    const limpar   = () => { onChange(null); setQ(''); };
+
+    if (selecionado) {
+        return (
+            <div className="flex items-center gap-2 p-2 bg-white rounded border border-gray-300">
+                <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+                    {selecionado.nome?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{selecionado.nome}</p>
+                    <p className="text-[11px] text-gray-500 truncate">
+                        {selecionado.matricula ? `Matr. ${selecionado.matricula}` : 'sem matrícula'}
+                        {selecionado.cpf && <span className="ml-2">CPF {selecionado.cpf}</span>}
+                    </p>
+                </div>
+                {selecionado.tem_senha === false && (
+                    <span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded font-bold">SEM SENHA</span>
+                )}
+                <button type="button" onClick={limpar} className="text-gray-400 hover:text-red-600 px-1" title="Trocar">
+                    <i className="fa-solid fa-xmark" />
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div ref={wrapRef} className="relative">
+            <input
+                type="text" value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder="Buscar por nome, matrícula ou CPF…"
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            />
+            {loading && <i className="fa-solid fa-spinner fa-spin absolute right-3 top-3 text-gray-400" />}
+            {aberto && resultados.length > 0 && (
+                <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-72 overflow-y-auto">
+                    {resultados.map((f) => (
+                        <li key={f.id} onClick={() => escolher(f)}
+                            className="flex items-center gap-2 px-3 py-2 hover:bg-amber-50 cursor-pointer"
+                        >
+                            <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+                                {f.nome?.[0]?.toUpperCase() || '?'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-900 truncate font-medium">{f.nome}</p>
+                                <p className="text-[11px] text-gray-500 truncate">
+                                    {f.matricula ? `Matr. ${f.matricula}` : 'sem matrícula'}
+                                    {f.cpf && <span className="ml-2">· {f.cpf}</span>}
+                                </p>
+                            </div>
+                            {f.tem_senha ? (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">SENHA ✓</span>
+                            ) : (
+                                <span className="text-[10px] bg-rose-100 text-rose-700 px-2 py-0.5 rounded font-bold">SEM SENHA</span>
                             )}
                         </li>
                     ))}

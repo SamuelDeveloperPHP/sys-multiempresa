@@ -127,7 +127,7 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
 
                 {/* Lista */}
                 <div className="bg-white rounded-lg shadow border overflow-hidden">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                         <thead className="bg-gray-50 text-left font-semibold text-gray-700">
                             <tr>
                                 <th className="px-4 py-2">Funcionário</th>

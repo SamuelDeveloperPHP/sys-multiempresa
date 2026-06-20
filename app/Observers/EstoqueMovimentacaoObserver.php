@@ -79,9 +79,12 @@ class EstoqueMovimentacaoObserver
      */
     private function aplicarDelta(Movimentacao $mov, int $multiplicador): void
     {
+        // Saldo é chaveado por (produto, obra, variante). Para material comum
+        // variante_id = null → mesma chave de antes (retrocompatível).
         $saldo = Saldo::firstOrNew([
-            'produto_id' => $mov->produto_id,
-            'obra_id'    => $mov->obra_id,
+            'produto_id'  => $mov->produto_id,
+            'obra_id'     => $mov->obra_id,
+            'variante_id' => $mov->variante_id,
         ]);
         if (!$saldo->exists) {
             $saldo->company_id  = $mov->company_id;

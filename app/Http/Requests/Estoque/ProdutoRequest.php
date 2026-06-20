@@ -21,6 +21,19 @@ class ProdutoRequest extends FormRequest
             'categoria_id'         => ['nullable', 'integer', Rule::exists('estoque_categorias', 'id')],
             'fornecedor_padrao_id' => ['nullable', 'integer', Rule::exists('fornecedores', 'id')],
 
+            // Classificação do item (EPI / calçado / EPC / uniforme / material)
+            'tipo_item' => ['nullable', 'string', Rule::in([
+                'material', 'epi', 'calcado_seguranca', 'epc', 'uniforme',
+            ])],
+
+            // Listas de variação (só relevantes quando tipo_item != material)
+            'cores'                => ['nullable', 'array'],
+            'cores.*'              => ['string', 'max:40'],
+            'tamanhos_numericos'   => ['nullable', 'array'],
+            'tamanhos_numericos.*' => ['string', 'max:40'],
+            'tamanhos_vestuario'   => ['nullable', 'array'],
+            'tamanhos_vestuario.*' => ['string', 'max:40'],
+
             'sku' => [
                 'nullable', 'string', 'max:100',
                 // SKU agora é único GLOBALMENTE (não por empresa)

@@ -32,15 +32,16 @@ class Movimentacao extends Model
     public const TIPOS_AJUSTE  = [self::TIPO_AJUSTE_INV];
 
     protected $fillable = [
-        'company_id', 'produto_id', 'obra_id', 'tipo',
+        'company_id', 'produto_id', 'variante_id', 'lote_id', 'obra_id', 'tipo',
         'quantidade', 'valor_unitario', 'valor_total',
         'data_movimento', 'observacao',
         'fornecedor_id', 'nota_fiscal', 'data_nota_fiscal',
         'obra_contraparte_id', 'movimentacao_par_id',
         'requisicao_id', 'requisicao_item_id', 'inventario_id',
-        'user_create',
+        'user_create', 'user_edit',
         // Validação / auditoria de saída e devolução (FASE 7)
-        'retirante_user_id', 'validacao_method', 'validado_em',
+        'retirante_user_id', 'retirante_funcionario_id',
+        'validacao_method', 'validado_em',
         'movimentacao_origem_id',
     ];
 
@@ -54,12 +55,28 @@ class Movimentacao extends Model
     ];
 
     public function produto(): BelongsTo       { return $this->belongsTo(Produto::class); }
+    public function variante(): BelongsTo      { return $this->belongsTo(ProdutoVariante::class, 'variante_id'); }
+    public function lote(): BelongsTo          { return $this->belongsTo(Lote::class, 'lote_id'); }
     public function obra(): BelongsTo          { return $this->belongsTo(Obra::class); }
     public function obraContraparte(): BelongsTo { return $this->belongsTo(Obra::class, 'obra_contraparte_id'); }
     public function fornecedor(): BelongsTo    { return $this->belongsTo(Fornecedor::class); }
     public function par(): BelongsTo           { return $this->belongsTo(self::class, 'movimentacao_par_id'); }
     public function origem(): BelongsTo        { return $this->belongsTo(self::class, 'movimentacao_origem_id'); }
     public function retirante(): BelongsTo     { return $this->belongsTo(\App\Models\User::class, 'retirante_user_id'); }
+    public function retiranteFuncionario(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Funcionario::class, 'retirante_funcionario_id');
+    }
+
+    /**
+     * Devoluções (registros DEVOLUCAO em estoque_movimentacoes) que apontam
+     * para esta movimentação como origem.
+     */
+    public function devolucoesFeitas()
+    {
+        return $this->hasMany(self::class, 'movimentacao_origem_id')
+            ->where('tipo', self::TIPO_DEVOLUCAO);
+    }
     public function requisicao(): BelongsTo    { return $this->belongsTo(Requisicao::class); }
     public function inventario(): BelongsTo    { return $this->belongsTo(Inventario::class); }
 

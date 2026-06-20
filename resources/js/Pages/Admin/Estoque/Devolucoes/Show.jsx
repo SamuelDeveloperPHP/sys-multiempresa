@@ -37,10 +37,18 @@ export default function DevolucaoShow({ devolucao: d, podeAprovar }) {
                 <header className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-2xl font-bold">Devolução {d.numero}</h1>
-                        <p className="text-sm text-gray-500">Criada em {horaFmt(d.data_criacao)} por {d.funcionario?.name}</p>
+                        <p className="text-sm text-gray-500">Criada em {horaFmt(d.data_criacao)} por {d.funcionario?.name ?? d.funcionario_obra?.nome ?? '—'}</p>
                     </div>
-                    <Link href={route('admin.estoque.devolucoes.index')}
-                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">← Voltar</Link>
+                    <div className="flex gap-2">
+                        <a href={route('admin.estoque.comprovantes.devolucao', d.id)}
+                           target="_blank" rel="noreferrer"
+                           className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-sm font-semibold"
+                           title="Abre comprovante HTML para impressão">
+                            🖨 Imprimir comprovante
+                        </a>
+                        <Link href={route('admin.estoque.devolucoes.index')}
+                              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">← Voltar</Link>
+                    </div>
                 </header>
 
                 {flash?.success && <div className="bg-green-50 border border-green-200 text-green-800 p-3 rounded mb-4">{flash.success}</div>}

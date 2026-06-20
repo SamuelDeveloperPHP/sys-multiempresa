@@ -50,7 +50,7 @@ export default function TopProdutos({ linhas, tipo, totais, obras, filtros }) {
                 </div>
 
                 <div className="bg-white rounded-lg shadow border overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                         <thead className="bg-gray-50 text-left font-semibold text-gray-700">
                             <tr>
                                 <th className="px-4 py-2 w-12">#</th>

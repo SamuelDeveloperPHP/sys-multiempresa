@@ -146,6 +146,12 @@ class FuncionarioController extends Controller
 
             $funcionario->setAttribute('anexos_funcionarios', $anexos_funcionarios);
             $funcionario->setAttribute('qualificacao_funcoes', $qualificacao_funcoes);
+            // Flag derivada — não vaza o hash da senha_retirada (que está em $hidden)
+            $funcionario->setAttribute('tem_senha_retirada', !empty($funcionario->senha_retirada));
+
+            // EPIs em posse (NR-6): derivado das SAÍDAs de EPI feitas por este
+            // funcionário, descontando o que já foi devolvido.
+            $funcionario->setAttribute('epi_retirados', $this->episEmPosse($funcionario->id));
 
             return Inertia::render('Admin/Funcionarios/Show', [
                 'funcionario' => $funcionario,
@@ -157,6 +163,179 @@ class FuncionarioController extends Controller
             ]);
             return back()->withErrors(['error' => 'Falha ao exibir funcionário.']);
         }
+    }
+
+    /**
+     * EPIs em posse do funcionário (NR-6): SAÍDAs de EPI autenticadas por ele,
+     * descontando devoluções. Fonte da verdade = movimentações.
+     */
+    private function episEmPosse(int $funcionarioId): \Illuminate\Support\Collection
+    {
+        try {
+            return \App\Models\Estoque\Movimentacao::query()
+                ->where('tipo', \App\Models\Estoque\Movimentacao::TIPO_SAIDA)
+                ->where('retirante_funcionario_id', $funcionarioId)
+                ->whereHas('produto', fn ($q) => $q->whereIn('tipo_item', \App\Models\Estoque\Produto::TIPOS_COM_LOTE))
+                ->with([
+                    'produto:id,sku,nome,unidade,tipo_item',
+                    'variante:id,cor,tamanho',
+                    'lote:id,numero_ca,numero_lote,validade',
+                    'obra:id,codigo_obra,nome_fantasia',
+                ])
+                ->withSum('devolucoesFeitas as devolvido', 'quantidade')
+                ->orderByDesc('data_movimento')
+                ->get()
+                ->map(function ($m) {
+                    return [
+                        'id'          => $m->id,
+                        'data'        => optional($m->data_movimento)->format('Y-m-d'),
+                        'produto'     => $m->produto?->nome,
+                        'sku'         => $m->produto?->sku,
+                        'unidade'     => $m->produto?->unidade,
+                        'tipo_item'   => $m->produto?->tipo_item,
+                        'variacao'    => collect([$m->variante?->cor, $m->variante?->tamanho])->filter()->implode(' · ') ?: null,
+                        'numero_ca'   => $m->lote?->numero_ca,
+                        'numero_lote' => $m->lote?->numero_lote,
+                        'validade'    => optional($m->lote?->validade)->format('Y-m-d'),
+                        'obra'        => $m->obra ? ($m->obra->codigo_obra . ' — ' . $m->obra->nome_fantasia) : null,
+                        'quantidade'  => (float) $m->quantidade,
+                        'devolvido'   => (float) ($m->devolvido ?? 0),
+                        'em_posse'    => (float) $m->quantidade - (float) ($m->devolvido ?? 0),
+                        'metodo'      => $this->metodoValidacaoLabel($m->validacao_method),
+                        'validado_em' => optional($m->validado_em)->format('d/m/Y H:i'),
+                    ];
+                })
+                ->filter(fn ($x) => $x['em_posse'] > 0.0001)
+                ->values();
+        } catch (\Throwable $e) {
+            return collect();
+        }
+    }
+
+    /** Rótulo legível do método de validação da retirada. */
+    private function metodoValidacaoLabel(?string $metodo): ?string
+    {
+        return match ($metodo) {
+            'SENHA_FUNC'     => 'Senha pessoal do funcionário',
+            'SENHA'          => 'Senha do usuário do sistema',
+            'BIOMETRIA_FUNC' => 'Biometria do funcionário',
+            'BIOMETRIA'      => 'Biometria (WebAuthn)',
+            default          => $metodo,
+        };
+    }
+
+    /**
+     * Tela de EMISSÃO da ficha de EPI (NR-6): preview dos EPIs em posse +
+     * coleta da assinatura do funcionário. GET .../{funcionario}/ficha-epi
+     */
+    public function fichaEpi(Funcionario $funcionario)
+    {
+        $funcionario->load(['obra:id,codigo_obra,nome_fantasia', 'funcao:id,funcao']);
+
+        return view('funcionarios.ficha-epi-emitir', [
+            'funcionario' => $funcionario,
+            'epis'        => $this->episEmPosse($funcionario->id),
+            'empresa'     => \App\Helpers\CompanyContext::current(),
+            'operador'    => Auth::user(),
+        ]);
+    }
+
+    /**
+     * GERA a ficha: monta o snapshot imutável, calcula o hash de integridade,
+     * grava a assinatura e cria o registro verificável. POST .../ficha-epi
+     */
+    public function gerarFichaEpi(Request $request, Funcionario $funcionario)
+    {
+        $data = $request->validate([
+            'assinatura'      => ['nullable', 'string', 'max:500000'], // data URL PNG
+            'assinatura_tipo' => ['nullable', 'string', 'max:30'],
+        ]);
+
+        $funcionario->load(['obra:id,codigo_obra,nome_fantasia', 'funcao:id,funcao']);
+        $empresa = \App\Helpers\CompanyContext::current();
+
+        $epis = $this->episEmPosse($funcionario->id)->map(function ($e) {
+            return [
+                'data'        => $e['data'] ? \Illuminate\Support\Carbon::parse($e['data'])->format('d/m/Y') : '—',
+                'produto'     => $e['produto'],
+                'sku'         => $e['sku'],
+                'unidade'     => $e['unidade'],
+                'variacao'    => $e['variacao'],
+                'numero_ca'   => $e['numero_ca'],
+                'numero_lote' => $e['numero_lote'],
+                'validade'    => $e['validade'] ? \Illuminate\Support\Carbon::parse($e['validade'])->format('d/m/Y') : null,
+                'obra'        => $e['obra'],
+                'em_posse'    => $e['em_posse'],
+                'metodo'      => $e['metodo'],
+                'validado_em' => $e['validado_em'],
+            ];
+        })->values()->all();
+
+        $conteudo = [
+            'versao'      => 1,
+            'funcionario' => [
+                'id'        => $funcionario->id,
+                'nome'      => $funcionario->nome,
+                'matricula' => $funcionario->matricula,
+                'cpf'       => $funcionario->cpf,
+                'funcao'    => $funcionario->funcao?->funcao,
+                'obra'      => $funcionario->obra ? ($funcionario->obra->codigo_obra . ' — ' . $funcionario->obra->nome_fantasia) : null,
+            ],
+            'empresa'     => $empresa?->name,
+            'emitida_em'  => now()->format('d/m/Y H:i:s'),
+            'emitida_por' => Auth::user()?->email,
+            'epis'        => $epis,
+        ];
+
+        // JSON canônico (string crua) — é o que será hasheado e re-hasheado na verificação.
+        $canonical = json_encode($conteudo, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $hash      = hash_hmac('sha256', $canonical, config('app.key'));
+
+        $temAssinatura = !empty($data['assinatura']) && str_starts_with($data['assinatura'], 'data:image');
+
+        $ficha = \App\Models\Estoque\EpiFicha::create([
+            'company_id'      => $empresa?->id,
+            'funcionario_id'  => $funcionario->id,
+            'codigo'          => bin2hex(random_bytes(16)),
+            'hash'            => $hash,
+            'conteudo'        => $canonical,
+            'assinatura'      => $temAssinatura ? $data['assinatura'] : null,
+            'assinatura_tipo' => $temAssinatura ? 'manuscrita_digital' : 'impressa',
+            'emitida_por'     => Auth::user()?->email,
+        ]);
+
+        return redirect()->route('ficha-epi.verificar', $ficha->codigo);
+    }
+
+    /**
+     * Documento final / verificação: renderiza o SNAPSHOT gravado, confere a
+     * integridade (hash) e mostra QR + assinatura + método. GET verificar-ficha-epi/{codigo}
+     */
+    public function verificarFichaEpi(string $codigo)
+    {
+        $ficha  = \App\Models\Estoque\EpiFicha::where('codigo', $codigo)->firstOrFail();
+        $integro = $ficha->estaIntegra();
+
+        // QR apontando para a verificação PÚBLICA (fiscal escaneia sem login)
+        $url = route('ficha-epi.verificar', $codigo);
+        $qrSvg = null;
+        try {
+            $renderer = new \BaconQrCode\Renderer\ImageRenderer(
+                new \BaconQrCode\Renderer\RendererStyle\RendererStyle(140, 1),
+                new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
+            );
+            $qrSvg = (new \BaconQrCode\Writer($renderer))->writeString($url);
+        } catch (\Throwable $e) {
+            $qrSvg = null;
+        }
+
+        return view('funcionarios.ficha-epi', [
+            'ficha'   => $ficha,
+            'dados'   => $ficha->dados,
+            'integro' => $integro,
+            'qrSvg'   => $qrSvg,
+            'url'     => $url,
+        ]);
     }
 
     public function create()

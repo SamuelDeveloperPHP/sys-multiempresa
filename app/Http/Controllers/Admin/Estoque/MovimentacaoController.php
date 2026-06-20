@@ -10,6 +10,7 @@ use App\Models\Estoque\Movimentacao;
 use App\Models\Estoque\Produto;
 use App\Models\Estoque\Saldo;
 use App\Models\Fornecedor;
+use App\Models\Funcionario;
 use App\Models\Obra;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -104,6 +105,7 @@ class MovimentacaoController extends Controller
             'fornecedor:id,razao_social,nome_fantasia',
             'par',
             'retirante:id,name,email',
+            'retiranteFuncionario:id,nome,matricula,cpf,imagem_usuario',
             'origem:id,tipo,quantidade,data_movimento',
         ]);
 
@@ -169,14 +171,43 @@ class MovimentacaoController extends Controller
         // ============= ENTRADA / SAÍDA / DEVOLUÇÃO =============
         // Para SAÍDA, valida senha do retirante antes de criar a movimentação.
         // Para entrada/devolução não é exigido (operação do almoxarife).
-        $auditValidacao = ['retirante_user_id' => null, 'validacao_method' => null, 'validado_em' => null];
+        //
+        // SAÍDA aceita DOIS caminhos de identificação:
+        //   - retirante_user_id        + senha do usuário do sistema
+        //   - retirante_funcionario_id + senha_retirada do funcionário (Fase 1)
+        $auditValidacao = [
+            'retirante_user_id'        => null,
+            'retirante_funcionario_id' => null,
+            'validacao_method'         => null,
+            'validado_em'              => null,
+        ];
+
         if ($data['tipo'] === Movimentacao::TIPO_SAIDA) {
-            $retirante = $this->validarSenhaRetirante((int) $data['retirante_user_id'], (string) $data['retirante_senha']);
-            $auditValidacao = [
-                'retirante_user_id' => $retirante->id,
-                'validacao_method'  => 'SENHA',
-                'validado_em'       => now(),
-            ];
+            if (!empty($data['retirante_funcionario_id'])) {
+                $func = $this->validarSenhaRetiranteFunc(
+                    (int) $data['retirante_funcionario_id'],
+                    (string) $data['retirante_senha']
+                );
+                $auditValidacao = [
+                    'retirante_user_id'        => null,
+                    'retirante_funcionario_id' => $func->id,
+                    'validacao_method'         => 'SENHA_FUNC',
+                    'validado_em'              => now(),
+                ];
+                // Atualiza heartbeat da última retirada do funcionário
+                $func->forceFill(['data_ultima_retirada' => now()])->save();
+            } else {
+                $retirante = $this->validarSenhaRetirante(
+                    (int) $data['retirante_user_id'],
+                    (string) $data['retirante_senha']
+                );
+                $auditValidacao = [
+                    'retirante_user_id'        => $retirante->id,
+                    'retirante_funcionario_id' => null,
+                    'validacao_method'         => 'SENHA',
+                    'validado_em'              => now(),
+                ];
+            }
         }
 
         $mov = Movimentacao::create([
@@ -245,10 +276,72 @@ class MovimentacaoController extends Controller
                   ->orWhere('sku', 'like', "%{$q}%")
                   ->orWhere('codigo_barras', 'like', "%{$q}%");
             })
+            ->with([
+                'variacoes:id,produto_id,tipo,valor,ordem',
+                'categoria:id,nome,parent_id',
+            ])
             ->limit(20)
-            ->get(['id', 'sku', 'nome', 'unidade', 'valor_unitario', 'valor_ultima_entrada', 'imagem']);
+            ->get(['id', 'sku', 'nome', 'unidade', 'valor_unitario', 'valor_ultima_entrada', 'imagem',
+                   'controla_variacao', 'tipo_item', 'categoria_id']);
 
         return response()->json(['data' => $produtos]);
+    }
+
+    /**
+     * Lotes disponíveis (saldo > 0) de um produto/variante numa obra, em
+     * ordem FEFO (vence primeiro, primeiro). Usado na SAÍDA de EPI.
+     *
+     * Se cor/tamanho forem informados, resolve a variante; caso contrário
+     * lista todos os lotes do produto na obra.
+     */
+    public function lotesDisponiveis(Request $request)
+    {
+        $request->validate([
+            'produto_id' => 'required|integer',
+            'obra_id'    => 'required|integer',
+            'cor'        => 'nullable|string',
+            'tamanho'    => 'nullable|string',
+        ]);
+        $companyId = CompanyContext::current()?->id;
+
+        $varianteId = null;
+        $cor     = trim((string) $request->input('cor'))     ?: null;
+        $tamanho = trim((string) $request->input('tamanho')) ?: null;
+
+        if ($cor !== null || $tamanho !== null) {
+            $variante = \App\Models\Estoque\ProdutoVariante::where('produto_id', $request->input('produto_id'))
+                ->where('cor', $cor)->where('tamanho', $tamanho)->first();
+            // Variante ainda não existe → não há lote
+            if (!$variante) {
+                return response()->json(['data' => []]);
+            }
+            $varianteId = $variante->id;
+        }
+
+        $lotes = \App\Models\Estoque\Lote::query()
+            ->where('produto_id', $request->input('produto_id'))
+            ->where('obra_id', $request->input('obra_id'))
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->when($varianteId, fn ($q) => $q->where('variante_id', $varianteId))
+            ->with('variante:id,cor,tamanho')
+            ->comSaldo()
+            ->fefo()
+            ->get(['id', 'variante_id', 'numero_ca', 'numero_lote', 'validade', 'quantidade_atual', 'valor_unitario']);
+
+        return response()->json([
+            'data' => $lotes->map(fn ($l) => [
+                'id'               => $l->id,
+                'cor'              => $l->variante?->cor,
+                'tamanho'          => $l->variante?->tamanho,
+                'variante_rotulo'  => collect([$l->variante?->cor, $l->variante?->tamanho])->filter()->implode(' · ') ?: null,
+                'numero_ca'        => $l->numero_ca,
+                'numero_lote'      => $l->numero_lote,
+                'validade'         => $l->validade?->format('Y-m-d'),
+                'quantidade_atual' => (float) $l->quantidade_atual,
+                'valor_unitario'   => (float) $l->valor_unitario,
+                'dias_para_vencer' => $l->dias_para_vencer,
+            ]),
+        ]);
     }
 
     /**
@@ -308,6 +401,51 @@ class MovimentacaoController extends Controller
         // Senha correta: zera contador de tentativas
         RateLimiter::clear($key);
         return $user;
+    }
+
+    /**
+     * Valida a senha_retirada de um FUNCIONÁRIO (Fase 1: retirante sem login).
+     * Mesma estratégia (rate-limit + Hash::check) do validarSenhaRetirante,
+     * só que contra a tabela `funcionarios`.
+     */
+    private function validarSenhaRetiranteFunc(int $funcionarioId, string $senha): Funcionario
+    {
+        $key = 'estoque-retirada-func:' . request()->user()->id . ':' . $funcionarioId;
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            $seconds = RateLimiter::availableIn($key);
+            throw ValidationException::withMessages([
+                'retirante_senha' => "Muitas tentativas. Aguarde {$seconds}s e tente novamente.",
+            ]);
+        }
+
+        $companyId = CompanyContext::current()?->id;
+        $func = Funcionario::query()
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->find($funcionarioId);
+
+        if (!$func) {
+            RateLimiter::hit($key, 300);
+            throw ValidationException::withMessages([
+                'retirante_funcionario_id' => 'Funcionário não encontrado.',
+            ]);
+        }
+
+        if (empty($func->senha_retirada)) {
+            RateLimiter::hit($key, 300);
+            throw ValidationException::withMessages([
+                'retirante_senha' => 'Funcionário sem senha de retirada cadastrada. Cadastre no perfil do funcionário antes.',
+            ]);
+        }
+
+        if (!Hash::check($senha, $func->senha_retirada)) {
+            RateLimiter::hit($key, 300);
+            throw ValidationException::withMessages([
+                'retirante_senha' => 'Senha do retirante incorreta.',
+            ]);
+        }
+
+        RateLimiter::clear($key);
+        return $func;
     }
 
     /**

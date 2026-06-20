@@ -33,7 +33,7 @@ class Devolucao extends Model
 
     protected $fillable = [
         'company_id', 'numero',
-        'funcionario_user_id', 'produto_id', 'obra_id',
+        'funcionario_user_id', 'funcionario_id', 'produto_id', 'obra_id',
         'movimentacao_saida_id', 'movimentacao_gerada_id',
         'quantidade', 'valor_unitario',
         'estado_material', 'motivo', 'observacao',
@@ -49,6 +49,9 @@ class Devolucao extends Model
     ];
 
     public function funcionario(): BelongsTo  { return $this->belongsTo(User::class, 'funcionario_user_id'); }
+    public function funcionarioObra(): BelongsTo {
+        return $this->belongsTo(\App\Models\Funcionario::class, 'funcionario_id');
+    }
     public function aprovador(): BelongsTo    { return $this->belongsTo(User::class, 'aprovador_user_id'); }
     public function produto(): BelongsTo      { return $this->belongsTo(Produto::class); }
     public function obra(): BelongsTo         { return $this->belongsTo(Obra::class); }

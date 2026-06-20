@@ -104,7 +104,15 @@ class VeiculoController extends Controller
             'subcategoria:id,nome_subcategoria',
             'preventiva:id,nome_preventiva',
             'imagens',
-            'locacaoAtual.obraDestino:id,nome_fantasia,code',
+            'locacaoAtual.obraOrigem:id,nome_fantasia,code,codigo_obra',
+            'locacaoAtual.obraDestino:id,nome_fantasia,code,codigo_obra',
+            'locacaoAtual.funcionarioDestino:id,nome,celular,imagem_usuario',
+            'locacoes' => fn ($q) => $q->orderBy('data_inicio')
+                ->with([
+                    'obraOrigem:id,nome_fantasia,codigo_obra',
+                    'obraDestino:id,nome_fantasia,codigo_obra',
+                    'funcionarioDestino:id,nome',
+                ]),
         ]);
 
         // Aba: Corretivas
@@ -177,19 +185,80 @@ class VeiculoController extends Controller
             ->limit(200)
             ->get();
 
+        /* =========================================================
+         * KPI Medição (porta `$maiorValor` do legacy detalhes.blade)
+         * - tipo_hr: maior horimetro_novo
+         * - tipo_km: maior quilometragem_nova
+         * ========================================================= */
+        $maiorValor = [
+            'horimetro_novo'      => (float) ($veiculo->horimetros()->max('horimetro_novo') ?? 0),
+            'quilometragem_nova'  => (float) ($veiculo->quilometragens()->max('quilometragem_nova') ?? 0),
+            'tempo_novo'          => 0,
+        ];
+
+        /* =========================================================
+         * Datasets dos gráficos de manutenção (legacy detalhes.blade):
+         *   - $totalManutencaoVeiculo  → qtd corretivas por ano
+         *   - $custoAnualManutencao    → custo por mês-ano (todos anos)
+         *   - $dataSets/$mesesFormatados → custo mensal do ano atual
+         * ========================================================= */
+        $manutAgg = $veiculo->manutencoes()
+            ->whereNotNull('data_de_execucao')
+            ->get(['data_de_execucao', 'valor_do_servico']);
+
+        // (a) Qtd corretivas/ano
+        $totalManutencaoVeiculo = $manutAgg
+            ->groupBy(fn ($m) => optional($m->data_de_execucao)->format('Y'))
+            ->map(fn ($g, $ano) => ['ano' => (string) $ano, 'total' => $g->count()])
+            ->sortKeys()
+            ->values();
+
+        // (b) Custo anual (chave: "mm/YYYY", valor: somatório)
+        $custoAnualManutencao = $manutAgg
+            ->groupBy(fn ($m) => optional($m->data_de_execucao)->format('m/Y'))
+            ->map(fn ($g, $key) => [
+                'mesCustoAnoManut' => (string) $key,
+                'custoAnoManut'    => round((float) $g->sum('valor_do_servico'), 2),
+            ])
+            ->sortBy(function ($r) {
+                [$m, $y] = explode('/', $r['mesCustoAnoManut']);
+                return sprintf('%04d-%02d', (int) $y, (int) $m);
+            })
+            ->values();
+
+        // (c) Custo mensal — ano atual (12 buckets)
+        $anoAtual = now()->year;
+        $mesesFormatados = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        $totaisMes = array_fill(0, 12, 0.0);
+        foreach ($manutAgg as $m) {
+            $d = $m->data_de_execucao;
+            if (!$d || $d->year !== $anoAtual) continue;
+            $totaisMes[$d->month - 1] += (float) $m->valor_do_servico;
+        }
+        $custoMensalAnoAtual = [
+            'label' => 'Custo Mensal ' . $anoAtual,
+            'data'  => array_map(fn ($v) => round($v, 2), $totaisMes),
+        ];
+
         return Inertia::render('Admin/Frota/Veiculos/Show', [
-            'veiculo'             => $veiculo,
-            'manutencoes'         => $manutencoes,
-            'seguros'             => $seguros,
-            'ipvas'               => $ipvas,
-            'docs_legais'         => $docsLegais,
-            'docs_tecnicos'       => $docsTecnicos,
-            'abastecimentos'      => $abastecimentos,
-            'medicoes'            => $medicoes,
-            'preventivas'         => $preventivas,
-            'dashboard_ciclos'    => $dashboardCiclos,
-            'servicos_preventiva' => $servicosPreventiva,
-            'fornecedores'        => $fornecedores,
+            'veiculo'                  => $veiculo,
+            'manutencoes'              => $manutencoes,
+            'seguros'                  => $seguros,
+            'ipvas'                    => $ipvas,
+            'docs_legais'              => $docsLegais,
+            'docs_tecnicos'            => $docsTecnicos,
+            'abastecimentos'           => $abastecimentos,
+            'medicoes'                 => $medicoes,
+            'preventivas'              => $preventivas,
+            'dashboard_ciclos'         => $dashboardCiclos,
+            'servicos_preventiva'      => $servicosPreventiva,
+            'fornecedores'             => $fornecedores,
+            // Porting `detalhes.blade.php`
+            'maior_valor'              => $maiorValor,
+            'meses_formatados'         => $mesesFormatados,
+            'total_manutencao_veiculo' => $totalManutencaoVeiculo,
+            'custo_anual_manutencao'   => $custoAnualManutencao,
+            'custo_mensal_ano_atual'   => $custoMensalAnoAtual,
         ]);
     }
 

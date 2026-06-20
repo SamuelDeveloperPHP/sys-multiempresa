@@ -107,12 +107,32 @@ export default function ProdutoShow({ produto, saldos, saldoTotal, valorTotal })
                             )}
                         </div>
 
+                        {/* Variações (EPI / calçado / EPC / uniforme) */}
+                        {produto.controla_variacao && (
+                            <div className="bg-white rounded-lg border p-5">
+                                <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                                    🦺 Variações
+                                    <span className="text-xs font-normal bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                                        {TIPO_LABEL[produto.tipo_item] ?? produto.tipo_item}
+                                    </span>
+                                </h3>
+                                <div className="space-y-3 text-sm">
+                                    <GrupoVariacao titulo="Cores" valores={produto.cores} />
+                                    <GrupoVariacao titulo="Tamanhos numéricos" valores={produto.tamanhos_numericos} />
+                                    <GrupoVariacao titulo="Tamanhos de vestuário" valores={produto.tamanhos_vestuario} />
+                                </div>
+                                <p className="text-[11px] text-gray-400 mt-3 pt-3 border-t">
+                                    O saldo por cor/tamanho, CA, lote e validade são gerenciados na entrada e saída do estoque.
+                                </p>
+                            </div>
+                        )}
+
                         <div className="bg-white rounded-lg shadow border overflow-hidden">
                             <div className="px-5 py-3 border-b flex items-center justify-between bg-gray-50">
                                 <h3 className="text-sm font-semibold text-gray-700">Saldo por obra</h3>
                                 <span className="text-xs text-gray-500">{saldos.length} obra(s) com estoque</span>
                             </div>
-                            <table className="w-full text-sm">
+                            <table className="w-full text-xs">
                                 <thead className="bg-gray-50 text-left text-gray-700">
                                     <tr>
                                         <th className="px-4 py-2">Obra</th>
@@ -169,6 +189,30 @@ export default function ProdutoShow({ produto, saldos, saldoTotal, valorTotal })
                 </div>
             </div>
         </AuthenticatedLayout>
+    );
+}
+
+const TIPO_LABEL = {
+    material: 'Material comum',
+    epi: 'EPI',
+    calcado_seguranca: 'Calçado de segurança',
+    epc: 'EPC',
+    uniforme: 'Uniforme',
+};
+
+function GrupoVariacao({ titulo, valores }) {
+    if (!valores || valores.length === 0) return null;
+    return (
+        <div className="flex items-start gap-3">
+            <span className="text-xs text-gray-500 w-36 flex-shrink-0 pt-1">{titulo}</span>
+            <div className="flex flex-wrap gap-1.5">
+                {valores.map((v) => (
+                    <span key={v} className="bg-gray-100 border border-gray-200 text-gray-800 text-xs font-medium px-2 py-1 rounded-full">
+                        {v}
+                    </span>
+                ))}
+            </div>
+        </div>
     );
 }
 

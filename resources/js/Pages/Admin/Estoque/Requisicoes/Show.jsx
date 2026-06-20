@@ -192,7 +192,7 @@ export default function RequisicaoShow({ requisicao: r, saldos }) {
                             <h3 className="text-sm font-semibold text-gray-700">Itens ({r.itens.length})</h3>
                             <span className="text-xs text-gray-500">Saldo: obra origem</span>
                         </div>
-                        <table className="w-full text-sm">
+                        <table className="w-full text-xs">
                             <thead className="bg-gray-50 text-left text-gray-700">
                                 <tr>
                                     <th className="px-4 py-2">Produto</th>
@@ -393,7 +393,7 @@ function ModalAtender({ requisicao, saldos, onClose }) {
             </p>
 
             <div className="overflow-x-auto -mx-6">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                     <thead className="bg-gray-50 text-left">
                         <tr>
                             <th className="px-4 py-2">Produto</th>

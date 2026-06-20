@@ -25,7 +25,7 @@ class Saldo extends Model
     protected $table = 'estoque_saldos';
 
     protected $fillable = [
-        'company_id', 'produto_id', 'obra_id',
+        'company_id', 'produto_id', 'variante_id', 'obra_id',
         'quantidade', 'valor_medio',
         'ultima_movimentacao_at',
     ];
@@ -39,6 +39,11 @@ class Saldo extends Model
     public function produto(): BelongsTo
     {
         return $this->belongsTo(Produto::class);
+    }
+
+    public function variante(): BelongsTo
+    {
+        return $this->belongsTo(ProdutoVariante::class, 'variante_id');
     }
 
     public function obra(): BelongsTo

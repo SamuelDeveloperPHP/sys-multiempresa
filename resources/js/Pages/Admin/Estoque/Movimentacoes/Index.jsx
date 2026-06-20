@@ -87,30 +87,68 @@ export default function MovimentacoesIndex({ movimentacoes, obras, tiposLabels, 
                             Entrada, saída e transferência entre obras. Saldo é atualizado automaticamente.
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <Link
-                            href={`${route('admin.estoque.movimentacoes.create')}?tipo=ENTRADA`}
+                            href={route('admin.estoque.retirada-rapida.index')}
+                            className="bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700 text-sm font-semibold"
+                        >
+                            <i className="fa-solid fa-bolt mr-1" />
+                            Retirada Rápida
+                        </Link>
+                        <Link
+                            href={route('admin.estoque.entradas.create')}
                             className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-semibold"
                         >
                             <i className="fa-solid fa-arrow-down mr-1" />
                             Entrada
                         </Link>
                         <Link
-                            href={`${route('admin.estoque.movimentacoes.create')}?tipo=SAIDA`}
+                            href={route('admin.estoque.saidas.create')}
                             className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm font-semibold"
                         >
                             <i className="fa-solid fa-arrow-up mr-1" />
                             Saída
                         </Link>
                         <Link
-                            href={`${route('admin.estoque.movimentacoes.create')}?tipo=TRANSF_OUT`}
-                            className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm font-semibold"
+                            href={route('admin.estoque.devolucoes.rapida.create')}
+                            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-semibold"
+                        >
+                            <i className="fa-solid fa-rotate-left mr-1" />
+                            Devolução
+                        </Link>
+                        <Link
+                            href={route('admin.estoque.transferencias.create')}
+                            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 text-sm font-semibold"
                         >
                             <i className="fa-solid fa-right-left mr-1" />
                             Transferência
                         </Link>
                     </div>
                 </header>
+
+                {/* Atalhos para as telas dedicadas (filtros por tipo) */}
+                <nav className="flex flex-wrap gap-2 mb-4 text-xs">
+                    <Link href={route('admin.estoque.saldos.index')}
+                          className="px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 font-semibold">
+                        📦 Saldos por obra
+                    </Link>
+                    <Link href={route('admin.estoque.entradas.index')}
+                          className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">
+                        ⬇ Ver entradas
+                    </Link>
+                    <Link href={route('admin.estoque.saidas.index')}
+                          className="px-3 py-1.5 rounded-full bg-red-50 text-red-700 border border-red-200 hover:bg-red-100">
+                        ⬆ Ver saídas
+                    </Link>
+                    <Link href={route('admin.estoque.devolucoes.index')}
+                          className="px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100">
+                        ↩ Ver devoluções
+                    </Link>
+                    <Link href={route('admin.estoque.transferencias.index')}
+                          className="px-3 py-1.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100">
+                        ⇄ Ver transferências
+                    </Link>
+                </nav>
 
                 {flash?.success && (
                     <div className="bg-green-50 border border-green-200 text-green-800 p-3 rounded mb-4">
@@ -180,7 +218,7 @@ export default function MovimentacoesIndex({ movimentacoes, obras, tiposLabels, 
                 </div>
 
                 <div className="bg-white rounded-lg shadow border overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                         <thead className="bg-gray-50 text-left font-semibold text-gray-700">
                             <tr>
                                 <th className="px-4 py-2">Data</th>

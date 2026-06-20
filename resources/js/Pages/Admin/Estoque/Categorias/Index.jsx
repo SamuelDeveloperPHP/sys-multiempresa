@@ -14,6 +14,11 @@ export default function CategoriasIndex({ arvore, todasFlat }) {
     const [modalOpen, setModalOpen] = useState(false);
     const [editing, setEditing] = useState(null);
 
+    // Estado do drag-and-drop
+    const [dragId, setDragId] = useState(null);       // id sendo arrastado
+    const [dropTargetId, setDropTargetId] = useState(null); // id sob o cursor (highlight)
+    const [dropRoot, setDropRoot] = useState(false);  // highlight da zona "raiz"
+
     const novaCategoria = (parentId = null) => {
         setEditing({ parent_id: parentId, nome: '', descricao: '', ordem: 0, ativo: true });
         setModalOpen(true);
@@ -34,6 +39,55 @@ export default function CategoriasIndex({ arvore, todasFlat }) {
         router.delete(route('admin.estoque.categorias.destroy', cat.id), { preserveScroll: true });
     };
 
+    // Mapa id → set de ids descendentes (para impedir soltar dentro da própria subárvore)
+    const descendentesDe = (cat) => {
+        const out = new Set();
+        const walk = (n) => (n.filhos || []).forEach((f) => { out.add(f.id); walk(f); });
+        walk(cat);
+        return out;
+    };
+    // Acha um nó na árvore por id
+    const acharNo = (lista, id) => {
+        for (const c of lista) {
+            if (c.id === id) return c;
+            const f = acharNo(c.filhos || [], id);
+            if (f) return f;
+        }
+        return null;
+    };
+
+    const podeSoltarEm = (alvoId) => {
+        if (dragId == null) return false;
+        if (alvoId === dragId) return false;
+        const noArrastado = acharNo(arvore, dragId);
+        if (noArrastado && descendentesDe(noArrastado).has(alvoId)) return false; // ciclo
+        return true;
+    };
+
+    const mover = (catId, novoParentId) => {
+        router.post(route('admin.estoque.categorias.mover', catId),
+            { novo_parent_id: novoParentId },
+            { preserveScroll: true });
+    };
+
+    const onDrop = (alvoId) => {
+        if (podeSoltarEm(alvoId)) mover(dragId, alvoId);
+        limparDrag();
+    };
+    const onDropRaiz = () => {
+        if (dragId != null) mover(dragId, null);
+        limparDrag();
+    };
+    const limparDrag = () => { setDragId(null); setDropTargetId(null); setDropRoot(false); };
+
+    const dnd = {
+        dragId, dropTargetId, setDropTargetId,
+        onDragStart: setDragId,
+        onDragEnd: limparDrag,
+        onDrop,
+        podeSoltarEm,
+    };
+
     return (
         <AuthenticatedLayout>
             <Head title="Categorias de Produtos" />
@@ -42,7 +96,8 @@ export default function CategoriasIndex({ arvore, todasFlat }) {
                     <div>
                         <h1 className="text-2xl font-bold">Categorias</h1>
                         <p className="text-sm text-gray-500">
-                            Árvore de categorias para organizar o catálogo de produtos.
+                            Árvore de categorias. Arraste uma categoria sobre outra para torná-la subcategoria,
+                            ou solte na faixa “Mover para raiz” para promovê-la a categoria principal.
                         </p>
                     </div>
                     <button
@@ -65,6 +120,23 @@ export default function CategoriasIndex({ arvore, todasFlat }) {
                     </div>
                 )}
 
+                {/* Zona de drop para RAIZ — só aparece durante o arraste */}
+                {dragId != null && (
+                    <div
+                        onDragOver={(e) => { e.preventDefault(); setDropRoot(true); }}
+                        onDragLeave={() => setDropRoot(false)}
+                        onDrop={onDropRaiz}
+                        className={`mb-3 rounded-lg border-2 border-dashed py-3 text-center text-sm font-medium transition ${
+                            dropRoot
+                                ? 'border-rise-500 bg-rise-50 text-rise-700'
+                                : 'border-gray-300 bg-gray-50 text-gray-500'
+                        }`}
+                    >
+                        <i className="fa-solid fa-arrow-up-from-bracket mr-2" />
+                        Soltar aqui para mover para a raiz (categoria principal)
+                    </div>
+                )}
+
                 <div className="bg-white rounded-lg shadow border">
                     {arvore.length === 0 ? (
                         <div className="text-center text-gray-500 py-12">
@@ -81,6 +153,7 @@ export default function CategoriasIndex({ arvore, todasFlat }) {
                                     onEdit={editarCategoria}
                                     onAddChild={novaCategoria}
                                     onDelete={excluir}
+                                    dnd={dnd}
                                 />
                             ))}
                         </ul>
@@ -102,16 +175,40 @@ export default function CategoriasIndex({ arvore, todasFlat }) {
 // =============================================================================
 // Linha recursiva da árvore
 // =============================================================================
-function CategoriaNode({ cat, depth, onEdit, onAddChild, onDelete }) {
+function CategoriaNode({ cat, depth, onEdit, onAddChild, onDelete, dnd }) {
     const [expanded, setExpanded] = useState(true);
     const temFilhos = (cat.filhos || []).length > 0;
+
+    const sendoArrastado = dnd.dragId === cat.id;
+    const ehAlvo = dnd.dropTargetId === cat.id && dnd.podeSoltarEm(cat.id);
 
     return (
         <li>
             <div
-                className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50"
+                draggable
+                onDragStart={(e) => { e.stopPropagation(); dnd.onDragStart(cat.id); }}
+                onDragEnd={dnd.onDragEnd}
+                onDragOver={(e) => {
+                    if (dnd.dragId == null) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dnd.setDropTargetId(cat.id);
+                }}
+                onDragLeave={(e) => { e.stopPropagation(); if (dnd.dropTargetId === cat.id) dnd.setDropTargetId(null); }}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dnd.onDrop(cat.id); }}
+                className={`flex items-center gap-2 px-4 py-2 transition ${
+                    sendoArrastado ? 'opacity-40' : ''
+                } ${
+                    ehAlvo ? 'bg-rise-100 ring-2 ring-rise-400 ring-inset rounded' : 'hover:bg-gray-50'
+                }`}
                 style={{ paddingLeft: `${depth * 24 + 16}px` }}
+                title="Arraste para mover de categoria"
             >
+                {/* Handle de arraste */}
+                <span className="text-gray-300 cursor-grab active:cursor-grabbing" title="Arrastar">
+                    <i className="fa-solid fa-grip-vertical" />
+                </span>
+
                 {/* Expand toggle */}
                 {temFilhos ? (
                     <button
@@ -132,6 +229,11 @@ function CategoriaNode({ cat, depth, onEdit, onAddChild, onDelete }) {
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-900 truncate">{cat.nome}</span>
+                        {ehAlvo && (
+                            <span className="text-[10px] bg-rise-600 text-white px-1.5 py-0.5 rounded">
+                                soltar aqui → vira subcategoria
+                            </span>
+                        )}
                         {!cat.ativo && (
                             <span className="text-[10px] bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
                                 Inativa
@@ -182,6 +284,7 @@ function CategoriaNode({ cat, depth, onEdit, onAddChild, onDelete }) {
                             onEdit={onEdit}
                             onAddChild={onAddChild}
                             onDelete={onDelete}
+                            dnd={dnd}
                         />
                     ))}
                 </ul>

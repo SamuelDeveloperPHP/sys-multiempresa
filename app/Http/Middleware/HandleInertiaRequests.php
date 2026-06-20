@@ -106,7 +106,11 @@ class HandleInertiaRequests extends Middleware
                 'biometric_status' => $biometricStatus,
             ],
             'flash' => [
-                'message' => fn () => $request->session()->get('message')
+                'message'              => fn () => $request->session()->get('message'),
+                'success'              => fn () => $request->session()->get('success'),
+                'error'                => fn () => $request->session()->get('error'),
+                'comprovante_lote_ids' => fn () => $request->session()->get('comprovante_lote_ids'),
+                'comprovante_mov_id'   => fn () => $request->session()->get('comprovante_mov_id'),
             ],
         ];
     }

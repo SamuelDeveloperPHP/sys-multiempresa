@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 /* ============ helpers de formatação ============ */
@@ -49,6 +49,12 @@ export default function VeiculoShow({
   dashboard_ciclos: dashboardCiclos = null,
   servicos_preventiva: servicosPreventiva = [],
   fornecedores = [],
+  // Porting de `detalhes.blade.php`
+  maior_valor: maiorValor = null,
+  meses_formatados: mesesFormatados = [],
+  total_manutencao_veiculo: totalManutencaoVeiculo = [],
+  custo_anual_manutencao: custoAnualManutencao = [],
+  custo_mensal_ano_atual: custoMensalAnoAtual = null,
 }) {
   const { flash } = usePage().props;
   const [tab, setTab] = useState('detalhes');
@@ -120,7 +126,16 @@ export default function VeiculoShow({
 
         {/* Tabs content */}
         <div className="bg-white border border-t-0 rounded-b-lg p-6">
-          {tab === 'detalhes'       && <TabDetalhes veiculo={veiculo} />}
+          {tab === 'detalhes'       && (
+            <TabDetalhes
+              veiculo={veiculo}
+              maiorValor={maiorValor}
+              totalManutencaoVeiculo={totalManutencaoVeiculo}
+              custoAnualManutencao={custoAnualManutencao}
+              custoMensalAnoAtual={custoMensalAnoAtual}
+              mesesFormatados={mesesFormatados}
+            />
+          )}
           {tab === 'galeria'        && <TabGaleria veiculo={veiculo} />}
           {tab === 'docs_tecnicos'  && <TabDocs tipo="técnicos" registros={docsTecnicos} veiculo={veiculo} />}
           {tab === 'docs_legais'    && <TabDocs tipo="legais" registros={docsLegais} veiculo={veiculo} />}
@@ -136,79 +151,590 @@ export default function VeiculoShow({
   );
 }
 
-/* ============ TAB: Detalhes ============ */
-function TabDetalhes({ veiculo }) {
+/* ============================================================
+ * TAB: Detalhes — porta do legacy `detalhes.blade.php`
+ *   - Header com 3 cards (Imagem / Dados+KPI / Condutor+Locação)
+ *   - Timeline horizontal das locações (com setas prev/next)
+ *   - 3 gráficos SVG: custo mensal (ano atual), qtd corretivas/ano,
+ *     custo anual de corretivas
+ *   - Mantém as seções extras já existentes (FIPE, Operação inicial,
+ *     Observação) abaixo do bloco do legacy.
+ * ============================================================ */
+function TabDetalhes({
+  veiculo,
+  maiorValor,
+  totalManutencaoVeiculo,
+  custoAnualManutencao,
+  custoMensalAnoAtual,
+  mesesFormatados,
+}) {
+  const locacao = veiculo.locacao_atual ?? null;
+  const funcDest = locacao?.funcionario_destino ?? null;
+
+  // KPI Medição (legacy: $labelMedicao / $valorMedicao / $iconMedicao)
+  const labelMedicao  = veiculo.tipo_hr ? 'Horímetro' : veiculo.tipo_km ? 'Hodômetro' : veiculo.tipo_tempo ? 'Tempo' : 'Medição';
+  const valorMedicao  = veiculo.tipo_hr ? (maiorValor?.horimetro_novo ?? 0)
+                      : veiculo.tipo_km ? (maiorValor?.quilometragem_nova ?? 0)
+                      : veiculo.tipo_tempo ? (maiorValor?.tempo_novo ?? 0)
+                      : 0;
+  const iconeMedicao  = veiculo.tipo_hr ? '⏱' : veiculo.tipo_km ? '🚗' : veiculo.tipo_tempo ? '🕒' : 'ℹ';
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-1">
-        {veiculo.imagem ? (
-          <img src={route('admin.frota.veiculos.imagem-principal', veiculo.id)} alt="" className="w-full h-64 object-cover rounded border" />
-        ) : (
-          <div className="w-full h-64 bg-gray-100 flex items-center justify-center text-gray-400 rounded border">
-            Sem imagem principal
-          </div>
-        )}
-      </div>
-
-      <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Info label="Categoria" value={veiculo.categoria?.nome_categoria} />
-        <Info label="Subcategoria" value={veiculo.subcategoria?.nome_subcategoria} />
-        <Info label="Tipo" value={veiculo.tipo} />
-        <Info label="Marca" value={veiculo.marca} />
-        <Info label="Modelo" value={veiculo.modelo} />
-        <Info label="Ano" value={veiculo.ano} />
-        <Info label="Placa" value={veiculo.placa} mono />
-        <Info label="Renavam" value={veiculo.renavam} mono />
-        <Info label="Nº Série / Chassi" value={veiculo.nun_serie_chassi} mono />
-        <Info label="Obra" value={veiculo.obra?.nome_fantasia} />
-        <Info label="Plano preventiva" value={veiculo.preventiva?.nome_preventiva} />
-        <Info label="Descrição livre" value={veiculo.veiculo} className="col-span-2 md:col-span-3" />
-      </div>
-
-      <Card title="Valor / FIPE" className="lg:col-span-3">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <Info label="Valor FIPE"      value={fmtMoney(veiculo.valor_fipe)} />
-          <Info label="Valor Aquisição" value={fmtMoney(veiculo.valor_aquisicao)} />
-          <Info label="Valor Mercado"   value={fmtMoney(veiculo.valor_mercado)} />
-          <Info label="Código FIPE"     value={veiculo.codigo_fipe} />
-          <Info label="Mês ref. FIPE"   value={veiculo.fipe_mes_referencia} />
-          <Info label="Mês aquisição"   value={veiculo.mes_aquisicao} />
-        </div>
-      </Card>
-
-      <Card title="Operação inicial" className="lg:col-span-3">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <Info label="Horímetro inicial"     value={veiculo.horimetro_inicial} />
-          <Info label="Quilometragem inicial" value={veiculo.quilometragem_inicial} />
-          <div>
-            <p className="text-xs uppercase text-gray-500 mb-1">Medições ativas</p>
-            <div className="flex flex-wrap gap-1">
-              {veiculo.tipo_hr && <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-xs">Horímetro</span>}
-              {veiculo.tipo_km && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">Hodômetro</span>}
-              {veiculo.tipo_tempo && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">Tempo</span>}
-              {!veiculo.tipo_hr && !veiculo.tipo_km && !veiculo.tipo_tempo && <span className="text-gray-400">—</span>}
+    <div className="space-y-6">
+      {/* ============ Header: 3 cards ============ */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Foto + marca/ano */}
+        <div className="lg:col-span-4">
+          <div className="bg-white border rounded-lg h-full flex flex-col">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800">Imagem</h3>
+            </div>
+            <div className="p-4 flex-1 flex flex-col">
+              <div className="flex-1 flex items-center justify-center">
+                <img
+                  src={route('admin.frota.veiculos.imagem-principal', veiculo.id)}
+                  alt="Imagem do veículo"
+                  className="rounded-lg border max-h-72 object-cover w-full"
+                />
+              </div>
+              <div className="mt-3 text-center">
+                <div className="font-semibold">
+                  {veiculo.marca ?? '—'} <span className="text-gray-400">•</span> {veiculo.ano ?? '—'}
+                </div>
+                <div className="text-gray-500 text-sm">{veiculo.placa ?? veiculo.nun_serie_chassi ?? '—'}</div>
+              </div>
             </div>
           </div>
         </div>
-      </Card>
 
-      {veiculo.locacao_atual && (
-        <Card title="Locação atual" className="lg:col-span-3 bg-amber-50 border-amber-200">
+        {/* Dados do veículo + KPI medição */}
+        <div className="lg:col-span-3">
+          <div className="bg-white border rounded-lg h-full flex flex-col">
+            <div className="px-4 py-3 border-b">
+              <h3 className="font-semibold text-green-700">
+                {veiculo.tipo_hr ? 'Dados da máquina' : 'Dados do veículo'}
+              </h3>
+            </div>
+            <div className="p-4 flex-1 flex flex-col">
+              <ul className="divide-y text-sm">
+                <RowKV label="Prefixo"        value={veiculo.prefixo} />
+                <RowKV label="Marca"          value={veiculo.marca} />
+                <RowKV label="Modelo"         value={veiculo.modelo} />
+                <RowKV label="Ano"            value={veiculo.ano} />
+                <RowKV label="Placa / Chassi" value={veiculo.placa ?? veiculo.nun_serie_chassi} />
+                <RowKV label="Valor FIPE"     value={fmtMoney(veiculo.valor_fipe)} />
+              </ul>
+
+              <div className="mt-4 p-3 rounded-lg bg-green-50 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center text-lg">
+                  {iconeMedicao}
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600 m-0">{labelMedicao}</p>
+                  <p className="text-xl font-bold m-0">{fmtNum(valorMedicao)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Condutor / Locação */}
+        <div className="lg:col-span-5">
+          <div className="bg-white border rounded-lg h-full flex flex-col">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-green-700">Condutor do Veículo</h3>
+              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                locacao ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+              }`}>
+                {locacao ? 'Locação ativa' : 'Sem locação'}
+              </span>
+            </div>
+            <div className="p-4 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold">{funcDest?.nome ?? 'N/A'}</div>
+                  <div className="text-gray-500 text-sm">Responsável atual</div>
+                </div>
+                <img
+                  src={funcDest?.id
+                    ? route('admin.frota.locacoes.funcionario-foto', funcDest.id)
+                    : ''}
+                  alt="Funcionário"
+                  className="w-20 h-20 rounded-full border object-cover bg-gray-50"
+                  onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+                />
+              </div>
+
+              <hr className="my-3" />
+
+              {!locacao ? (
+                <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm p-3 rounded">
+                  Este veículo não possui locação ativa cadastrada no momento.
+                </div>
+              ) : (
+                <ul className="divide-y text-sm">
+                  <RowKV label="Contato" value={funcDest?.celular ?? 'N/A'} />
+                  <RowKV label="Início"  value={fmtData(locacao.data_inicio)} />
+                  <RowKV label="Término" value={fmtData(locacao.data_fim)} />
+                  <li className="py-2">
+                    <div className="text-gray-500 text-xs">Obra de Origem</div>
+                    <div className="font-semibold">
+                      {locacao.obra_origem?.codigo_obra ?? locacao.obra_origem?.nome_fantasia ?? 'N/A'}
+                    </div>
+                  </li>
+                  <li className="py-2">
+                    <div className="text-gray-500 text-xs">Obra de Destino</div>
+                    <div className="font-semibold text-green-700">
+                      {locacao.obra_destino?.codigo_obra ?? locacao.obra_destino?.nome_fantasia ?? 'N/A'}
+                    </div>
+                  </li>
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ============ Timeline horizontal de locações ============ */}
+      <TimelineLocacoes locacoes={veiculo.locacoes ?? []} />
+
+      {/* ============ Gráficos ============ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+        <div className="bg-white border rounded-lg p-4 flex flex-col">
+          <BarChart
+            title={`Custo Mensal (Corretiva) — ${custoMensalAnoAtual?.label?.split(' ').pop() ?? ''}`}
+            labels={mesesFormatados}
+            values={custoMensalAnoAtual?.data ?? []}
+            color="#fd7e14"
+            colorGradient={['#fb923c', '#ea580c']}
+            formatter={fmtMoney}
+            yFormatter={fmtMoneyShort}
+          />
+        </div>
+
+        <div className="bg-white border rounded-lg p-4 flex flex-col">
+          <DoughnutChart
+            title="Manutenções Corretivas por Ano"
+            labels={(totalManutencaoVeiculo ?? []).map((r) => r.ano)}
+            values={(totalManutencaoVeiculo ?? []).map((r) => r.total)}
+          />
+        </div>
+      </div>
+
+      <div className="bg-white border rounded-lg p-4 flex flex-col">
+        <BarChart
+          title="Custo Anual com Corretivas"
+          labels={(custoAnualManutencao ?? []).map((r) => r.mesCustoAnoManut)}
+          values={(custoAnualManutencao ?? []).map((r) => r.custoAnoManut)}
+          color="#fd7e14"
+          colorGradient={['#fb923c', '#ea580c']}
+          formatter={fmtMoney}
+          yFormatter={fmtMoneyShort}
+          rotated
+        />
+      </div>
+
+      {/* ============ Seções extras já existentes ============ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card title="Identificação completa" className="lg:col-span-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Info label="Obra destino" value={veiculo.locacao_atual.obra_destino?.nome_fantasia} />
-            <Info label="Data início" value={fmtData(veiculo.locacao_atual.data_inicio)} />
-            <Info label="Previsão devolução" value={fmtData(veiculo.locacao_atual.data_prevista)} />
-            <Info label="Tipo" value={veiculo.locacao_atual.tipo_veiculo} />
+            <Info label="Categoria" value={veiculo.categoria?.nome_categoria} />
+            <Info label="Subcategoria" value={veiculo.subcategoria?.nome_subcategoria} />
+            <Info label="Tipo" value={veiculo.tipo} />
+            <Info label="Renavam" value={veiculo.renavam} mono />
+            <Info label="Nº Série / Chassi" value={veiculo.nun_serie_chassi} mono />
+            <Info label="Obra base" value={veiculo.obra?.nome_fantasia} />
+            <Info label="Plano preventiva" value={veiculo.preventiva?.nome_preventiva} />
+            <Info label="Descrição livre" value={veiculo.veiculo} />
           </div>
         </Card>
-      )}
 
-      {veiculo.observacao && (
-        <Card title="Observação" className="lg:col-span-3">
-          <p className="whitespace-pre-wrap text-gray-700">{veiculo.observacao}</p>
+        <Card title="Valor / FIPE" className="lg:col-span-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Info label="Valor FIPE"      value={fmtMoney(veiculo.valor_fipe)} />
+            <Info label="Valor Aquisição" value={fmtMoney(veiculo.valor_aquisicao)} />
+            <Info label="Valor Mercado"   value={fmtMoney(veiculo.valor_mercado)} />
+            <Info label="Código FIPE"     value={veiculo.codigo_fipe} />
+            <Info label="Mês ref. FIPE"   value={veiculo.fipe_mes_referencia} />
+            <Info label="Mês aquisição"   value={veiculo.mes_aquisicao} />
+          </div>
         </Card>
-      )}
+
+        <Card title="Operação inicial">
+          <div className="grid grid-cols-1 gap-4">
+            <Info label="Horímetro inicial"     value={veiculo.horimetro_inicial} />
+            <Info label="Quilometragem inicial" value={veiculo.quilometragem_inicial} />
+            <div>
+              <p className="text-xs uppercase text-gray-500 mb-1">Medições ativas</p>
+              <div className="flex flex-wrap gap-1">
+                {veiculo.tipo_hr && <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-xs">Horímetro</span>}
+                {veiculo.tipo_km && <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">Hodômetro</span>}
+                {veiculo.tipo_tempo && <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs">Tempo</span>}
+                {!veiculo.tipo_hr && !veiculo.tipo_km && !veiculo.tipo_tempo && <span className="text-gray-400">—</span>}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {veiculo.observacao && (
+          <Card title="Observação" className="lg:col-span-3">
+            <p className="whitespace-pre-wrap text-gray-700">{veiculo.observacao}</p>
+          </Card>
+        )}
+      </div>
     </div>
+  );
+}
+
+/* ============ Componentes auxiliares do TabDetalhes ============ */
+
+const fmtMoneyShort = (v) => {
+  const n = Number(v) || 0;
+  if (Math.abs(n) >= 1_000_000) return 'R$ ' + (n / 1_000_000).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1_000)     return 'R$ ' + (n / 1_000).toFixed(1) + 'k';
+  return 'R$ ' + n.toFixed(0);
+};
+
+function RowKV({ label, value }) {
+  return (
+    <li className="flex justify-between py-2">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-semibold text-right truncate max-w-[60%]">{value ?? '—'}</span>
+    </li>
+  );
+}
+
+/* ----- Timeline horizontal de locações (porta `.htl-*` do legacy) ----- */
+function TimelineLocacoes({ locacoes }) {
+  const scrollRef = useRef(null);
+  // Ordem decrescente: mais recente primeiro (esquerda → direita)
+  const lista = (locacoes ?? []).slice().sort((a, b) => {
+    const da = a.data_inicio ? new Date(a.data_inicio).getTime() : 0;
+    const db = b.data_inicio ? new Date(b.data_inicio).getTime() : 0;
+    return db - da;
+  });
+
+  const scroll = (dir) => {
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollBy({ left: dir * 380, behavior: 'smooth' });
+  };
+
+  const fmtMesAno = (d) => {
+    if (!d) return '—';
+    const dt = new Date(d);
+    return dt.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  };
+
+  if (lista.length === 0) {
+    return (
+      <div className="bg-gray-50 border rounded-xl p-6 text-center text-gray-500">
+        <h3 className="font-semibold text-gray-700 mb-1">Timeline de Locações</h3>
+        Nenhuma locação registrada para este veículo.
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative bg-gray-50 border rounded-xl p-4 md:p-5">
+      <h3 className="font-bold text-gray-800 mb-3 px-1">Timeline de Locações</h3>
+
+      <button
+        type="button"
+        onClick={() => scroll(-1)}
+        className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-indigo-700 text-white text-xl shadow-lg hover:bg-indigo-800"
+        aria-label="Anterior"
+      >‹</button>
+      <button
+        type="button"
+        onClick={() => scroll(1)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-indigo-700 text-white text-xl shadow-lg hover:bg-indigo-800"
+        aria-label="Próximo"
+      >›</button>
+
+      <div ref={scrollRef} className="relative overflow-x-auto px-14 scrollbar-thin" style={{ scrollBehavior: 'smooth' }}>
+        {/* linha central */}
+        <div className="absolute left-14 right-14 top-1/2 h-0.5 bg-gray-300 rounded -translate-y-1/2 pointer-events-none" />
+
+        <div className="flex gap-12 items-center py-2" style={{ minHeight: 280 }}>
+          {lista.map((loc, i) => {
+            const top   = i % 2 === 0;
+            const ativa = !loc.data_fim;
+            const inicio = loc.data_inicio ? new Date(loc.data_inicio) : null;
+            const fim    = loc.data_fim ? new Date(loc.data_fim) : null;
+            const obra   = loc.obra_destino?.codigo_obra ?? loc.obra_destino?.nome_fantasia ?? '...';
+
+            return (
+              <div key={loc.id ?? i} className="relative flex-shrink-0" style={{ width: 280 }}>
+                {/* dot */}
+                <div className={`absolute left-1/2 top-1/2 w-3 h-3 rounded-full -translate-x-1/2 -translate-y-1/2 ring-4 ${
+                  ativa ? 'bg-green-500 ring-green-200' : 'bg-indigo-600 ring-indigo-200'
+                }`} />
+
+                {/* card */}
+                <div
+                  className={`absolute left-1/2 -translate-x-1/2 w-72 rounded-lg shadow-md text-center px-4 py-3 ${
+                    ativa ? 'bg-green-50 border border-green-200' : 'bg-white border border-gray-200'
+                  }`}
+                  style={top ? { top: 28 } : { bottom: 28 }}
+                >
+                  <div className="text-xs text-gray-500 mb-1 capitalize">{fmtMesAno(inicio)}</div>
+                  <div className="font-bold text-gray-800 mb-1 truncate">{obra}</div>
+                  <div className="text-xs flex items-center justify-center gap-2">
+                    <span className="text-green-700">📅 {inicio ? inicio.toLocaleDateString('pt-BR') : 'N/A'}</span>
+                    <span className="text-gray-300">•</span>
+                    <span className={ativa ? 'text-amber-600' : 'text-red-600'}>
+                      📅 {fim ? fim.toLocaleDateString('pt-BR') : 'Em andamento'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+ * BarChart SVG puro (sem dependência) — versão polida.
+ *  - Tipografia: Arial 11px (uniforme).
+ *  - Eixo Y com escala "nice" mais justa (3, 4, 6, 8, 10 multipliers).
+ *  - Barras com gradiente vertical e topo arredondado.
+ *  - preserveAspectRatio padrão (não distorce textos).
+ *  - Altura fixa 320px no container (mesma p/ todos os gráficos
+ *    do mesmo grid → alinhamento garantido).
+ * ============================================================ */
+function BarChart({ title, labels, values, color = '#6366f1', colorGradient, formatter, yFormatter, rotated = false }) {
+  const data = (labels ?? []).map((l, i) => ({ label: String(l ?? ''), value: Number(values?.[i] ?? 0) }));
+  const hasData = data.some((d) => d.value !== 0);
+
+  // viewBox proporcional ao container (≈ 2.4:1)
+  const W = 760, H = 320;
+  const padL = 70, padR = 20, padT = 36, padB = rotated ? 78 : 48;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+
+  // Escala "nice" mais granular → reduz folga em cima das barras
+  const niceMax = (v) => {
+    if (v <= 0) return 1;
+    const exp = Math.pow(10, Math.floor(Math.log10(v)));
+    const f   = v / exp;
+    const niceF =
+      f <= 1   ? 1   :
+      f <= 1.5 ? 1.5 :
+      f <= 2   ? 2   :
+      f <= 3   ? 3   :
+      f <= 4   ? 4   :
+      f <= 5   ? 5   :
+      f <= 6   ? 6   :
+      f <= 8   ? 8   : 10;
+    return niceF * exp;
+  };
+  const maxV = Math.max(0.0001, ...data.map((d) => d.value));
+  const yMax = niceMax(maxV * 1.1); // 10% de respiro para o datalabel
+
+  const step = data.length > 0 ? innerW / data.length : 0;
+  const barW = Math.max(10, step * 0.55);
+  const yTicks = 4;
+
+  const valFmt = formatter ?? ((v) => Number(v).toLocaleString('pt-BR'));
+  const yFmt   = yFormatter ?? valFmt;
+
+  // Define id único do gradiente (evita colisão se houver vários BarCharts)
+  const gradId = useMemo(() => 'bar-grad-' + Math.random().toString(36).slice(2, 8), []);
+  const [c1, c2] = colorGradient ?? [color, color];
+
+  return (
+    <>
+      <h4 className="text-gray-700 mb-2"
+          style={{ fontFamily: 'Arial, sans-serif', fontSize: 13, fontWeight: 700 }}>
+        {title}
+      </h4>
+
+      {!hasData ? (
+        <div className="flex-1 flex items-center justify-center text-gray-400 border border-dashed rounded"
+             style={{ fontFamily: 'Arial, sans-serif', fontSize: 12, minHeight: 280 }}>
+          Sem dados para exibir.
+        </div>
+      ) : (
+        <div className="flex-1 w-full" style={{ height: 320 }}>
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"  stopColor={c1} />
+                <stop offset="100%" stopColor={c2} />
+              </linearGradient>
+            </defs>
+
+            {/* grid horizontal + labels do eixo Y */}
+            {Array.from({ length: yTicks + 1 }, (_, i) => {
+              const v = (yMax * (yTicks - i)) / yTicks;
+              const y = padT + (innerH * i) / yTicks;
+              return (
+                <g key={i}>
+                  <line x1={padL} x2={W - padR} y1={y} y2={y}
+                        stroke="#eef0f4" strokeDasharray="4 4" />
+                  <text
+                    x={padL - 10} y={y + 4} textAnchor="end" fill="#9aa0ad"
+                    fontFamily="Arial, sans-serif" fontSize="11"
+                  >
+                    {yFmt(v)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* barras */}
+            {data.map((d, i) => {
+              const x = padL + step * i + (step - barW) / 2;
+              const h = (d.value / yMax) * innerH;
+              const y = padT + innerH - h;
+              return (
+                <g key={i}>
+                  <title>{`${d.label}: ${valFmt(d.value)}`}</title>
+                  {d.value > 0 && (
+                    <rect
+                      x={x} y={y} width={barW} height={h}
+                      fill={`url(#${gradId})`} rx="4" ry="4"
+                    />
+                  )}
+                  {d.value > 0 && (
+                    <text
+                      x={x + barW / 2} y={y - 8} textAnchor="middle"
+                      fill="#3f4654" fontFamily="Arial, sans-serif" fontSize="11" fontWeight="700"
+                    >
+                      {valFmt(d.value)}
+                    </text>
+                  )}
+                  {/* label do eixo X */}
+                  <text
+                    x={x + barW / 2}
+                    y={H - padB + 20}
+                    textAnchor={rotated ? 'end' : 'middle'}
+                    fill={d.value > 0 ? '#495057' : '#adb5bd'}
+                    fontFamily="Arial, sans-serif" fontSize="11"
+                    transform={rotated ? `rotate(-40, ${x + barW / 2}, ${H - padB + 20})` : undefined}
+                  >
+                    {d.label}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* baseline */}
+            <line x1={padL} x2={W - padR} y1={padT + innerH} y2={padT + innerH} stroke="#dde1e7" />
+          </svg>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ============================================================
+ * DoughnutChart SVG puro — paleta fixa, legenda lateral.
+ * ============================================================ */
+function DoughnutChart({ title, labels, values }) {
+  const items = (labels ?? []).map((l, i) => ({
+    label: String(l ?? ''),
+    value: Number(values?.[i] ?? 0),
+  })).filter((d) => d.value > 0);
+
+  const total = items.reduce((s, d) => s + d.value, 0);
+
+  // Paleta consistente (amarelos/laranjas/indigo) que casa com os outros gráficos
+  const palette = ['#fbbf24', '#f59e0b', '#fb923c', '#ea580c', '#a855f7', '#6366f1', '#06b6d4', '#10b981'];
+
+  // Geometria do anel
+  const size = 220;
+  const cx = size / 2, cy = size / 2;
+  const rOuter = 95;
+  const rInner = 60;
+
+  // Converte percentual em SVG arc path
+  const arcPath = (startPct, endPct) => {
+    const a0 = startPct * 2 * Math.PI - Math.PI / 2;
+    const a1 = endPct   * 2 * Math.PI - Math.PI / 2;
+    const x0o = cx + rOuter * Math.cos(a0), y0o = cy + rOuter * Math.sin(a0);
+    const x1o = cx + rOuter * Math.cos(a1), y1o = cy + rOuter * Math.sin(a1);
+    const x0i = cx + rInner * Math.cos(a1), y0i = cy + rInner * Math.sin(a1);
+    const x1i = cx + rInner * Math.cos(a0), y1i = cy + rInner * Math.sin(a0);
+    const large = endPct - startPct > 0.5 ? 1 : 0;
+    return [
+      `M ${x0o} ${y0o}`,
+      `A ${rOuter} ${rOuter} 0 ${large} 1 ${x1o} ${y1o}`,
+      `L ${x0i} ${y0i}`,
+      `A ${rInner} ${rInner} 0 ${large} 0 ${x1i} ${y1i}`,
+      'Z',
+    ].join(' ');
+  };
+
+  let acc = 0;
+  const slices = items.map((d, i) => {
+    const start = acc / total;
+    acc += d.value;
+    const end = acc / total;
+    return {
+      ...d,
+      color: palette[i % palette.length],
+      pct: total > 0 ? (d.value / total) * 100 : 0,
+      path: total > 0 ? arcPath(start, end) : null,
+    };
+  });
+
+  return (
+    <>
+      <h4 className="text-gray-700 mb-2"
+          style={{ fontFamily: 'Arial, sans-serif', fontSize: 13, fontWeight: 700 }}>
+        {title}
+      </h4>
+
+      {total === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-gray-400 border border-dashed rounded"
+             style={{ fontFamily: 'Arial, sans-serif', fontSize: 12, minHeight: 280 }}>
+          Sem dados para exibir.
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center gap-6" style={{ minHeight: 280 }}>
+          {/* Rosca */}
+          <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+            <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>
+              {slices.length === 1 ? (
+                <>
+                  <circle cx={cx} cy={cy} r={rOuter} fill={slices[0].color} />
+                  <circle cx={cx} cy={cy} r={rInner} fill="#ffffff" />
+                </>
+              ) : (
+                slices.map((s, i) => (
+                  <path key={i} d={s.path} fill={s.color}>
+                    <title>{`${s.label}: ${s.value} (${s.pct.toFixed(1)}%)`}</title>
+                  </path>
+                ))
+              )}
+            </svg>
+            {/* Texto central */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+                 style={{ fontFamily: 'Arial, sans-serif' }}>
+              <span className="text-gray-500" style={{ fontSize: 11 }}>Total</span>
+              <span className="font-bold text-gray-800" style={{ fontSize: 24, lineHeight: 1 }}>{total}</span>
+              <span className="text-gray-500" style={{ fontSize: 11 }}>corretivas</span>
+            </div>
+          </div>
+
+          {/* Legenda */}
+          <ul className="flex-1 space-y-1.5" style={{ fontFamily: 'Arial, sans-serif', fontSize: 11 }}>
+            {slices.map((s, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded" style={{ background: s.color }} />
+                <span className="text-gray-700 font-semibold w-12">{s.label}</span>
+                <span className="text-gray-500 flex-1">{s.value} ocorrências</span>
+                <span className="text-gray-700 font-bold tabular-nums">{s.pct.toFixed(1)}%</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
   );
 }
 

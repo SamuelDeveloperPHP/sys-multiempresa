@@ -79,7 +79,7 @@ export default function InventariosIndex({ inventarios, obras, contadores, alert
                                 Nenhum produto abaixo do mínimo nesta empresa.
                             </div>
                         ) : (
-                            <table className="w-full text-sm">
+                            <table className="w-full text-xs">
                                 <thead className="bg-gray-50 text-left text-gray-700">
                                     <tr>
                                         <th className="px-4 py-2">Produto</th>
@@ -159,7 +159,7 @@ export default function InventariosIndex({ inventarios, obras, contadores, alert
 
                 {/* LISTA */}
                 <div className="bg-white rounded-lg shadow border overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                         <thead className="bg-gray-50 text-left font-semibold text-gray-700">
                             <tr>
                                 <th className="px-4 py-2">Número</th>

@@ -44,6 +44,14 @@ export default function MovimentacaoShow({ movimentacao: m }) {
                         >
                             ← Voltar
                         </Link>
+                        <a
+                            href={route('admin.estoque.comprovantes.movimentacao', m.id)}
+                            target="_blank" rel="noreferrer"
+                            className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-sm font-semibold"
+                            title="Abre comprovante HTML para impressão"
+                        >
+                            🖨 Imprimir comprovante
+                        </a>
                         <button
                             type="button"
                             onClick={excluir}
@@ -137,15 +145,35 @@ export default function MovimentacaoShow({ movimentacao: m }) {
                             </div>
                         )}
 
-                        {m.retirante_user_id && m.retirante && (
+                        {(m.retirante || m.retirante_funcionario) && (
                             <div className="bg-red-50 border border-red-200 rounded-lg p-5">
                                 <h3 className="text-sm font-semibold text-red-900 mb-2">
                                     <i className="fa-solid fa-shield-halved mr-1" />
                                     Validação da retirada
                                 </h3>
                                 <div className="text-sm text-red-900 space-y-1">
-                                    <p><strong>Retirante:</strong> {m.retirante.name} ({m.retirante.email})</p>
-                                    <p><strong>Método:</strong> {m.validacao_method === 'BIOMETRIA' ? 'Biometria (WebAuthn)' : 'Senha'}</p>
+                                    {m.retirante_funcionario ? (
+                                        <>
+                                            <p>
+                                                <strong>Retirante:</strong> {m.retirante_funcionario.nome}
+                                                {m.retirante_funcionario.matricula && (
+                                                    <span className="text-red-800"> · Matr. {m.retirante_funcionario.matricula}</span>
+                                                )}
+                                            </p>
+                                            {m.retirante_funcionario.cpf && (
+                                                <p><strong>CPF:</strong> {m.retirante_funcionario.cpf}</p>
+                                            )}
+                                            <p><strong>Tipo:</strong> Funcionário de obra (sem login)</p>
+                                        </>
+                                    ) : (
+                                        <p><strong>Retirante:</strong> {m.retirante.name} ({m.retirante.email}) — Usuário do sistema</p>
+                                    )}
+                                    <p><strong>Método:</strong> {
+                                        m.validacao_method === 'BIOMETRIA'      ? 'Biometria (WebAuthn)' :
+                                        m.validacao_method === 'BIOMETRIA_FUNC' ? 'Biometria do funcionário' :
+                                        m.validacao_method === 'SENHA_FUNC'    ? 'Senha de retirada (funcionário)' :
+                                                                                  'Senha do usuário'
+                                    }</p>
                                     <p><strong>Validado em:</strong> {m.validado_em ? new Date(m.validado_em).toLocaleString('pt-BR') : '—'}</p>
                                 </div>
                             </div>

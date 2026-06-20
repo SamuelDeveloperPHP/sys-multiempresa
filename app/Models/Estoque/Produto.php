@@ -27,7 +27,8 @@ class Produto extends Model
     protected $table = 'estoque_produtos';
 
     protected $fillable = [
-        'company_id', 'categoria_id', 'fornecedor_padrao_id',
+        'company_id', 'categoria_id', 'tipo_item', 'controla_variacao',
+        'fornecedor_padrao_id',
         'sku', 'codigo_barras', 'nome', 'marca', 'descricao',
         'unidade', 'peso_kg',
         'valor_unitario', 'valor_ultima_entrada', 'valor_referencia',
@@ -43,6 +44,7 @@ class Produto extends Model
 
     protected $casts = [
         'ativo'                 => 'boolean',
+        'controla_variacao'     => 'boolean',
         'peso_kg'               => 'decimal:3',
         'valor_unitario'        => 'decimal:2',
         'valor_ultima_entrada'  => 'decimal:2',
@@ -54,6 +56,34 @@ class Produto extends Model
     public const ORIGEM_MANUAL = 'manual';
     public const ORIGEM_LEGADO = 'legado';
     public const ORIGEM_LEROY  = 'leroy_merlin';
+
+    // Classificações de item. 'material' = comum (sem variação).
+    public const TIPO_MATERIAL          = 'material';
+    public const TIPO_EPI               = 'epi';
+    public const TIPO_CALCADO_SEGURANCA = 'calcado_seguranca';
+    public const TIPO_EPC               = 'epc';
+    public const TIPO_UNIFORME          = 'uniforme';
+
+    public const TIPOS_ITEM = [
+        self::TIPO_MATERIAL          => 'Material comum',
+        self::TIPO_EPI               => 'EPI',
+        self::TIPO_CALCADO_SEGURANCA => 'Calçado de segurança',
+        self::TIPO_EPC               => 'EPC',
+        self::TIPO_UNIFORME          => 'Uniforme',
+    ];
+
+    /** Tipos que exigem controle de lote/CA/validade na entrada (Parte 2). */
+    public const TIPOS_COM_LOTE = [
+        self::TIPO_EPI,
+        self::TIPO_CALCADO_SEGURANCA,
+        self::TIPO_EPC,
+        self::TIPO_UNIFORME,
+    ];
+
+    public function isEpiOuAfins(): bool
+    {
+        return in_array($this->tipo_item, self::TIPOS_COM_LOTE, true);
+    }
 
     public function categoria(): BelongsTo
     {
@@ -68,6 +98,30 @@ class Produto extends Model
     public function saldos(): HasMany
     {
         return $this->hasMany(Saldo::class);
+    }
+
+    public function variacoes(): HasMany
+    {
+        return $this->hasMany(ProdutoVariacao::class, 'produto_id')
+            ->orderBy('tipo')->orderBy('ordem')->orderBy('valor');
+    }
+
+    /** Cores cadastradas (collection de strings). */
+    public function cores()
+    {
+        return $this->variacoes->where('tipo', ProdutoVariacao::TIPO_COR)->pluck('valor')->values();
+    }
+
+    /** Tamanhos numéricos (calçados). */
+    public function tamanhosNumericos()
+    {
+        return $this->variacoes->where('tipo', ProdutoVariacao::TIPO_TAMANHO_NUMERICO)->pluck('valor')->values();
+    }
+
+    /** Tamanhos de vestuário (P/M/G…). */
+    public function tamanhosVestuario()
+    {
+        return $this->variacoes->where('tipo', ProdutoVariacao::TIPO_TAMANHO_VESTUARIO)->pluck('valor')->values();
     }
 
     public function movimentacoes(): HasMany

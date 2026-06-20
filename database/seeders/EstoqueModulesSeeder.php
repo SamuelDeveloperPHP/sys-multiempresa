@@ -77,6 +77,16 @@ class EstoqueModulesSeeder extends Seeder
             'show_in_menu' => true, // FASE 3 implementada
         ],
         [
+            // Saldos por obra — visão consolidada do catálogo × obra escolhida
+            'slug'         => 'estoque.saldos',
+            'parent_slug'  => 'estoque',
+            'name'         => 'Saldos por Obra',
+            'route_name'   => 'admin.estoque.saldos.index',
+            'icon'         => 'fa-solid fa-boxes-stacked',
+            'sort_order'   => 4,
+            'show_in_menu' => true,
+        ],
+        [
             'slug'         => 'estoque.requisicoes',
             'parent_slug'  => 'estoque',
             'name'         => 'Requisições',

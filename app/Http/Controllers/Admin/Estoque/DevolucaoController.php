@@ -6,16 +6,22 @@ use App\Helpers\CompanyContext;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Estoque\DevolucaoRequest;
 use App\Models\Estoque\Devolucao;
+use App\Models\Estoque\Lote;
 use App\Models\Estoque\Movimentacao;
 use App\Models\Estoque\Produto;
+use App\Models\Funcionario;
 use App\Models\Module;
 use App\Models\ModulePermission;
 use App\Models\Obra;
 use App\Models\User;
+use App\Services\Estoque\RetiranteValidator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -170,11 +176,19 @@ class DevolucaoController extends Controller
         }
         RateLimiter::clear($key);
 
+        // EPI: se a devolução referencia uma saída, devolve para a mesma
+        // variante/lote de origem.
+        $saidaOrigem = $devolucao->movimentacao_saida_id
+            ? Movimentacao::find($devolucao->movimentacao_saida_id)
+            : null;
+
         // Aprova + gera mov DEVOLUCAO em transação
-        DB::transaction(function () use ($devolucao, $user, $data) {
+        DB::transaction(function () use ($devolucao, $user, $data, $saidaOrigem) {
             $mov = Movimentacao::create([
                 'company_id'        => $devolucao->company_id,
                 'produto_id'        => $devolucao->produto_id,
+                'variante_id'       => $saidaOrigem?->variante_id,
+                'lote_id'           => $saidaOrigem?->lote_id,
                 'obra_id'           => $devolucao->obra_id,
                 'tipo'              => Movimentacao::TIPO_DEVOLUCAO,
                 'quantidade'        => $devolucao->quantidade,
@@ -189,6 +203,12 @@ class DevolucaoController extends Controller
                 'validado_em'       => now(),
                 'user_create'       => $user->email,
             ]);
+
+            // EPI: restaura a quantidade ao lote de origem
+            if ($saidaOrigem?->lote_id) {
+                Lote::where('id', $saidaOrigem->lote_id)
+                    ->increment('quantidade_atual', (float) $devolucao->quantidade);
+            }
 
             $devolucao->update([
                 'status'                 => Devolucao::STATUS_APROVADA,
@@ -228,6 +248,186 @@ class DevolucaoController extends Controller
         ]);
 
         return back()->with('success', "Devolução {$devolucao->numero} rejeitada.");
+    }
+
+    // =======================================================================
+    // FLUXO RÁPIDO POR FUNCIONÁRIO (Fase 2)
+    //
+    //   Operador escolhe uma SAÍDA em aberto onde o retirante é um
+    //   FUNCIONÁRIO. O sistema mostra os dados, o funcionário digita sua
+    //   senha de retirada, e a devolução é criada já APROVADA (sem aprovador,
+    //   sem workflow). A movimentação DEVOLUCAO é gerada na hora e o saldo
+    //   atualizado pelo observer.
+    //
+    //   Regra essencial: SÓ O MESMO FUNCIONÁRIO que retirou pode devolver.
+    // =======================================================================
+
+    /**
+     * GET /admin/estoque/devolucoes/rapida — tela do fluxo rápido.
+     * Lista as saídas elegíveis (retirante = funcionário) ainda sem
+     * devolução total registrada.
+     */
+    public function rapidaCreate(Request $request)
+    {
+        $companyId = CompanyContext::current()?->id;
+
+        $saidasAbertas = Movimentacao::query()
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->where('tipo', Movimentacao::TIPO_SAIDA)
+            ->whereNotNull('retirante_funcionario_id')
+            ->with([
+                'produto:id,sku,nome,unidade',
+                'obra:id,codigo_obra,nome_fantasia',
+                'retiranteFuncionario:id,nome,matricula,cpf,imagem_usuario,senha_retirada',
+            ])
+            // Soma a quantidade já devolvida desta saída
+            // (DEVOLUCAOs cujo movimentacao_origem_id = saida.id).
+            ->withSum('devolucoesFeitas as ja_devolvido', 'quantidade')
+            ->orderByDesc('data_movimento')
+            ->limit(200)
+            ->get();
+
+        // Calcula quanto ainda pode ser devolvido (quantidade - já_devolvido)
+        $saidas = $saidasAbertas->map(function ($m) {
+            $jaDev = (float) ($m->ja_devolvido ?? 0);
+            $restante = max(0, (float) $m->quantidade - $jaDev);
+            return [
+                'id'              => $m->id,
+                'data_movimento'  => $m->data_movimento?->format('Y-m-d'),
+                'quantidade'      => (float) $m->quantidade,
+                'ja_devolvido'    => $jaDev,
+                'qtd_restante'    => $restante,
+                'valor_unitario'  => (float) $m->valor_unitario,
+                'produto'         => $m->produto,
+                'obra'            => $m->obra,
+                'retirante'       => $m->retiranteFuncionario ? [
+                    'id'             => $m->retiranteFuncionario->id,
+                    'nome'           => $m->retiranteFuncionario->nome,
+                    'matricula'      => $m->retiranteFuncionario->matricula,
+                    'cpf'            => $m->retiranteFuncionario->cpf,
+                    'imagem_usuario' => $m->retiranteFuncionario->imagem_usuario,
+                    'tem_senha'      => !empty($m->retiranteFuncionario->senha_retirada),
+                ] : null,
+            ];
+        })->filter(fn ($x) => $x['qtd_restante'] > 0)->values();
+
+        return Inertia::render('Admin/Estoque/Devolucoes/Rapida', [
+            'saidas_abertas' => $saidas,
+        ]);
+    }
+
+    /**
+     * POST /admin/estoque/devolucoes/rapida — registra devolução APROVADA
+     * autenticada pelo próprio funcionário que retirou.
+     */
+    public function rapidaStore(Request $request, RetiranteValidator $validator)
+    {
+        $companyId = CompanyContext::current()?->id;
+        abort_if(!$companyId, 422, 'Selecione uma empresa antes de devolver.');
+
+        $data = $request->validate([
+            'movimentacao_saida_id' => ['required', 'integer', Rule::exists('estoque_movimentacoes', 'id')],
+            'quantidade'            => ['required', 'numeric', 'gt:0'],
+            'estado_material'       => ['required', Rule::in(['NOVO', 'USADO_OK', 'AVARIADO'])],
+            'motivo'                => ['nullable', 'string', 'max:500'],
+            'observacao'            => ['nullable', 'string', 'max:1000'],
+            // Senha do MESMO funcionário que retirou
+            'senha_funcionario'     => ['required', 'string'],
+        ]);
+
+        $saida = Movimentacao::with('retiranteFuncionario')->find($data['movimentacao_saida_id']);
+        if (!$saida || $saida->company_id !== $companyId) abort(404, 'Saída não encontrada.');
+        if ($saida->tipo !== Movimentacao::TIPO_SAIDA) abort(422, 'Movimentação não é uma saída.');
+        if (!$saida->retirante_funcionario_id) {
+            throw ValidationException::withMessages([
+                'movimentacao_saida_id' => 'Esta saída não foi feita por funcionário sem login. Use o fluxo normal de devolução.',
+            ]);
+        }
+
+        // Calcula saldo devolvível (não permite devolver mais do que retirou)
+        $jaDevolvido = (float) Devolucao::where('movimentacao_saida_id', $saida->id)
+            ->where('status', Devolucao::STATUS_APROVADA)
+            ->sum('quantidade');
+        $restante = (float) $saida->quantidade - $jaDevolvido;
+        if ((float) $data['quantidade'] > $restante + 0.0001) {
+            throw ValidationException::withMessages([
+                'quantidade' => sprintf(
+                    'Quantidade excede o saldo devolvível desta saída. Restante: %s (já devolvido: %s).',
+                    number_format($restante, 3, ',', '.'),
+                    number_format($jaDevolvido, 3, ',', '.')
+                ),
+            ]);
+        }
+
+        // Valida senha do MESMO funcionário
+        $func = $validator->validarFuncionario(
+            (int) $saida->retirante_funcionario_id,
+            (string) $data['senha_funcionario'],
+            'senha_funcionario'
+        );
+
+        // Cria devolução APROVADA + movimentação DEVOLUCAO em transação
+        $dev = DB::transaction(function () use ($saida, $data, $func, $companyId) {
+            $mov = Movimentacao::create([
+                'company_id'              => $companyId,
+                'produto_id'              => $saida->produto_id,
+                // EPI: devolve para a mesma variante/lote de origem
+                'variante_id'             => $saida->variante_id,
+                'lote_id'                 => $saida->lote_id,
+                'obra_id'                 => $saida->obra_id,
+                'tipo'                    => Movimentacao::TIPO_DEVOLUCAO,
+                'quantidade'              => $data['quantidade'],
+                'valor_unitario'          => $saida->valor_unitario,
+                'valor_total'             => (float) $data['quantidade'] * (float) $saida->valor_unitario,
+                'data_movimento'          => now()->toDateString(),
+                'observacao'              => 'Devolução rápida — autenticada pelo funcionário '
+                                              . $func->nome
+                                              . ($data['motivo'] ?? '' ? " — {$data['motivo']}" : ''),
+                'movimentacao_origem_id'  => $saida->id,
+                'retirante_funcionario_id'=> $func->id,
+                'validacao_method'        => 'SENHA_FUNC',
+                'validado_em'             => now(),
+                'user_create'             => Auth::user()->email,
+            ]);
+
+            // EPI: devolve a quantidade de volta ao lote de origem (FEFO)
+            if ($saida->lote_id) {
+                Lote::where('id', $saida->lote_id)
+                    ->increment('quantidade_atual', (float) $data['quantidade']);
+            }
+
+            return Devolucao::create([
+                'company_id'             => $companyId,
+                'numero'                 => Devolucao::gerarNumero($companyId),
+                'funcionario_id'         => $func->id,        // Fase 2: funcionário sem login
+                'produto_id'             => $saida->produto_id,
+                'obra_id'                => $saida->obra_id,
+                'movimentacao_saida_id'  => $saida->id,
+                'movimentacao_gerada_id' => $mov->id,
+                'quantidade'             => $data['quantidade'],
+                'valor_unitario'         => $saida->valor_unitario,
+                'estado_material'        => $data['estado_material'],
+                'motivo'                 => $data['motivo'] ?? null,
+                'observacao'             => $data['observacao'] ?? null,
+                // Vai DIRETO para APROVADA (não passa pelo workflow)
+                'status'                 => Devolucao::STATUS_APROVADA,
+                'data_criacao'           => now(),
+                'aprovador_user_id'      => Auth::id(),
+                'data_aprovacao'         => now(),
+            ]);
+        });
+
+        Log::info('Estoque: DEVOLUCAO rápida registrada', [
+            'devolucao_id'   => $dev->id,
+            'saida_id'       => $saida->id,
+            'funcionario_id' => $func->id,
+            'qtd'            => $data['quantidade'],
+            'operador'       => Auth::user()->email,
+        ]);
+
+        return redirect()
+            ->route('admin.estoque.devolucoes.show', $dev)
+            ->with('success', "Devolução {$dev->numero} registrada e aprovada. Saldo atualizado.");
     }
 
     // =======================================================================

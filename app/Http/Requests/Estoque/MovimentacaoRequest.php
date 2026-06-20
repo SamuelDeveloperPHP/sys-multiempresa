@@ -53,13 +53,20 @@ class MovimentacaoRequest extends FormRequest
                 Rule::exists('obras', 'id')->where(fn ($q) => $companyId ? $q->where('company_id', $companyId) : $q),
             ],
 
-            // ============= Validação de SAÍDA (FASE 7) =============
+            // ============= Validação de SAÍDA (FASE 7 + Fase 1 sem login) =============
             // SAÍDA exige IDENTIFICAÇÃO + SENHA do retirante. Almoxarife
-            // não pode dar baixa anônima de material.
+            // não pode dar baixa anônima de material. Aceita DOIS caminhos:
+            //   - retirante_user_id        (legacy): valida contra users.password
+            //   - retirante_funcionario_id (novo)  : valida contra
+            //                                       funcionarios.senha_retirada
+            // Exatamente UM dos dois deve vir, junto da respectiva senha.
             'retirante_user_id' => [
-                Rule::requiredIf(fn () => $ehSaida),
                 'nullable', 'integer',
-                Rule::exists('users', 'id'), // users não tem soft delete
+                Rule::exists('users', 'id'),
+            ],
+            'retirante_funcionario_id' => [
+                'nullable', 'integer',
+                Rule::exists('funcionarios', 'id')->whereNull('deleted_at'),
             ],
             'retirante_senha' => [
                 Rule::requiredIf(fn () => $ehSaida),
@@ -89,6 +96,20 @@ class MovimentacaoRequest extends FormRequest
                             number_format((float) $this->input('quantidade'), 3, ',', '.')
                         )
                     );
+                }
+            }
+
+            // Para SAIDA: exatamente UM retirante deve vir
+            if ($tipo === Movimentacao::TIPO_SAIDA) {
+                $temUser = (bool) $this->input('retirante_user_id');
+                $temFunc = (bool) $this->input('retirante_funcionario_id');
+                if (!$temUser && !$temFunc) {
+                    $v->errors()->add('retirante_funcionario_id',
+                        'Identifique o retirante (funcionário ou usuário do sistema).');
+                }
+                if ($temUser && $temFunc) {
+                    $v->errors()->add('retirante_funcionario_id',
+                        'Informe apenas UM retirante (funcionário OU usuário).');
                 }
             }
         });

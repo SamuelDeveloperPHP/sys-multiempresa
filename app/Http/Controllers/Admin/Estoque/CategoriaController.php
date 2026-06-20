@@ -71,6 +71,59 @@ class CategoriaController extends Controller
         return back()->with('success', 'Categoria atualizada.');
     }
 
+    /**
+     * Move uma categoria para outro pai (ou para a raiz) via drag-and-drop.
+     *
+     * Regras:
+     *   - novo_parent_id null = vira raiz.
+     *   - NÃO permite mover para si mesma nem para uma DESCENDENTE (evita ciclo).
+     *   - ordem opcional (posição entre irmãos).
+     */
+    public function mover(Request $request, Categoria $categoria)
+    {
+        $data = $request->validate([
+            'novo_parent_id' => ['nullable', 'integer', 'exists:estoque_categorias,id'],
+            'ordem'          => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $novoParent = $data['novo_parent_id'] ?? null;
+
+        // Não pode ser pai de si mesma
+        if ($novoParent && (int) $novoParent === $categoria->id) {
+            return back()->with('error', 'Uma categoria não pode ser pai de si mesma.');
+        }
+
+        // Não pode mover para uma descendente (geraria ciclo)
+        if ($novoParent && $this->ehDescendente($categoria->id, (int) $novoParent)) {
+            return back()->with('error', 'Não é possível mover uma categoria para dentro de uma subcategoria dela mesma.');
+        }
+
+        $categoria->update([
+            'parent_id' => $novoParent ?: null,
+            'ordem'     => $data['ordem'] ?? $categoria->ordem,
+            'user_edit' => $request->user()->email,
+        ]);
+
+        return back()->with('success', "Categoria \"{$categoria->nome}\" movida.");
+    }
+
+    /**
+     * $possivelDescendenteId está na subárvore de $ancestralId?
+     * Sobe a partir do nó-alvo até a raiz procurando o ancestral.
+     */
+    protected function ehDescendente(int $ancestralId, int $possivelDescendenteId): bool
+    {
+        $atual = Categoria::find($possivelDescendenteId);
+        $guard = 0;
+        while ($atual && $atual->parent_id && $guard++ < 1000) {
+            if ((int) $atual->parent_id === $ancestralId) {
+                return true;
+            }
+            $atual = Categoria::find($atual->parent_id);
+        }
+        return false;
+    }
+
     public function destroy(Request $request, Categoria $categoria)
     {
         // Bloqueia se tem produtos vinculados

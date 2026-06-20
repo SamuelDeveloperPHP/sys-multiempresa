@@ -301,7 +301,7 @@ export default function SincronizacaoLeroyIndex({ runAtivo, ultimoRun, historico
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
+                            <table className="w-full text-xs">
                                 <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
                                     <tr>
                                         <th className="text-left px-4 py-2 font-semibold">#</th>

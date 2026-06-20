@@ -7,9 +7,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Estoque\ProdutoRequest;
 use App\Models\Estoque\Categoria;
 use App\Models\Estoque\Produto;
+use App\Models\Estoque\ProdutoVariacao;
 use App\Models\Estoque\Saldo;
 use App\Models\Fornecedor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
@@ -82,8 +84,10 @@ class ProdutoController extends Controller
 
     public function edit(Produto $produto)
     {
+        $produto->load('variacoes');
+
         return Inertia::render('Admin/Estoque/Produtos/Form', [
-            'produto'      => $produto,
+            'produto'      => $this->produtoComVariacoes($produto),
             'categorias'   => Categoria::orderBy('nome')->get(['id', 'nome', 'parent_id']),
             'fornecedores' => Fornecedor::orderBy('razao_social')->get(['id', 'razao_social', 'nome_fantasia']),
         ]);
@@ -91,7 +95,7 @@ class ProdutoController extends Controller
 
     public function show(Produto $produto)
     {
-        $produto->load(['categoria', 'fornecedorPadrao']);
+        $produto->load(['categoria', 'fornecedorPadrao', 'variacoes']);
 
         // Saldo é por empresa+obra. Mostra apenas saldos da empresa atual
         // (o admin de empresa A não precisa ver saldos da empresa B).
@@ -104,26 +108,51 @@ class ProdutoController extends Controller
         $saldos = $saldosQuery->get();
 
         return Inertia::render('Admin/Estoque/Produtos/Show', [
-            'produto'    => $produto,
+            'produto'    => $this->produtoComVariacoes($produto),
             'saldos'     => $saldos,
             'saldoTotal' => $saldos->sum('quantidade'),
             'valorTotal' => $saldos->sum(fn ($s) => (float) $s->quantidade * (float) $s->valor_medio),
         ]);
     }
 
+    /**
+     * Serializa o produto incluindo as listas de variação já separadas por
+     * tipo (cores / tamanhos_numericos / tamanhos_vestuario), prontas para o
+     * front popular os chips.
+     */
+    protected function produtoComVariacoes(Produto $produto): array
+    {
+        $arr = $produto->toArray();
+        $arr['cores']              = $produto->cores()->all();
+        $arr['tamanhos_numericos'] = $produto->tamanhosNumericos()->all();
+        $arr['tamanhos_vestuario'] = $produto->tamanhosVestuario()->all();
+        return $arr;
+    }
+
     public function store(ProdutoRequest $request)
     {
         $data = $request->validated();
         $data['company_id']  = null; // catálogo global
-        $data['sku']         = $data['sku'] ?: Produto::gerarSku();
+        $data['sku']         = ($data['sku'] ?? '') ?: Produto::gerarSku();
         $data['user_create'] = $request->user()->email;
         $data['ativo']       = $request->boolean('ativo', true);
+
+        // Classificação + flag derivada
+        $data['tipo_item']         = $data['tipo_item'] ?? Produto::TIPO_MATERIAL;
+        $data['controla_variacao'] = $data['tipo_item'] !== Produto::TIPO_MATERIAL;
 
         if ($request->hasFile('imagem')) {
             $data['imagem'] = $request->file('imagem')->store('estoque/produtos', 'public');
         }
 
-        $produto = Produto::create($data);
+        // Separa as listas de variação (não são colunas de produtos)
+        $variacoes = $this->extrairVariacoes($request, $data);
+
+        $produto = DB::transaction(function () use ($data, $variacoes) {
+            $produto = Produto::create($data);
+            $this->sincronizarVariacoes($produto, $variacoes);
+            return $produto;
+        });
 
         return redirect()->route('admin.estoque.produtos.show', $produto)
             ->with('success', 'Produto criado.');
@@ -138,6 +167,10 @@ class ProdutoController extends Controller
             unset($data['sku']);
         }
 
+        // Classificação + flag derivada
+        $data['tipo_item']         = $data['tipo_item'] ?? $produto->tipo_item ?? Produto::TIPO_MATERIAL;
+        $data['controla_variacao'] = $data['tipo_item'] !== Produto::TIPO_MATERIAL;
+
         if ($request->hasFile('imagem')) {
             if ($produto->imagem) {
                 Storage::disk('public')->delete($produto->imagem);
@@ -151,10 +184,73 @@ class ProdutoController extends Controller
             unset($data['valor_unitario'], $data['valor_referencia']);
         }
 
-        $produto->update($data);
+        $variacoes = $this->extrairVariacoes($request, $data);
+
+        DB::transaction(function () use ($produto, $data, $variacoes) {
+            $produto->update($data);
+            $this->sincronizarVariacoes($produto, $variacoes);
+        });
 
         return redirect()->route('admin.estoque.produtos.show', $produto)
             ->with('success', 'Produto atualizado.');
+    }
+
+    /**
+     * Remove as chaves de variação do $data (para não tentar persistir como
+     * coluna) e retorna a estrutura normalizada por tipo.
+     */
+    protected function extrairVariacoes(Request $request, array &$data): array
+    {
+        unset($data['cores'], $data['tamanhos_numericos'], $data['tamanhos_vestuario']);
+
+        // Material comum não tem variação — devolve listas vazias (limpa o que houver)
+        if (($data['tipo_item'] ?? Produto::TIPO_MATERIAL) === Produto::TIPO_MATERIAL) {
+            return [
+                ProdutoVariacao::TIPO_COR               => [],
+                ProdutoVariacao::TIPO_TAMANHO_NUMERICO  => [],
+                ProdutoVariacao::TIPO_TAMANHO_VESTUARIO => [],
+            ];
+        }
+
+        $limpar = fn ($arr) => collect($arr ?? [])
+            ->map(fn ($v) => trim((string) $v))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return [
+            ProdutoVariacao::TIPO_COR               => $limpar($request->input('cores')),
+            ProdutoVariacao::TIPO_TAMANHO_NUMERICO  => $limpar($request->input('tamanhos_numericos')),
+            ProdutoVariacao::TIPO_TAMANHO_VESTUARIO => $limpar($request->input('tamanhos_vestuario')),
+        ];
+    }
+
+    /**
+     * Substitui as variações do produto pelas novas listas (estratégia
+     * delete-and-reinsert — listas pequenas, catálogo global).
+     */
+    protected function sincronizarVariacoes(Produto $produto, array $variacoes): void
+    {
+        $produto->variacoes()->delete();
+
+        $rows = [];
+        foreach ($variacoes as $tipo => $valores) {
+            foreach ($valores as $ordem => $valor) {
+                $rows[] = [
+                    'produto_id' => $produto->id,
+                    'tipo'       => $tipo,
+                    'valor'      => $valor,
+                    'ordem'      => $ordem,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+        }
+
+        if (!empty($rows)) {
+            ProdutoVariacao::insert($rows);
+        }
     }
 
     public function destroy(Produto $produto)
