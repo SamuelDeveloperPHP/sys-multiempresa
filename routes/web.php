@@ -29,6 +29,14 @@ Route::get('/', function () {
 });
 
 /*
+| Verificação PÚBLICA da Ficha de EPI (NR-6) — acessível por QR, sem login.
+| O código é aleatório (32 hex) = link não-listado. Permite ao Auditor-Fiscal
+| do Trabalho conferir a autenticidade/integridade do documento impresso.
+*/
+Route::get('/ficha-epi/verificar/{codigo}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'verificarFichaEpi'])
+    ->name('ficha-epi.verificar');
+
+/*
 |--------------------------------------------------------------------------
 | Service Worker (PWA) — servido na raiz para ter escopo global "/"
 |--------------------------------------------------------------------------
@@ -518,9 +526,20 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             Route::get('cadastros/funcionarios/create',          [\App\Http\Controllers\Admin\FuncionarioController::class, 'create'])->name('admin.funcionarios.create');
             Route::post('cadastros/funcionarios/store',          [\App\Http\Controllers\Admin\FuncionarioController::class, 'store'])->name('admin.funcionarios.store');
             Route::get('cadastros/funcionarios/show/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'show'])->name('admin.funcionarios.show');
+            // Emissão (preview + assinatura) e geração (snapshot) da ficha de EPI
+            Route::get('cadastros/funcionarios/{funcionario}/ficha-epi', [\App\Http\Controllers\Admin\FuncionarioController::class, 'fichaEpi'])->name('admin.funcionarios.ficha-epi');
+            Route::post('cadastros/funcionarios/{funcionario}/ficha-epi', [\App\Http\Controllers\Admin\FuncionarioController::class, 'gerarFichaEpi'])->name('admin.funcionarios.ficha-epi.gerar');
             Route::get('cadastros/funcionarios/edit/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'edit'])->name('admin.funcionarios.edit');
             Route::put('cadastros/funcionarios/update/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'update'])->name('admin.funcionarios.update');
             Route::delete('cadastros/funcionarios/destroy/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'destroy'])->name('admin.funcionarios.destroy');
+
+            // Senha de retirada de estoque do funcionário (Fase 1 do fluxo de retirada)
+            Route::put('funcionarios/{funcionario}/senha-retirada',
+                [\App\Http\Controllers\Admin\FuncionarioSenhaRetiradaController::class, 'update'])
+                ->name('admin.funcionarios.senha-retirada.update');
+            Route::delete('funcionarios/{funcionario}/senha-retirada',
+                [\App\Http\Controllers\Admin\FuncionarioSenhaRetiradaController::class, 'destroy'])
+                ->name('admin.funcionarios.senha-retirada.destroy');
 
             // Funcionários Anexos (Arquivos)
             Route::post('funcionarios/anexos', [\App\Http\Controllers\Admin\FuncionarioController::class, 'adicionarAnexos'])->name('admin.funcionarios.adicionar_anexos');
@@ -617,7 +636,17 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::resource('veiculos', \App\Http\Controllers\Admin\Frota\VeiculoController::class);
 
                 // Locacoes — vinculo veiculo<->funcionario por obra
+                // show() recebe o {veiculo} (não a locação) e devolve o histórico
+                Route::get('locacoes/veiculo/{veiculo}',                   [\App\Http\Controllers\Admin\Frota\VeiculoLocacaoController::class, 'show'])
+                    ->name('locacoes.show');
+                Route::get('locacoes/ajax/veiculo',                        [\App\Http\Controllers\Admin\Frota\VeiculoLocacaoController::class, 'pesquisarVeiculo'])
+                    ->name('locacoes.pesquisar-veiculo');
+                Route::get('locacoes/ajax/condutor',                       [\App\Http\Controllers\Admin\Frota\VeiculoLocacaoController::class, 'pesquisarCondutor'])
+                    ->name('locacoes.pesquisar-condutor');
+                Route::get('locacoes/funcionario/{funcionario}/foto',      [\App\Http\Controllers\Admin\Frota\VeiculoLocacaoController::class, 'funcionarioFoto'])
+                    ->name('locacoes.funcionario-foto');
                 Route::resource('locacoes', \App\Http\Controllers\Admin\Frota\VeiculoLocacaoController::class)
+                    ->parameters(['locacoes' => 'locacao'])
                     ->except(['show']);
 
                 // Modelos de checklist (catalogo)
@@ -678,6 +707,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             */
             Route::prefix('estoque')->name('admin.estoque.')->group(function () {
                 // Categorias — árvore via parent_id (CRUD inline)
+                Route::post('categorias/{categoria}/mover', [\App\Http\Controllers\Admin\Estoque\CategoriaController::class, 'mover'])
+                    ->name('categorias.mover');
                 Route::resource('categorias', \App\Http\Controllers\Admin\Estoque\CategoriaController::class)
                     ->only(['index', 'store', 'update', 'destroy']);
 
@@ -690,11 +721,82 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('movimentacoes.buscar-produtos');
                 Route::get('movimentacoes/saldo', [\App\Http\Controllers\Admin\Estoque\MovimentacaoController::class, 'saldoProdutoObra'])
                     ->name('movimentacoes.saldo');
+                // Lotes disponíveis (FEFO) de EPI/calçado/EPC/uniforme para a SAÍDA
+                Route::get('movimentacoes/lotes', [\App\Http\Controllers\Admin\Estoque\MovimentacaoController::class, 'lotesDisponiveis'])
+                    ->name('movimentacoes.lotes');
                 // Autocomplete de funcionários (retirante na SAÍDA) — FASE 7.A
                 Route::get('movimentacoes/buscar-funcionarios', [\App\Http\Controllers\Admin\Estoque\MovimentacaoController::class, 'buscarFuncionarios'])
                     ->name('movimentacoes.buscar-funcionarios');
+
+                // Fase 1 — Retirante = Funcionário (sem login), valida com senha_retirada
+                Route::get('movimentacoes/buscar-funcionarios-retirada',
+                    [\App\Http\Controllers\Admin\FuncionarioSenhaRetiradaController::class, 'buscar'])
+                    ->name('movimentacoes.buscar-funcionarios-retirada');
+                Route::post('movimentacoes/validar-funcionario',
+                    [\App\Http\Controllers\Admin\FuncionarioSenhaRetiradaController::class, 'validarSenha'])
+                    ->name('movimentacoes.validar-funcionario');
                 Route::resource('movimentacoes', \App\Http\Controllers\Admin\Estoque\MovimentacaoController::class)
                     ->only(['index', 'create', 'store', 'show', 'destroy']);
+
+                /* -----------------------------------------------------------------
+                 * Fase 2 — Telas dedicadas por tipo de movimentação.
+                 * Cada uma usa o seu controller especializado mas todas voltam
+                 * para `admin.estoque.movimentacoes.show` após criar (visão única).
+                 * -----------------------------------------------------------------*/
+                Route::resource('entradas', \App\Http\Controllers\Admin\Estoque\EntradaController::class)
+                    ->only(['index', 'create', 'store']);
+                // Detalhes/edição de uma entrada (movimentação ENTRADA)
+                Route::get('entradas/{movimentacao}',      [\App\Http\Controllers\Admin\Estoque\EntradaController::class, 'show'])->name('entradas.show');
+                Route::get('entradas/{movimentacao}/edit', [\App\Http\Controllers\Admin\Estoque\EntradaController::class, 'edit'])->name('entradas.edit');
+                Route::put('entradas/{movimentacao}',      [\App\Http\Controllers\Admin\Estoque\EntradaController::class, 'update'])->name('entradas.update');
+                Route::resource('saidas',  \App\Http\Controllers\Admin\Estoque\SaidaController::class)
+                    ->only(['index', 'create', 'store']);
+                // Detalhes/edição de uma saída (movimentação SAIDA)
+                Route::get('saidas/{movimentacao}',      [\App\Http\Controllers\Admin\Estoque\SaidaController::class, 'show'])->name('saidas.show');
+                Route::get('saidas/{movimentacao}/edit', [\App\Http\Controllers\Admin\Estoque\SaidaController::class, 'edit'])->name('saidas.edit');
+                Route::put('saidas/{movimentacao}',      [\App\Http\Controllers\Admin\Estoque\SaidaController::class, 'update'])->name('saidas.update');
+                Route::resource('transferencias', \App\Http\Controllers\Admin\Estoque\TransferenciaController::class)
+                    ->only(['index', 'create', 'store']);
+
+                /* -----------------------------------------------------------------
+                 * Saldos por obra — listagem completa do catálogo × obra.
+                 * -----------------------------------------------------------------*/
+                Route::get('saldos',          [\App\Http\Controllers\Admin\Estoque\SaldoController::class, 'index'])->name('saldos.index');
+                Route::get('saldos/exportar', [\App\Http\Controllers\Admin\Estoque\SaldoController::class, 'exportar'])->name('saldos.exportar');
+
+                /* -----------------------------------------------------------------
+                 * Fase 3 — Retirada rápida (scanner de código de barras / QR).
+                 * -----------------------------------------------------------------*/
+                Route::get('retirada-rapida',
+                    [\App\Http\Controllers\Admin\Estoque\RetiradaRapidaController::class, 'index'])
+                    ->name('retirada-rapida.index');
+                Route::get('retirada-rapida/produto-por-codigo',
+                    [\App\Http\Controllers\Admin\Estoque\RetiradaRapidaController::class, 'produtoPorCodigo'])
+                    ->name('retirada-rapida.produto-por-codigo');
+                Route::post('retirada-rapida',
+                    [\App\Http\Controllers\Admin\Estoque\RetiradaRapidaController::class, 'store'])
+                    ->name('retirada-rapida.store');
+
+                /* -----------------------------------------------------------------
+                 * Fase 4 — Comprovantes HTML imprimíveis (sem dependência externa).
+                 * -----------------------------------------------------------------*/
+                Route::get('comprovantes/movimentacao/{movimentacao}',
+                    [\App\Http\Controllers\Admin\Estoque\ComprovanteController::class, 'movimentacao'])
+                    ->name('comprovantes.movimentacao');
+                Route::get('comprovantes/lote',
+                    [\App\Http\Controllers\Admin\Estoque\ComprovanteController::class, 'lote'])
+                    ->name('comprovantes.lote');
+                Route::get('comprovantes/devolucao/{devolucao}',
+                    [\App\Http\Controllers\Admin\Estoque\ComprovanteController::class, 'devolucao'])
+                    ->name('comprovantes.devolucao');
+
+                // Devolução rápida (Fase 2) — antes do resource para não ser engolido
+                Route::get('devolucoes/rapida',
+                    [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'rapidaCreate'])
+                    ->name('devolucoes.rapida.create');
+                Route::post('devolucoes/rapida',
+                    [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'rapidaStore'])
+                    ->name('devolucoes.rapida.store');
 
                 // Requisições — fluxo aprovação (FASE 4)
                 // RASCUNHO → ENVIADA → APROVADA → ATENDIDA (ou REJEITADA/CANCELADA)
@@ -767,6 +869,16 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     Route::get('/valor-estoque',     [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'valorEstoque'])->name('valor-estoque');
                     Route::get('/giro-estoque',      [\App\Http\Controllers\Admin\Estoque\RelatorioController::class, 'giroEstoque'])->name('giro-estoque');
                 });
+            });
+
+            // =================================================================
+            // TCPO — catálogo de composições/insumos (PINI). Referência global.
+            // Somente leitura; populado por tcpo:importar-csv / tcpo:importar-dump.
+            // =================================================================
+            Route::prefix('tcpo')->name('admin.tcpo.')->group(function () {
+                Route::get('composicoes',               [\App\Http\Controllers\Admin\Tcpo\ComposicaoController::class, 'index'])->name('composicoes.index');
+                Route::get('composicoes/{composicao}',  [\App\Http\Controllers\Admin\Tcpo\ComposicaoController::class, 'show'])->name('composicoes.show');
+                Route::get('insumos',                   [\App\Http\Controllers\Admin\Tcpo\InsumoController::class, 'index'])->name('insumos.index');
             });
 
             Route::prefix('configuracao/blog')->group(function () {
