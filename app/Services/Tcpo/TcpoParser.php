@@ -93,15 +93,25 @@ class TcpoParser
         ksort($linhas, SORT_NATURAL);
         $somaMod = $somaMat = $somaEqp = $soma = 0.0;
         foreach ($linhas as $row) {
-            if (empty($row['codigo'])) continue;
+            // Uma linha real de insumo tem classe e/ou descrição. As linhas de
+            // TOTAL/subtotal trazem só o valor em PreçoTotal (sem classe nem
+            // descrição) → descartadas. Itens SEM código (ex.: equipamentos EQH,
+            // mão de obra) NÃO podem ser descartados — era o bug que zerava
+            // composições inteiras (terraplenagem) e subcontava as demais.
+            $temConteudo = ($row['classe'] ?? '') !== ''
+                || ($row['descricao'] ?? '') !== ''
+                || ($row['codigo'] ?? '') !== '';
+            if (!$temConteudo) continue;
             $classe = strtoupper($row['classe'] ?? '');
             $totalNum = $this->num($row['total'] ?? null) ?? 0;
             $soma += $totalNum;
-            if ($classe === 'MOD') $somaMod += $totalNum;
-            elseif ($classe === 'MAT') $somaMat += $totalNum;
-            elseif ($classe === 'EQP') $somaEqp += $totalNum;
+            // Buckets por PREFIXO: MO* = mão de obra (MOD/MOE), MAT = material,
+            // EQ* = equipamentos (EQH/EQD/EQJ/…). O exato 'MOD'/'EQP' perdia tudo.
+            if (str_starts_with($classe, 'MO'))     $somaMod += $totalNum;
+            elseif ($classe === 'MAT')              $somaMat += $totalNum;
+            elseif (str_starts_with($classe, 'EQ')) $somaEqp += $totalNum;
             $comp['itens'][] = [
-                'codigo'         => $row['codigo'],
+                'codigo'         => ($row['codigo'] ?? '') !== '' ? $row['codigo'] : null,
                 'descricao'      => $row['descricao'] ?? null,
                 'unidade'        => $row['unidade'] ?? null,
                 'classe'         => $classe ?: null,

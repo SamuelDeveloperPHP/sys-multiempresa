@@ -24,6 +24,19 @@ return [
     // Timeout por requisição (s).
     'timeout'  => (int) env('TCPO_TIMEOUT', 60),
 
+    // Retentativas em falha de TRANSPORTE (queda de rede, DNS, troca de Wi-Fi/4G).
+    // Backoff exponencial (2,4,8,…,60s) → aguenta a rede voltar sem abortar a
+    // varredura. Não re-tenta erro de aplicação (resposta HTTP).
+    'net_retries' => (int) env('TCPO_NET_RETRIES', 8),
+
+    // Timeout só da fase de CONEXÃO (s). Conexão morta falha rápido em vez de
+    // pendurar pra sempre (foi o que travou a varredura por 1h numa troca de rede).
+    'connect_timeout' => (int) env('TCPO_CONNECT_TIMEOUT', 20),
+
+    // Aborta transferência estagnada: se ficar < 1 byte/s por N s, cURL encerra
+    // (socket meio-aberto após troca de rede) e o retry refaz a requisição.
+    'stall_timeout' => (int) env('TCPO_STALL_TIMEOUT', 45),
+
     'user_agent' => env('TCPO_UA', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'),
 
     // Caminho do CA bundle (cacert.pem) para verificação SSL. No Windows/WAMP o

@@ -47,7 +47,16 @@ class TcpoWebClient
             'base_uri'        => $this->baseUrl . '/',
             'cookies'         => $this->jar,
             'timeout'         => (int) config('tcpo.timeout', 60),
+            // Conexão morta (rede caiu / troca de Wi-Fi) falha rápido em vez de
+            // pendurar pra sempre — aí o retry de transporte assume.
+            'connect_timeout' => (int) config('tcpo.connect_timeout', 20),
             'http_errors'     => false,
+            // Aborta transferência estagnada (socket meio-aberto após troca de
+            // rede): < 1 byte/s por N s → cURL encerra e o retry refaz.
+            'curl'            => [
+                CURLOPT_LOW_SPEED_LIMIT => 1,
+                CURLOPT_LOW_SPEED_TIME  => (int) config('tcpo.stall_timeout', 45),
+            ],
             'verify'          => config('tcpo.ca_bundle') ?: true,
             'allow_redirects' => ['max' => 5, 'referer' => true, 'track_redirects' => true],
             'headers'         => [
@@ -161,14 +170,41 @@ class TcpoWebClient
         return $campos;
     }
 
-    /** Faz a requisição com pausa de cortesia e devolve o corpo. */
+    /**
+     * Faz a requisição com pausa de cortesia e devolve o corpo.
+     *
+     * Resiliência de rede: falhas de TRANSPORTE (queda de rede, DNS, timeout de
+     * conexão, troca de Wi-Fi/4G) são re-tentadas com backoff exponencial — assim
+     * uma troca de rede no meio da varredura não aborta o capítulo: ele apenas
+     * espera a rede voltar e refaz a MESMA requisição (VIEWSTATE/cookie continuam
+     * válidos). Erro de aplicação (resposta HTTP) NÃO é re-tentado.
+     */
     protected function request(string $method, string $path, array $options = []): string
     {
         if ($this->delayMs > 0) {
             usleep($this->delayMs * 1000);
         }
-        $resp = $this->http->request($method, $path, $options);
-        $this->lastBody = (string) $resp->getBody();
-        return $this->lastBody;
+
+        $max = max(0, (int) config('tcpo.net_retries', 8));
+        for ($tent = 0; ; $tent++) {
+            try {
+                $resp = $this->http->request($method, $path, $options);
+                $this->lastBody = (string) $resp->getBody();
+                return $this->lastBody;
+            } catch (\GuzzleHttp\Exception\TransferException $e) {
+                // Tem resposta HTTP? Então é erro de aplicação, não de rede → propaga.
+                // (http_errors=false: 4xx/5xx nem lançam, só falha de transporte chega aqui.)
+                $temResposta = $e instanceof \GuzzleHttp\Exception\RequestException && $e->hasResponse();
+                if ($temResposta || $tent >= $max) {
+                    throw $e;
+                }
+                $espera = min(60, (int) (2 ** ($tent + 1))); // 2,4,8,16,32,60,60,60s
+                \Illuminate\Support\Facades\Log::warning(
+                    '[tcpo] rede instável: ' . $e->getMessage()
+                    . ' — retry ' . ($tent + 1) . "/{$max} em {$espera}s"
+                );
+                sleep($espera);
+            }
+        }
     }
 }

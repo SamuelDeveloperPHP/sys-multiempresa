@@ -132,6 +132,12 @@ class ImportarCsvTcpo extends Command
                     $insId = $this->resolverInsumo($insCod, $g);
                     $this->adicionarItem($compId, $insId, $insCod, $g);
                     $itens++;
+                } elseif ($g('insumo_descricao') || $g('insumo_class')) {
+                    // Item SEM código (equipamentos EQH, mão de obra): grava o item
+                    // mesmo assim, sem insumo master (insumo_id nulo). NÃO descartar
+                    // — era o que sumia com a parte de equipamento/MO das composições.
+                    $this->adicionarItem($compId, null, null, $g);
+                    $itens++;
                 }
 
                 if ($linhas % 500 === 0) {
@@ -252,7 +258,7 @@ class ImportarCsvTcpo extends Command
         return $this->insumoCache[$codigo] = $i->id;
     }
 
-    protected function adicionarItem(int $compId, int $insId, string $insCod, callable $g): void
+    protected function adicionarItem(int $compId, ?int $insId, ?string $insCod, callable $g): void
     {
         $coef  = $this->num($g('insumo_coef'));
         $total = $this->num($g('insumo_total'));

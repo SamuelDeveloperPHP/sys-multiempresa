@@ -24,6 +24,8 @@ class ScrapeTcpo extends Command
                             {--test-search= : Autentica, busca o termo/código e conta os resultados}
                             {--test-detail= : Busca o termo, abre a 1a composição e salva o HTML do detalhe}
                             {--termo=       : Varre 1 termo de busca (grupo/código) por inteiro → harvest}
+                            {--base-completa : Varre TODOS os capítulos (02..36), dedup global, re-login automático}
+                            {--capitulos=   : Lista de capítulos a varrer (ex.: 06,23). Default: todos}
                             {--out=         : JSON de saída (default: storage/app/tcpo/scrape/<termo>.json)}
                             {--limite=      : Limita N composições (teste)}';
 
@@ -176,8 +178,127 @@ class ScrapeTcpo extends Command
             return self::SUCCESS;
         }
 
-        $this->warn('Use --test-login, --test-search, --test-detail ou --termo=CODIGO.');
+        // -------- VARREDURA da BASE COMPLETA (todos os capítulos) --------
+        if ($this->option('base-completa')) {
+            return $this->baseCompleta($client);
+        }
+
+        $this->warn('Use --test-login, --test-search, --test-detail, --termo=CODIGO ou --base-completa.');
         return self::SUCCESS;
+    }
+
+    /** Capítulos do TCPO (código → nome), da estrutura da TreeView. */
+    protected function capitulos(): array
+    {
+        return [
+            '02' => 'Serviços Iniciais', '04' => 'Infraestrutura', '05' => 'Superestrutura',
+            '06' => 'Alvenarias, fechamentos e divisórias', '09' => 'Coberturas', '10' => 'Impermeabilização',
+            '11' => 'Isolamento térmico e acústico', '12' => 'Esquadrias', '13' => 'Sistemas hidráulicos',
+            '15' => 'Sistemas de prevenção e combate a incêndio', '16' => 'Sistemas elétricos',
+            '17' => 'Automação, sistemas de telecomunicação e segurança',
+            '18' => 'Sistemas de proteção contra descargas atmosféricas',
+            '19' => 'Ar condicionado, ventilação e exaustão', '20' => 'Revestimentos de superfícies',
+            '21' => 'Forros', '22' => 'Pisos', '23' => 'Revestimentos de paredes', '24' => 'Pinturas',
+            '26' => 'Louças, metais e acessórios sanitários', '27' => 'Vidros',
+            '30' => 'Urbanização e serviços externos', '31' => 'Transporte',
+            '32' => 'Serviços complementares e apoio', '36' => 'Equipamentos',
+        ];
+    }
+
+    /** Varre todos os capítulos com dedup global e re-login automático. */
+    protected function baseCompleta(TcpoWebClient $client): int
+    {
+        $parser = new \App\Services\Tcpo\TcpoParser();
+        $limite = $this->option('limite') ? (int) $this->option('limite') : null;
+        $dir = storage_path('app/tcpo/scrape');
+        @mkdir($dir, 0775, true);
+        $jsonl = "{$dir}/base_completa.jsonl";
+
+        $mapaCap = $this->capitulos();
+        $caps = $this->option('capitulos')
+            ? array_values(array_filter(array_map('trim', explode(',', (string) $this->option('capitulos')))))
+            : array_keys($mapaCap);
+
+        // Resume global (dedup por código)
+        $done = [];
+        if (is_file($jsonl)) {
+            foreach (file($jsonl, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $ln) {
+                $o = json_decode($ln, true);
+                if (isset($o['codigo'])) $done[$o['codigo']] = true;
+            }
+            $this->line('Resume: ' . count($done) . ' composições já colhidas (serão puladas).');
+        }
+
+        $this->info('=== BASE COMPLETA — ' . count($caps) . ' capítulos ===');
+        $novas = 0;
+        foreach ($caps as $cap) {
+            $nome = $mapaCap[$cap] ?? $cap;
+            $this->newLine();
+            $this->info("--- Capítulo {$cap}. {$nome} ---");
+            $termo = $cap . '.';
+            $tent = 0;
+            do {
+                $rerun = false;
+                try {
+                    $client->ensureAuth();
+                    $novas += $this->crawlTermo($client, $parser, $termo, $limite, $jsonl, $done);
+                } catch (\Throwable $e) {
+                    if (str_contains($e->getMessage(), 'sessao_perdida') && $tent++ < 12) {
+                        $this->warn("  sessão caiu — relogando (tentativa {$tent})…");
+                        sleep(5);
+                        $rerun = true;
+                    } else {
+                        $this->error("  capítulo {$cap} falhou: " . $e->getMessage());
+                    }
+                }
+            } while ($rerun);
+            $this->line("  acumulado: " . count($done) . " composições");
+        }
+
+        // CSV denormalizado (reusa tcpo:importar-csv); categorias derivadas do código EAP
+        $csv = "{$dir}/tcpoweb_base_completa.csv";
+        $this->montarCsv($jsonl, $csv, $mapaCap);
+
+        $this->newLine();
+        $this->info("=== Concluído: {$novas} novas | total " . count($done) . " composições ===");
+        $this->line('  JSONL (resume): ' . $jsonl);
+        $this->line('  CSV: ' . $csv);
+        $this->line('  Importar: <comment>php artisan tcpo:importar-csv "' . $csv . '" --reset --no-interaction</comment>');
+        return self::SUCCESS;
+    }
+
+    /** JSONL (detalhes) → CSV denormalizado, derivando a categoria do código EAP. */
+    protected function montarCsv(string $jsonl, string $csv, array $mapaCap): void
+    {
+        if (!is_file($jsonl)) {
+            $this->warn('Nada colhido (JSONL ausente).');
+            return;
+        }
+        $fh = fopen($csv, 'w');
+        fwrite($fh, "\xEF\xBB\xBF");
+        fputcsv($fh, ['nivel1', 'nivel2', 'nivel3', 'nivel4', 'nivel5', 'categoria_folha', 'servico_base',
+            'servico_codigo', 'servico_descricao', 'servico_unidade', 'servico_tipo',
+            'insumo_codigo', 'insumo_descricao', 'insumo_un', 'insumo_class',
+            'insumo_coef', 'insumo_preco_unit', 'insumo_total', 'insumo_consumo'], ';');
+
+        foreach (file($jsonl, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $ln) {
+            $c = json_decode($ln, true);
+            if (!$c) continue;
+            $eap = ($c['codigo_alt'] ?? '') ?: ($c['codigo'] ?? '');
+            $cap = preg_match('/^(\d{2})\./', (string) $eap, $m) ? $m[1] : '';
+            $grp = preg_match('/^\d{2}\.(\d{3})\./', (string) $eap, $m) ? $m[1] : '';
+            $n3 = $cap ? "{$cap}. " . ($mapaCap[$cap] ?? '') : '';
+            $folha = ($cap && $grp) ? "{$cap}.{$grp}" : ($cap ? "{$cap}.000" : '');
+            foreach ($c['itens'] ?? [] as $it) {
+                fputcsv($fh, [
+                    'TCPO (com codificação PINI)', 'Serviços', $n3, '', '', $folha,
+                    'TCPO_PINI', $eap, $c['descricao'] ?? '', $c['unidade'] ?? '', $c['tipo'] ?? '',
+                    $it['codigo'] ?? '', $it['descricao'] ?? '', $it['unidade'] ?? '', $it['classe'] ?? '',
+                    $it['coeficiente'] ?? '', $it['preco_unitario'] ?? '', $it['total'] ?? '', $it['consumo'] ?? '',
+                ], ';');
+            }
+        }
+        fclose($fh);
     }
 
     /**
@@ -206,6 +327,9 @@ class ScrapeTcpo extends Command
             $rows = $parser->resultados($pageHtml)['rows'];
             foreach ($rows as $row) {
                 if (isset($done[$row['codigo']])) continue;
+                // Linhas de INSUMO ("2C/2N/2Q …") não são composições — abrir só
+                // devolve página vazia. Composições são "3R …". Pula p/ ganhar tempo.
+                if (preg_match('/^2[A-Z]/', (string) $row['codigo'])) continue;
                 if ($limite !== null && $n >= $limite) return $n;
                 try {
                     $detalhe = $client->postback('/PesqServicosTreeView.aspx', $pageHtml, [
@@ -224,6 +348,9 @@ class ScrapeTcpo extends Command
                         $this->line("    {$n} colhidas (pág {$pg}/{$info['paginas']})…");
                     }
                 } catch (\Throwable $e) {
+                    if (str_contains($e->getMessage(), 'sessao_perdida')) {
+                        throw $e; // propaga p/ o chamador relogar e retomar (resume pula o que já tem)
+                    }
                     \Log::warning("[tcpo:scrape] falha em {$row['codigo']}: {$e->getMessage()}");
                 }
             }
