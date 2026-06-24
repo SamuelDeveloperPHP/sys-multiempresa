@@ -193,14 +193,24 @@ class BiometriaController extends Controller
     /**
      * Grava a credencial WebAuthn no funcionário-alvo.
      */
-    public function funcionarioRegister(AttestedRequest $attested, Request $request, Funcionario $funcionario)
+    public function funcionarioRegister(Request $request, Funcionario $funcionario)
     {
         $this->autorizarCadastrarTerceiros($request->user());
 
+        // ATENÇÃO: o AttestedRequest (FormRequest do laragear) resolve o usuário
+        // e monta a credencial dentro de passedValidation(), ou seja, NO MOMENTO
+        // em que é instanciado. Por isso NÃO podemos recebê-lo por injeção no
+        // método: ele resolveria com o operador logado e a digital seria salva
+        // no almoxarife, não no funcionário-alvo. (Além disso, AttestedRequest
+        // é-um Request — tê-lo junto de `Request $request` na assinatura fazia o
+        // Laravel encaixar o {funcionario} no argumento errado → HTTP 500.)
+        //
+        // Solução: primeiro "logamos" como o funcionário-alvo e só então
+        // resolvemos o request via container, que aí valida/salva no user certo.
         Auth::setUser($funcionario);
         $request->setUserResolver(fn () => $funcionario);
 
-        $attested->save();
+        app(AttestedRequest::class)->save();
 
         return response()->noContent();
     }
