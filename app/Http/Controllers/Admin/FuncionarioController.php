@@ -25,6 +25,7 @@ use App\Helpers\FileUploadHelper;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use App\Services\Funcionario\FichaRegistroExtractor;
 
 class FuncionarioController extends Controller
 {
@@ -364,6 +365,50 @@ class FuncionarioController extends Controller
                 'msg' => $e->getMessage(),
             ]);
             return back()->withErrors(['error' => 'Falha ao carregar formulário.']);
+        }
+    }
+
+    /**
+     * Lê uma "Ficha de Registro de Empregado" (PDF digital ou foto/scan) e
+     * devolve os campos do cadastro em JSON, para PRÉ-PREENCHER o formulário
+     * de create()/edit(). Nada é gravado: o usuário confere e confirma no
+     * botão Salvar normal. Sem IA — usa pdfparser (PDF) ou Tesseract (imagem).
+     */
+    public function extrairDocumento(Request $request, FichaRegistroExtractor $extractor)
+    {
+        // Quem pode importar é quem pode cadastrar OU editar funcionário.
+        $abilities = $this->abilitiesForCurrentUser('funcionarios');
+        if (! $abilities['create'] && ! $abilities['edit']) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Você não tem permissão para importar dados de funcionário.',
+            ], 403);
+        }
+
+        $maxKb = (int) config('funcionario_import.max_file_mb', 20) * 1024;
+
+        $request->validate([
+            'arquivo' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,webp', "max:{$maxKb}"],
+        ], [
+            'arquivo.required' => 'Selecione um arquivo (PDF ou imagem).',
+            'arquivo.mimes'    => 'Formato inválido. Aceitos: PDF, JPG, PNG ou WEBP.',
+            'arquivo.max'      => "O arquivo excede o limite de {$maxKb} KB.",
+        ]);
+
+        try {
+            $resultado = $extractor->extrair($request->file('arquivo'));
+
+            return response()->json($resultado);
+        } catch (Throwable $e) {
+            Log::error('Erro ao extrair documento do funcionario', [
+                'msg'   => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Falha ao processar o documento. Tente outro arquivo.',
+            ], 422);
         }
     }
 
