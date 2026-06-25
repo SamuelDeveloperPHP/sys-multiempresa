@@ -525,6 +525,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             Route::get('cadastros/funcionarios/revisao-onedrive', [\App\Http\Controllers\Admin\FuncionarioController::class, 'revisaoOnedrive'])->name('admin.funcionarios.revisao-onedrive');
             Route::get('cadastros/funcionarios/create',          [\App\Http\Controllers\Admin\FuncionarioController::class, 'create'])->name('admin.funcionarios.create');
             Route::post('cadastros/funcionarios/store',          [\App\Http\Controllers\Admin\FuncionarioController::class, 'store'])->name('admin.funcionarios.store');
+            // Importação de cadastro por documento (Ficha de Registro) — pré-preenche o form (sem IA)
+            Route::post('cadastros/funcionarios/extrair-documento', [\App\Http\Controllers\Admin\FuncionarioController::class, 'extrairDocumento'])->name('admin.funcionarios.extrair-documento');
             Route::get('cadastros/funcionarios/show/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'show'])->name('admin.funcionarios.show');
             // Emissão (preview + assinatura) e geração (snapshot) da ficha de EPI
             Route::get('cadastros/funcionarios/{funcionario}/ficha-epi', [\App\Http\Controllers\Admin\FuncionarioController::class, 'fichaEpi'])->name('admin.funcionarios.ficha-epi');

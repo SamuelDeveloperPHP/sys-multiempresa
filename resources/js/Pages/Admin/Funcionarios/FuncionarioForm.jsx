@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm, Link } from '@inertiajs/react';
+import ImportadorDocumento from './Partials/ImportadorDocumento';
 
 export default function FuncionarioForm({
     funcionario,
@@ -99,7 +100,33 @@ export default function FuncionarioForm({
         }
     };
 
+    // Campos que o importador de documento pode preencher.
+    const CAMPOS_IMPORTAVEIS = [
+        'nome', 'cpf', 'rg', 'pis', 'matricula', 'nome_mae', 'genero', 'estado_civil',
+        'cep', 'endereco', 'numero', 'bairro', 'cidade', 'estado',
+        'id_funcao', 'id_setor', 'data_adminssao', 'data_demissao', 'status',
+    ];
+
+    // Aplica ao formulário os campos extraídos da Ficha de Registro.
+    // FK (id_funcao/id_setor) só entram quando o documento casou com a lista.
+    const aplicarExtraidos = (campos) => {
+        const novos = { ...data };
+        CAMPOS_IMPORTAVEIS.forEach((chave) => {
+            const campo = campos?.[chave];
+            if (!campo) return;
+            const ehFk = chave === 'id_funcao' || chave === 'id_setor';
+            if (ehFk) {
+                if (campo.encontrado && campo.valor) novos[chave] = String(campo.valor);
+            } else if (campo.valor !== '' && campo.valor != null) {
+                novos[chave] = campo.valor;
+            }
+        });
+        setData(novos);
+    };
+
     return (
+        <>
+        <ImportadorDocumento onAplicar={aplicarExtraidos} />
         <form onSubmit={handleSubmit} className="space-y-6">
             {/* EMPRESAS */}
             <div className="bg-white shadow-sm border border-gray-100 rounded-xl p-6">
@@ -302,6 +329,104 @@ export default function FuncionarioForm({
                             <option value="Viúvo(a)">Viúvo(a)</option>
                         </select>
                     </div>
+
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700">Nome da Mãe</label>
+                        <input
+                            type="text"
+                            value={data.nome_mae}
+                            onChange={(e) => setData('nome_mae', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700">PIS / PASEP</label>
+                        <input
+                            type="text"
+                            value={data.pis}
+                            onChange={(e) => setData('pis', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700">Dependentes</label>
+                        <input
+                            type="number"
+                            min="0"
+                            value={data.dependentes}
+                            onChange={(e) => setData('dependentes', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ENDEREÇO */}
+            <div className="bg-white shadow-sm border border-gray-100 rounded-xl p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4 border-b pb-2">Endereço</h3>
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700">CEP</label>
+                        <input
+                            type="text"
+                            value={data.cep}
+                            onChange={(e) => setData('cep', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
+                        />
+                    </div>
+
+                    <div className="md:col-span-3">
+                        <label className="block text-sm font-semibold text-gray-700">Logradouro</label>
+                        <input
+                            type="text"
+                            value={data.endereco}
+                            onChange={(e) => setData('endereco', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700">Número</label>
+                        <input
+                            type="text"
+                            value={data.numero}
+                            onChange={(e) => setData('numero', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
+                        />
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700">Bairro</label>
+                        <input
+                            type="text"
+                            value={data.bairro}
+                            onChange={(e) => setData('bairro', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
+                        />
+                    </div>
+
+                    <div className="md:col-span-3">
+                        <label className="block text-sm font-semibold text-gray-700">Cidade</label>
+                        <input
+                            type="text"
+                            value={data.cidade}
+                            onChange={(e) => setData('cidade', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700">UF</label>
+                        <input
+                            type="text"
+                            maxLength="2"
+                            value={data.estado}
+                            onChange={(e) => setData('estado', e.target.value.toUpperCase())}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm uppercase"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -449,5 +574,6 @@ export default function FuncionarioForm({
                 </button>
             </div>
         </form>
+        </>
     );
 }
