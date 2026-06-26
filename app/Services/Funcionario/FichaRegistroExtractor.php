@@ -278,10 +278,16 @@ class FichaRegistroExtractor
 
         // Caminhos comuns no Windows (barra normal funciona no PHP/Windows; glob não é recursivo).
         $padroesWin = [
-            'C:/Program Files/poppler*/Library/bin/pdftoppm.exe' => 'pdftoppm',
-            'C:/Program Files/poppler*/bin/pdftoppm.exe'         => 'pdftoppm',
-            'C:/Program Files/gs/gs*/bin/gswin64c.exe'           => 'ghostscript',
-            'C:/Program Files/gs/gs*/bin/gswin32c.exe'           => 'ghostscript',
+            'C:/Program Files/poppler*/Library/bin/pdftoppm.exe'       => 'pdftoppm',
+            'C:/Program Files/poppler*/bin/pdftoppm.exe'              => 'pdftoppm',
+            'C:/Program Files (x86)/poppler*/Library/bin/pdftoppm.exe' => 'pdftoppm',
+            'C:/Program Files (x86)/poppler*/bin/pdftoppm.exe'        => 'pdftoppm',
+            // MiKTeX empacota o pdftoppm do Poppler
+            'C:/Program Files/MiKTeX/miktex/bin/x64/pdftoppm.exe'      => 'pdftoppm',
+            'C:/Program Files/MiKTeX*/miktex/bin*/pdftoppm.exe'        => 'pdftoppm',
+            'C:/Program Files/gs/gs*/bin/gswin64c.exe'                 => 'ghostscript',
+            'C:/Program Files/gs/gs*/bin/gswin32c.exe'                 => 'ghostscript',
+            'C:/Program Files (x86)/gs/gs*/bin/gswin32c.exe'           => 'ghostscript',
         ];
         foreach ($padroesWin as $padrao => $tipo) {
             foreach (glob($padrao) ?: [] as $achado) {

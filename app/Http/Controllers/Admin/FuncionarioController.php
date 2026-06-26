@@ -42,7 +42,9 @@ class FuncionarioController extends Controller
                 });
             }
 
-            if ($status = $request->input('status')) {
+            // Status: padrão "Ativo"; "Todos" = sem filtro de status.
+            $status = $request->input('status', 'Ativo');
+            if ($status !== 'Todos') {
                 $query->where('status', $status);
             }
 
@@ -50,9 +52,14 @@ class FuncionarioController extends Controller
                 $query->where('company_id', $companyId);
             }
 
+            $perPage = (int) $request->input('per_page', 20);
+            if (! in_array($perPage, [20, 25, 50, 100], true)) {
+                $perPage = 20;
+            }
+
             $funcionarios = $query
                 ->orderBy('nome')
-                ->paginate(20)
+                ->paginate($perPage)
                 ->withQueryString();
 
             $companies = Company::orderBy('name')->get();
@@ -60,7 +67,10 @@ class FuncionarioController extends Controller
             return Inertia::render('Admin/Funcionarios/Index', [
                 'funcionarios' => $funcionarios,
                 'companies'    => $companies,
-                'filters'      => $request->only(['q', 'status', 'company_id']),
+                'filters'      => array_merge(
+                    $request->only(['q', 'company_id', 'per_page']),
+                    ['status' => $status]
+                ),
                 'can'          => $this->abilitiesForCurrentUser('funcionarios'),
             ]);
             
@@ -385,6 +395,11 @@ class FuncionarioController extends Controller
             ], 403);
         }
 
+        // OCR/rasterização podem consumir tempo e memória; dá folga ao PHP do Apache
+        // (php.ini do WAMP costuma ser 128M / 120s).
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(180);
+
         $maxKb = (int) config('funcionario_import.max_file_mb', 20) * 1024;
 
         $request->validate([
@@ -396,7 +411,13 @@ class FuncionarioController extends Controller
         ]);
 
         try {
+            $t0 = microtime(true);
             $resultado = $extractor->extrair($request->file('arquivo'));
+            Log::info('func_import.extraido', [
+                'ok'    => $resultado['ok'] ?? null,
+                'fonte' => $resultado['fonte'] ?? null,
+                'ms'    => (int) round((microtime(true) - $t0) * 1000),
+            ]);
 
             return response()->json($resultado);
         } catch (Throwable $e) {

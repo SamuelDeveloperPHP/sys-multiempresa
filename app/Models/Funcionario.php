@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laragear\WebAuthn\Contracts\WebAuthnAuthenticatable;
 use Laragear\WebAuthn\WebAuthnAuthentication;
+use Laragear\WebAuthn\WebAuthnData;
 
 /**
  * Funcionário da OBRA (não confunda com User do sistema).
@@ -50,6 +51,20 @@ class Funcionario extends Authenticatable implements WebAuthnAuthenticatable
     public function obra()   { return $this->belongsTo(Obra::class, 'id_obra'); }
     public function funcao() { return $this->belongsTo(FuncionarioFuncao::class, 'id_funcao'); }
     public function setor()  { return $this->belongsTo(FuncionarioSetor::class, 'id_setor'); }
+
+    /**
+     * Dados expostos ao WebAuthn. O trait padrão usa email/name (nulos no
+     * funcionário, que usa nome/cpf) — sobrescrevemos garantindo strings.
+     */
+    public function webAuthnData(): WebAuthnData
+    {
+        $handle = $this->email ?: $this->cpf ?: $this->matricula ?: ('funcionario-' . $this->getKey());
+
+        return WebAuthnData::make(
+            (string) $handle,
+            (string) ($this->nome ?: ('Funcionário #' . $this->getKey())),
+        );
+    }
 
     public function users()
     {

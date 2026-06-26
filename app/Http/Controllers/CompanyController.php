@@ -107,7 +107,11 @@ class CompanyController extends Controller
             session()->forget('current_obra_id');
         }
 
-        return redirect('/')->with('message', 'Ambiente selecionado com sucesso!');
+        // Após escolher empresa (e obra), vai para o dashboard — não para a
+        // landing "/". Usa intended() pra respeitar uma URL pretendida que tenha
+        // sobrado do login; cai no dashboard quando não há. Mesmo padrão do
+        // ObraSelectionController@set.
+        return redirect()->intended(route('dashboard'))->with('message', 'Ambiente selecionado com sucesso!');
     }
 
     public function show(Company $company)

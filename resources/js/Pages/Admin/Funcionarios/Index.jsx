@@ -13,6 +13,7 @@ export default function Index({ funcionarios, companies, filters, auth, can = {}
     const [searchTerm, setSearchTerm] = useState(filters?.q || '');
     const [status, setStatus] = useState(filters?.status || '');
     const [companyId, setCompanyId] = useState(filters?.company_id || '');
+    const [perPage, setPerPage] = useState(filters?.per_page || '20');
     const [isCrachaModalOpen, setIsCrachaModalOpen] = useState(false);
     const [isEtiquetaModalOpen, setIsEtiquetaModalOpen] = useState(false);
     const [selectedFuncionario, setSelectedFuncionario] = useState(null);
@@ -22,6 +23,7 @@ export default function Index({ funcionarios, companies, filters, auth, can = {}
             q: typeof overrides.q !== 'undefined' ? overrides.q : searchTerm,
             status: typeof overrides.status !== 'undefined' ? overrides.status : status,
             company_id: typeof overrides.company_id !== 'undefined' ? overrides.company_id : companyId,
+            per_page: typeof overrides.per_page !== 'undefined' ? overrides.per_page : perPage,
         };
 
         Object.keys(query).forEach(key => {
@@ -133,10 +135,12 @@ export default function Index({ funcionarios, companies, filters, auth, can = {}
                                 className="block w-full sm:w-80 rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm"
                             />
                             {/* Company filter ignored here to match old screen visually, mas o backend suporta */}
-                            <select 
+                            <select
+                                value={perPage}
                                 className="block w-full sm:w-24 rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm"
-                                onChange={(e) => applyFilters({ per_page: e.target.value })}
+                                onChange={(e) => { setPerPage(e.target.value); applyFilters({ per_page: e.target.value }); }}
                             >
+                                <option value="20">20</option>
                                 <option value="25">25</option>
                                 <option value="50">50</option>
                                 <option value="100">100</option>
