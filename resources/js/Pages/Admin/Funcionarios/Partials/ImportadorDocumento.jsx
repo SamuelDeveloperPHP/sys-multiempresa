@@ -1,10 +1,16 @@
 import { useRef, useState } from 'react';
 
 /**
- * Importa os dados do cadastro a partir da "Ficha de Registro de Empregado"
- * (PDF digital com texto OU foto/scan via OCR). Não grava nada: lê o documento,
- * mostra os campos com a confiança da leitura e, ao confirmar, pré-preenche o
- * formulário. O usuário ainda revisa e salva manualmente.
+ * Importa os dados do cadastro a partir da "Ficha de Registro de Empregado".
+ *
+ * O OCR roda 100% NO NAVEGADOR (sem depender de Ghostscript/Poppler/Tesseract
+ * no servidor):
+ *   - PDF.js renderiza a página (digital OU escaneada) num canvas;
+ *   - se houver camada de texto, usa direto (rápido); senão Tesseract.js (WASM)
+ *     faz o OCR do canvas;
+ *   - envia só o TEXTO para o backend, que roda o parse (parseFicha) e devolve
+ *     os campos. Ao confirmar, o formulário é pré-preenchido para o usuário
+ *     revisar e salvar.
  */
 const LABELS = {
     nome: 'Nome', cpf: 'CPF', rg: 'RG', pis: 'PIS', matricula: 'Matrícula',
@@ -20,46 +26,115 @@ const ORDEM = [
     'id_funcao', 'id_setor', 'data_adminssao', 'status',
 ];
 
+const ANCORAS = ['ficha de registro', 'dados do empregado', 'registro de empregado'];
+const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const temAncora = (t) => { const n = norm(t); return ANCORAS.some((a) => n.includes(a)); };
+
 function selo(conf) {
     if (conf >= 0.85) return { txt: 'alta', cls: 'bg-emerald-100 text-emerald-700' };
     if (conf >= 0.55) return { txt: 'média', cls: 'bg-amber-100 text-amber-700' };
     return { txt: 'baixa', cls: 'bg-rose-100 text-rose-700' };
 }
 
+/** Cria um worker do Tesseract.js (idioma português). */
+async function criarWorker(onProg) {
+    const { createWorker } = await import('tesseract.js');
+    return await createWorker('por', 1, {
+        logger: (m) => {
+            if (m.status === 'recognizing text' && onProg) onProg(Math.round((m.progress || 0) * 100));
+        },
+    });
+}
+
 export default function ImportadorDocumento({ onAplicar }) {
     const [carregando, setCarregando] = useState(false);
+    const [progresso, setProgresso] = useState(0);
+    const [etapa, setEtapa] = useState('');
     const [resultado, setResultado] = useState(null);
     const [erro, setErro] = useState(null);
     const [nomeArquivo, setNomeArquivo] = useState('');
     const [dragOver, setDragOver] = useState(false);
     const inputRef = useRef(null);
 
-    const enviar = async (file) => {
+    const processar = async (file) => {
         if (!file) return;
-        setErro(null);
-        setResultado(null);
-        setCarregando(true);
-        setNomeArquivo(file.name);
+        setErro(null); setResultado(null); setNomeArquivo(file.name);
+        setCarregando(true); setProgresso(0); setEtapa('Preparando…');
+
+        let worker = null;
+        const garantirWorker = async () => {
+            if (!worker) { setEtapa('Preparando OCR (1ª vez baixa ~12 MB)…'); worker = await criarWorker(setProgresso); }
+            return worker;
+        };
 
         try {
-            const fd = new FormData();
-            fd.append('arquivo', file);
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            const isPdf = (file.type || '').includes('pdf') || ext === 'pdf';
+            let texto = '', fonte = 'ocr', confianca = null;
+
+            if (isPdf) {
+                const pdfjs = await import('pdfjs-dist');
+                pdfjs.GlobalWorkerOptions.workerSrc = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
+
+                setEtapa('Abrindo PDF…');
+                const buf = await file.arrayBuffer();
+                const pdf = await pdfjs.getDocument({ data: buf }).promise;
+                const maxP = Math.min(pdf.numPages, 3);
+
+                // 1) Tenta a camada de texto (PDF digital → rápido e exato)
+                let textoLayer = '';
+                for (let p = 1; p <= maxP; p++) {
+                    const page = await pdf.getPage(p);
+                    const tc = await page.getTextContent();
+                    textoLayer += tc.items.map((i) => i.str).join(' ') + '\n';
+                }
+
+                if (textoLayer.trim().length >= 80) {
+                    texto = textoLayer; fonte = 'pdf_texto'; confianca = 0.99;
+                } else {
+                    // 2) PDF escaneado/imagem → renderiza e faz OCR
+                    const w = await garantirWorker();
+                    for (let p = 1; p <= maxP; p++) {
+                        setEtapa(`Reconhecendo página ${p}/${maxP}…`);
+                        setProgresso(0);
+                        const page = await pdf.getPage(p);
+                        const viewport = page.getViewport({ scale: 2.2 });
+                        const canvas = document.createElement('canvas');
+                        canvas.width = viewport.width; canvas.height = viewport.height;
+                        await page.render({
+                            canvasContext: canvas.getContext('2d', { willReadFrequently: true }),
+                            viewport,
+                        }).promise;
+                        const { data } = await w.recognize(canvas);
+                        texto += (data.text || '') + '\n';
+                        confianca = (data.confidence ?? 0) / 100;
+                        if (temAncora(texto)) break; // achou a Ficha — para por aqui
+                    }
+                    fonte = 'ocr';
+                }
+            } else {
+                // Imagem (foto/scan) → OCR direto
+                const w = await garantirWorker();
+                setEtapa('Reconhecendo texto…');
+                const { data } = await w.recognize(file);
+                texto = data.text || ''; confianca = (data.confidence ?? 0) / 100; fonte = 'ocr';
+            }
+
+            if (!texto || texto.trim().length < 15) {
+                setErro('Não consegui extrair texto suficiente. Tente um arquivo mais nítido, ou apenas a página da Ficha de Registro.');
+                return;
+            }
+
+            setEtapa('Interpretando os campos…');
             const { data } = await window.axios.post(
-                route('admin.funcionarios.extrair-documento'),
-                fd,
-                { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 180000 }
+                route('admin.funcionarios.extrair-texto'),
+                { texto, fonte, confianca }
             );
             setResultado(data);
         } catch (e) {
-            const msg =
-                (e?.code === 'ECONNABORTED'
-                    ? 'A leitura demorou demais e foi interrompida. Tente um arquivo menor/mais nítido ou apenas a página da Ficha.'
-                    : null) ||
-                e?.response?.data?.message ||
-                e?.response?.data?.errors?.arquivo?.[0] ||
-                'Falha ao processar o documento. Tente outro arquivo.';
-            setErro(msg);
+            setErro(e?.response?.data?.message || e?.message || 'Falha ao processar o documento. Tente outro arquivo.');
         } finally {
+            if (worker) { try { await worker.terminate(); } catch (_) { /* ignore */ } }
             setCarregando(false);
             if (inputRef.current) inputRef.current.value = '';
         }
@@ -93,7 +168,7 @@ export default function ImportadorDocumento({ onAplicar }) {
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
                         Carregue a <strong>Ficha de Registro de Empregado</strong> em PDF ou foto/imagem.
-                        O sistema lê os dados e preenche o formulário para você conferir antes de salvar.
+                        A leitura é feita <strong>no seu navegador</strong> e preenche o formulário para você conferir antes de salvar.
                     </p>
                 </div>
             </div>
@@ -103,7 +178,7 @@ export default function ImportadorDocumento({ onAplicar }) {
                 <div
                     onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
-                    onDrop={(e) => { e.preventDefault(); setDragOver(false); enviar(e.dataTransfer.files?.[0]); }}
+                    onDrop={(e) => { e.preventDefault(); setDragOver(false); processar(e.dataTransfer.files?.[0]); }}
                     onClick={() => inputRef.current?.click()}
                     className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
                         dragOver ? 'border-[#557bbb] bg-[#eef2f9]' : 'border-gray-200 hover:border-[#557bbb]/60 hover:bg-gray-50'
@@ -114,7 +189,7 @@ export default function ImportadorDocumento({ onAplicar }) {
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
                         className="hidden"
-                        onChange={(e) => enviar(e.target.files?.[0])}
+                        onChange={(e) => processar(e.target.files?.[0])}
                     />
                     <p className="text-sm font-medium text-gray-700">
                         Arraste o arquivo aqui ou <span className="text-[#557bbb] underline">clique para selecionar</span>
@@ -123,20 +198,27 @@ export default function ImportadorDocumento({ onAplicar }) {
                 </div>
             )}
 
-            {/* Carregando */}
+            {/* Carregando + progresso */}
             {carregando && (
-                <div className="flex items-center gap-3 rounded-lg bg-[#eef2f9] p-4 text-[#3a5a8c]">
-                    <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
-                    </svg>
-                    <span className="text-sm font-medium">
-                        Lendo <strong>{nomeArquivo}</strong>… (documentos escaneados podem levar alguns segundos)
-                    </span>
+                <div className="rounded-lg bg-[#eef2f9] p-4 text-[#3a5a8c]">
+                    <div className="flex items-center gap-3">
+                        <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+                        </svg>
+                        <span className="text-sm font-medium">
+                            {etapa || 'Lendo'} <strong>{nomeArquivo}</strong>
+                        </span>
+                    </div>
+                    {progresso > 0 && (
+                        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/70">
+                            <div className="h-full rounded-full bg-[#557bbb] transition-all" style={{ width: `${progresso}%` }} />
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* Erro de requisição */}
+            {/* Erro */}
             {erro && (
                 <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
                     {erro}
@@ -146,7 +228,6 @@ export default function ImportadorDocumento({ onAplicar }) {
             {/* Resultado */}
             {resultado && (
                 <div className="mt-4">
-                    {/* Qualidade inadequada */}
                     {!resultado.ok && (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                             <p className="text-sm font-semibold text-amber-800">
@@ -176,7 +257,6 @@ export default function ImportadorDocumento({ onAplicar }) {
                         </div>
                     )}
 
-                    {/* Leitura OK */}
                     {resultado.ok && (
                         <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4">
                             <div className="flex items-center justify-between flex-wrap gap-2">

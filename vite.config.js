@@ -83,6 +83,18 @@ export default defineConfig({
                 cleanupOutdatedCaches: true,
                 // Pré-cache do app-shell (HTML/JS/CSS/fonts)
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+                // NÃO pré-cachear libs grandes e de uso eventual — elas carregam
+                // sob demanda (lazy import). Mantém o app-shell leve e a instalação
+                // do SW rápida (evita baixar ~2 MB de ONNX/PDF.js/Tesseract à toa).
+                globIgnores: [
+                    '**/pdf-*.js',
+                    '**/pdf.worker*.mjs',
+                    '**/ort*.{js,mjs}',
+                    '**/tesseract*.js',
+                    '**/*.wasm',
+                ],
+                // Permite que chunks maiores sejam cacheados em runtime se necessário.
+                maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
                 // O offline.html mora em public/offline.html (raiz) — NÃO em
                 // public/build/ — então o globPatterns não pega. Adicionamos
                 // manualmente via additionalManifestEntries.

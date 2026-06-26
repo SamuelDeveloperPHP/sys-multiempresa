@@ -32,6 +32,7 @@
         "fabric": "^6.9.1",
         "html2canvas": "^1.4.1",
         "html5-qrcode": "^2.3.8",
+        "pdfjs-dist": "^6.0.227",
         "qrcode": "^1.5.4",
         "qrcode.react": "^4.2.0",
         "react": "^19.2.5",

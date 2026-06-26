@@ -433,6 +433,49 @@ class FuncionarioController extends Controller
         }
     }
 
+    /**
+     * Recebe o TEXTO já reconhecido no navegador (PDF.js + Tesseract.js) e roda
+     * apenas o parse/avaliação — dispensa rasterizador/OCR no servidor.
+     */
+    public function extrairTexto(Request $request, FichaRegistroExtractor $extractor)
+    {
+        $abilities = $this->abilitiesForCurrentUser('funcionarios');
+        if (! $abilities['create'] && ! $abilities['edit']) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Você não tem permissão para importar dados de funcionário.',
+            ], 403);
+        }
+
+        $data = $request->validate([
+            'texto'     => ['required', 'string', 'max:300000'],
+            'fonte'     => ['nullable', 'string', 'in:ocr,pdf_texto'],
+            'confianca' => ['nullable', 'numeric', 'min:0', 'max:1'],
+        ], [
+            'texto.required' => 'Não foi possível extrair texto do documento.',
+        ]);
+
+        try {
+            $resultado = $extractor->extrairDeTexto(
+                $data['texto'],
+                $data['fonte'] ?? 'ocr',
+                isset($data['confianca']) ? (float) $data['confianca'] : null
+            );
+            Log::info('func_import.extraido_texto', [
+                'ok'    => $resultado['ok'] ?? null,
+                'fonte' => $resultado['fonte'] ?? null,
+                'len'   => mb_strlen($data['texto']),
+            ]);
+            return response()->json($resultado);
+        } catch (Throwable $e) {
+            Log::error('Erro ao extrair texto do funcionario', ['msg' => $e->getMessage()]);
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Falha ao interpretar o texto do documento.',
+            ], 422);
+        }
+    }
+
     public function store(StoreFuncionarioRequest $request)
     {
         try {

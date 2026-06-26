@@ -93,6 +93,25 @@ class FichaRegistroExtractor
         ];
     }
 
+    /**
+     * Igual ao extrair(), mas recebe o TEXTO já reconhecido no cliente
+     * (PDF.js + Tesseract.js no navegador). Roda apenas o parse + avaliação —
+     * dispensa rasterizador/Tesseract no servidor.
+     */
+    public function extrairDeTexto(string $texto, string $fonte = 'ocr', ?float $confOcr = null): array
+    {
+        $texto     = $this->normalizarEspacos($texto);
+        $campos    = $this->parseFicha($texto, $fonte, $confOcr);
+        $qualidade = $this->avaliarQualidade($texto, $campos, $fonte, $confOcr);
+
+        return [
+            'ok'        => $qualidade['adequada'],
+            'fonte'     => $fonte,
+            'qualidade' => $qualidade,
+            'campos'    => $campos,
+        ];
+    }
+
     // ----------------------------------------------------------------- LEITURA
 
     /** Lê o texto de TODAS as páginas do PDF (a Ficha costuma ser a pág. 1). */

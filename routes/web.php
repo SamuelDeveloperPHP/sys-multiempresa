@@ -527,6 +527,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             Route::post('cadastros/funcionarios/store',          [\App\Http\Controllers\Admin\FuncionarioController::class, 'store'])->name('admin.funcionarios.store');
             // Importação de cadastro por documento (Ficha de Registro) — pré-preenche o form (sem IA)
             Route::post('cadastros/funcionarios/extrair-documento', [\App\Http\Controllers\Admin\FuncionarioController::class, 'extrairDocumento'])->name('admin.funcionarios.extrair-documento');
+            // OCR client-side (PDF.js + Tesseract.js): recebe o texto e só faz o parse
+            Route::post('cadastros/funcionarios/extrair-texto', [\App\Http\Controllers\Admin\FuncionarioController::class, 'extrairTexto'])->name('admin.funcionarios.extrair-texto');
             Route::get('cadastros/funcionarios/show/{funcionario}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'show'])->name('admin.funcionarios.show');
             // Emissão (preview + assinatura) e geração (snapshot) da ficha de EPI
             Route::get('cadastros/funcionarios/{funcionario}/ficha-epi', [\App\Http\Controllers\Admin\FuncionarioController::class, 'fichaEpi'])->name('admin.funcionarios.ficha-epi');
