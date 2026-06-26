@@ -47,11 +47,14 @@ export default function ImportadorDocumento({ onAplicar }) {
             const { data } = await window.axios.post(
                 route('admin.funcionarios.extrair-documento'),
                 fd,
-                { headers: { 'Content-Type': 'multipart/form-data' } }
+                { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 180000 }
             );
             setResultado(data);
         } catch (e) {
             const msg =
+                (e?.code === 'ECONNABORTED'
+                    ? 'A leitura demorou demais e foi interrompida. Tente um arquivo menor/mais nítido ou apenas a página da Ficha.'
+                    : null) ||
                 e?.response?.data?.message ||
                 e?.response?.data?.errors?.arquivo?.[0] ||
                 'Falha ao processar o documento. Tente outro arquivo.';
