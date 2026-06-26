@@ -125,12 +125,20 @@ class FichaRegistroExtractor
             return null;
         }
 
-        $max  = max(1, (int) config('funcionario_import.ocr_max_paginas', 3));
-        $pngs = $this->rasterizarPdf($pdfPath, $max);
+        $max = max(1, (int) config('funcionario_import.ocr_max_paginas', 3));
+
+        $raster = $this->resolverRasterizador(config('funcionario_import.rasterizador.bin', ''));
+        if ($raster === null) {
+            return ['erro' => 'PDF escaneado: nenhum rasterizador instalado no servidor. '
+                . 'Instale o Ghostscript (recomendado no Windows) ou o Poppler (pdftoppm).'];
+        }
+
+        $pngs = $this->rasterizarPdf($pdfPath, $max, $raster);
 
         if (empty($pngs)) {
-            return ['erro' => 'O PDF é uma imagem (escaneado) e não há rasterizador disponível para o OCR. '
-                . 'Instale o Ghostscript ou o Poppler (pdftoppm) no servidor.'];
+            return ['erro' => 'PDF escaneado: o rasterizador (' . basename($raster['bin']) . ') foi encontrado, '
+                . 'mas falhou ao executar (verifique storage/logs/laravel.log). Em servidor Windows com o Apache '
+                . 'rodando como serviço (SYSTEM), use o Ghostscript — o MiKTeX recusa rodar com privilégios elevados.'];
         }
 
         try {
@@ -204,14 +212,9 @@ class FichaRegistroExtractor
     }
 
     /** Rasteriza as primeiras $max páginas do PDF em PNG. Devolve os caminhos. */
-    private function rasterizarPdf(string $pdfPath, int $max): array
+    private function rasterizarPdf(string $pdfPath, int $max, array $raster): array
     {
-        $cfg    = config('funcionario_import.rasterizador');
-        $raster = $this->resolverRasterizador($cfg['bin'] ?? '');
-        if ($raster === null) {
-            return [];
-        }
-
+        $cfg     = config('funcionario_import.rasterizador');
         $dpi     = (int) ($cfg['dpi'] ?? 300);
         $timeout = (float) ($cfg['timeout'] ?? 120);
 
