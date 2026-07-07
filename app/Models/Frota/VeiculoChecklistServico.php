@@ -26,6 +26,7 @@ class VeiculoChecklistServico extends Model
         // Campos adicionados para módulo Mobile (offline-first)
         'responsavel', 'km_atual', 'hr_atual', 'respostas', 'observacao_geral', 'data_execucao',
         'sync_status', 'data_sincronizacao', 'sync_error', 'sync_attempts', 'synced_at',
+        'client_uuid', // idempotência do sync mobile (dedupe por UUID do device)
     ];
 
     protected $casts = [

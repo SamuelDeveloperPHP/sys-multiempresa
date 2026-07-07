@@ -19,6 +19,8 @@ class StoreAbastecimentoRequest extends FormRequest
         $companyId = \App\Helpers\CompanyContext::current()?->id;
 
         return [
+            // Idempotência: UUID gerado no device; o servidor deduplica por ele.
+            'client_uuid'    => ['nullable', 'string', 'max:64'],
             'veiculo_id'     => [
                 'required', 'integer',
                 Rule::exists('veiculos', 'id')->where(fn($q) => $companyId ? $q->where('company_id', $companyId) : $q),

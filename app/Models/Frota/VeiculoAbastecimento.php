@@ -24,6 +24,7 @@ class VeiculoAbastecimento extends Model
         'quantidade', 'valor_do_litro', 'valor_total',
         'arquivo_app', 'arquivo_servidor',
         'sync_status', 'data_sincronizacao', 'sync_error', 'sync_attempts', 'synced_at',
+        'client_uuid', // idempotência do sync mobile (dedupe por UUID do device)
     ];
 
     protected $casts = [

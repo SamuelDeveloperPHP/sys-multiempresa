@@ -25,6 +25,7 @@ class VeiculoDiarioBordo extends Model
         'horario_final', 'hr_atual', 'km_atual',
         'descricao_atividade', 'arquivo_app', 'arquivo_servidor',
         'sync_status', 'data_sincronizacao', 'sync_error', 'sync_attempts', 'synced_at',
+        'client_uuid', // idempotência do sync mobile (dedupe por UUID do device)
     ];
 
     protected $casts = [

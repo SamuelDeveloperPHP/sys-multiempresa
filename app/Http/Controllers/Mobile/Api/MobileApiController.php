@@ -67,6 +67,41 @@ class MobileApiController extends Controller
         return $veiculo;
     }
 
+    /**
+     * Idempotência do sync offline: se o cliente reenviar um create com o
+     * mesmo client_uuid (retry após resposta perdida), devolvemos o registro
+     * já criado em vez de gerar duplicata.
+     */
+    private function findByClientUuid(string $modelClass, ?string $uuid)
+    {
+        if (!$uuid) {
+            return null;
+        }
+        $query = $modelClass::query()->where('client_uuid', $uuid);
+        if ($companyId = $this->companyId()) {
+            $query->where('company_id', $companyId);
+        }
+        return $query->first();
+    }
+
+    /**
+     * Create com proteção contra corrida de retries simultâneos: se o índice
+     * unique de client_uuid barrar a duplicata, devolve o registro existente.
+     * Retorna [Model $rec, bool $jaExistia].
+     */
+    private function createComClientUuid(string $modelClass, array $payload): array
+    {
+        try {
+            return [$modelClass::create($payload), false];
+        } catch (\Illuminate\Database\QueryException $e) {
+            $existing = $this->findByClientUuid($modelClass, $payload['client_uuid'] ?? null);
+            if ($existing) {
+                return [$existing, true];
+            }
+            throw $e;
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Ping (health-check usado pelo useOnlineStatus)
     // -------------------------------------------------------------------------
@@ -211,10 +246,22 @@ class MobileApiController extends Controller
     {
         // Garante que o veículo pertence à empresa do usuário
         $this->veiculoDaEmpresa((int) $request->veiculo_id);
+
+        // Idempotência: reenvio do mesmo create devolve o registro existente
+        if ($existing = $this->findByClientUuid(VeiculoAbastecimento::class, $request->input('client_uuid'))) {
+            return response()->json(['status' => true, 'data' => $this->mapAbastecimento($existing), 'deduplicated' => true]);
+        }
+
         $payload = $this->normalizeAbastecimento($request->validated());
         $payload['company_id'] = $this->companyId();
-        $rec = VeiculoAbastecimento::create($payload);
-        return response()->json(['status' => true, 'data' => $this->mapAbastecimento($rec)], 201);
+        if ($uuid = $request->input('client_uuid')) {
+            $payload['client_uuid'] = $uuid;
+        }
+        [$rec, $jaExistia] = $this->createComClientUuid(VeiculoAbastecimento::class, $payload);
+        return response()->json(
+            ['status' => true, 'data' => $this->mapAbastecimento($rec), 'deduplicated' => $jaExistia],
+            $jaExistia ? 200 : 201
+        );
     }
 
     public function abastecimentosUpdate(UpdateAbastecimentoRequest $request, $id)
@@ -261,6 +308,7 @@ class MobileApiController extends Controller
     {
         return [
             'id'             => $r->id,
+            'client_uuid'    => $r->client_uuid,
             'veiculo_id'     => $r->veiculo_id,
             'data'           => optional($r->data_abastecimento)->toIso8601String(),
             'fornecedor'     => $r->fornecedor,
@@ -296,6 +344,12 @@ class MobileApiController extends Controller
         $veiculoId = (int) ($request->veiculo_id ?? $request->id_veiculo);
         $this->veiculoDaEmpresa($veiculoId);
 
+        // Idempotência ANTES da regra de ciclo: o replay de um create que já
+        // abriu ciclo não pode falhar com 422 — devolve o registro existente.
+        if ($existing = $this->findByClientUuid(VeiculoDiarioBordo::class, $request->input('client_uuid'))) {
+            return response()->json(['status' => true, 'data' => $this->mapDiario($existing), 'deduplicated' => true]);
+        }
+
         $user = Auth::user();
         // Abrir diário = abrir ciclo (default ABERTO). Valida regra "1 ciclo por motorista".
         if ($ciclo->ehAbertura($request->input('ciclo_status'))) {
@@ -305,8 +359,14 @@ class MobileApiController extends Controller
         $payload = $this->normalizeDiario($request->validated());
         $payload['company_id']  = $this->companyId();
         $payload['ciclo_status'] = strtoupper($request->input('ciclo_status', CicloAbertoService::STATUS_ABERTO));
-        $rec = VeiculoDiarioBordo::create($payload);
-        return response()->json(['status' => true, 'data' => $this->mapDiario($rec)], 201);
+        if ($uuid = $request->input('client_uuid')) {
+            $payload['client_uuid'] = $uuid;
+        }
+        [$rec, $jaExistia] = $this->createComClientUuid(VeiculoDiarioBordo::class, $payload);
+        return response()->json(
+            ['status' => true, 'data' => $this->mapDiario($rec), 'deduplicated' => $jaExistia],
+            $jaExistia ? 200 : 201
+        );
     }
 
     public function diarioUpdate(UpdateDiarioBordoRequest $request, $id)
@@ -361,6 +421,7 @@ class MobileApiController extends Controller
     {
         return [
             'id'           => $r->id,
+            'client_uuid'  => $r->client_uuid,
             'veiculo_id'   => $r->id_veiculo,
             'user_id'      => $r->id_user,
             'ciclo_status' => $r->ciclo_status,
@@ -466,6 +527,12 @@ class MobileApiController extends Controller
         $this->veiculoDaEmpresa($veiculoId);
         $user = Auth::user();
 
+        // Idempotência ANTES da regra de ciclo: o replay de um create que já
+        // abriu ciclo não pode falhar com 422 — devolve o registro existente.
+        if ($existing = $this->findByClientUuid(VeiculoChecklistServico::class, $request->input('client_uuid'))) {
+            return response()->json(['status' => true, 'data' => $this->mapChecklistServico($existing), 'deduplicated' => true]);
+        }
+
         // Abertura de checklist = abre ciclo. Encerramento (tipo/ciclo_status) não bloqueia.
         $ehAbertura = $ciclo->ehAbertura($request->input('ciclo_status'), $request->input('tipo'));
         if ($ehAbertura) {
@@ -475,8 +542,9 @@ class MobileApiController extends Controller
         $statusCiclo = strtoupper($request->input('ciclo_status')
             ?: ($ehAbertura ? CicloAbertoService::STATUS_ABERTO : CicloAbertoService::STATUS_FECHADO));
 
-        $rec = VeiculoChecklistServico::create([
+        [$rec, $jaExistia] = $this->createComClientUuid(VeiculoChecklistServico::class, [
             'company_id'    => $this->companyId(),
+            'client_uuid'   => $request->input('client_uuid'),
             'id_veiculo'    => $veiculoId,
             'id_checklist'  => $request->checklist_id,
             'status_ciclo'  => $statusCiclo,
@@ -489,7 +557,10 @@ class MobileApiController extends Controller
             'user_create'   => $user?->email,
             'id_user'       => $user?->id,
         ]);
-        return response()->json(['status' => true, 'data' => $this->mapChecklistServico($rec)], 201);
+        return response()->json(
+            ['status' => true, 'data' => $this->mapChecklistServico($rec), 'deduplicated' => $jaExistia],
+            $jaExistia ? 200 : 201
+        );
     }
 
     public function checklistServicosUpdate(UpdateChecklistServicoRequest $request, $id)
@@ -533,6 +604,7 @@ class MobileApiController extends Controller
         }
         return [
             'id'              => $r->id,
+            'client_uuid'     => $r->client_uuid,
             'veiculo_id'      => $r->id_veiculo,
             'checklist_id'    => $r->id_checklist,
             'user_id'         => $r->id_user,

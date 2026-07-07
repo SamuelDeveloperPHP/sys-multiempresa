@@ -3,16 +3,20 @@
 // Hook que expõe o estado da fila de sincronização (sync_queue):
 //   - pendingCount       : nº de itens com status pending|failed
 //   - failedCount        : nº de itens com status failed
+//   - rejectedCount      : nº de itens rejeitados pelo servidor (erro permanente)
+//   - rejectedItems      : itens rejeitados (para triagem manual na UI)
 //   - lastSyncAt         : ISO da última sincronização global
 //   - syncing            : true durante processAll
 //   - progress           : { percent, message }
 //   - sync()             : função para acionar processAll manualmente
+//   - retryRejected(id)  : devolve item rejeitado à fila
+//   - discardRejected(id): descarta item rejeitado (e ajusta o registro local)
 // -----------------------------------------------------------------------------
 
 import { useState, useCallback, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import db, { getMeta, setMeta } from '../db';
-import { processAll } from '../syncQueue';
+import { processAll, retryRejected, discardRejected } from '../syncQueue';
 
 export default function useSyncStatus() {
     // Contagem reativa via useLiveQuery — re-renderiza quando a tabela muda
@@ -26,6 +30,14 @@ export default function useSyncStatus() {
         () => db.sync_queue.where('status').equals('failed').count(),
         [],
         0
+    );
+
+    // Rejeitados pelo servidor (erro permanente) — fora da fila automática,
+    // aguardando triagem manual do usuário.
+    const rejectedItems = useLiveQuery(
+        () => db.sync_queue.where('status').equals('rejected').sortBy('created_at'),
+        [],
+        []
     );
 
     const lastSyncMeta = useLiveQuery(
@@ -63,10 +75,14 @@ export default function useSyncStatus() {
     return {
         pendingCount: pendingCount || 0,
         failedCount: failedCount || 0,
+        rejectedCount: rejectedItems?.length || 0,
+        rejectedItems: rejectedItems || [],
         lastSyncAt: lastSyncMeta?.value || null,
         syncing,
         progress,
         lastResult,
         sync,
+        retryRejected,
+        discardRejected,
     };
 }
