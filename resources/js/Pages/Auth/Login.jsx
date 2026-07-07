@@ -3,15 +3,17 @@
 // Tela de login — port das funcionalidades do legado (RN) para PWA/web.
 //
 // Funcionalidades:
-//   - Login normal (POST /login via Inertia) quando online
+//   - Login normal (POST /login via Inertia) quando online. No sucesso,
+//     PROVISIONA a credencial offline (PBKDF2 — offline/offlineAuth.js §5)
+//   - Login OFFLINE com senha: valida contra o hash PBKDF2 local em tempo
+//     constante (substitui o antigo bypass sem senha via authMarker)
 //   - Login biométrico (WebAuthn) quando suportado + ativado
-//   - Login offline (bypass para /mobile/veiculos) quando há marker do motorista
 //   - Banner de status de rede em 4 estados (online bom, sinal fraco, sem
 //     conexão, modo offline manual)
 //   - Checkbox "Acessar sem internet" — força modo offline mesmo com sinal OK
 //   - Toggle show/hide password (ícone eye / eye-slash)
 //   - Botão dinâmico: "Acessar (ONLINE)" azul vs "Acessar (OFFLINE)" laranja
-//   - Auto-bypass quando offline + marker motorista (timer 1.2s)
+//   - Auto-redirect quando offline + SESSÃO offline ainda válida (timer 1.2s)
 //
 // Inspirado em: C:\wamp64\www\app_engeativos_v002\src\pages\Login\index.js
 // -----------------------------------------------------------------------------
@@ -19,10 +21,16 @@
 import { useEffect, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import AuthLayout from '../../Layouts/AuthLayout';
-import { getAuthMarker } from '@/offline/authMarker';
 import { isBiometriaActive } from '@/Components/Mobile/BiometriaSetup';
 import { loginBiometric, isSupported as bioApiSupported, friendlyError } from '@/offline/webauthn';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+import {
+    provisionCredential,
+    getCredential,
+    verifyOfflinePassword,
+    getOfflineSession,
+    startOfflineSession,
+} from '@/offline/offlineAuth';
 
 // Avalia qualidade do sinal via Network Information API (quando disponível).
 // Retorna 'good' | 'fair' | 'poor'. Usado para sugerir login OFFLINE quando
@@ -47,8 +55,11 @@ export default function Login({ status, canResetPassword }) {
     // Status de conexão real (ping + navigator + modo forçado)
     const { online, deviceOffline, forcedOffline, setForcedOffline } = useOnlineStatus();
 
-    // Marker: este dispositivo já logou aqui antes? Lido do localStorage.
-    const [marker, setMarker] = useState(null);
+    // Credencial offline provisionada (PBKDF2 no IndexedDB) + sessão offline ativa
+    const [offlineCred, setOfflineCred] = useState(null);
+    const [offlineSession, setOfflineSession] = useState(null);
+    const [offlineError, setOfflineError] = useState(null);
+    const [offlineWorking, setOfflineWorking] = useState(false);
     const [bypassing, setBypassing] = useState(false);
 
     // Estado da senha (toggle visibility)
@@ -59,13 +70,15 @@ export default function Login({ status, canResetPassword }) {
 
     // Modo efetivo do login (decide o que o botão faz e como aparece)
     //   - 'online'  : faz POST /login (requer internet)
-    //   - 'offline' : abre direto /mobile/veiculos (requer marker motorista)
+    //   - 'offline' : valida a senha contra o hash PBKDF2 local
     // forcedOffline (checkbox) OU !online → modo offline
     const effectiveMode = (forcedOffline || !online) ? 'offline' : 'online';
-    const canOfflineLogin = marker?.id && marker?.type === 'motorista';
+    // Login offline exige credencial provisionada (1º acesso online já feito).
+    const canOfflineLogin = !!offlineCred?.hash;
 
     useEffect(() => {
-        setMarker(getAuthMarker());
+        getCredential().then(setOfflineCred).catch(() => {});
+        getOfflineSession().then(setOfflineSession).catch(() => {});
     }, []);
 
     useEffect(() => {
@@ -78,18 +91,19 @@ export default function Login({ status, canResetPassword }) {
         return () => clearInterval(i);
     }, []);
 
-    // AUTO-BYPASS: quando dispositivo está offline DE VERDADE (não forçado),
-    // e tem marker motorista, redireciona automaticamente para /mobile/veiculos
-    // depois de 1.2s. Se for forçado manual, o usuário pode clicar no botão.
+    // AUTO-REDIRECT: quando o dispositivo está offline DE VERDADE (não forçado)
+    // e ainda existe uma SESSÃO offline válida (não expirada), redireciona
+    // automaticamente após 1.2s — o usuário "continua logado".
+    // Sem sessão válida, fica na tela: o login offline exige senha.
     useEffect(() => {
-        if (deviceOffline && canOfflineLogin && !bypassing) {
+        if (deviceOffline && offlineSession?.user_id && !bypassing) {
             setBypassing(true);
             const timer = setTimeout(() => {
                 window.location.href = '/mobile/veiculos';
             }, 1200);
             return () => clearTimeout(timer);
         }
-    }, [deviceOffline, canOfflineLogin, bypassing]);
+    }, [deviceOffline, offlineSession, bypassing]);
 
     // ===== Biometria (WebAuthn) =====
     const [bioSupported, setBioSupported] = useState(false);
@@ -122,17 +136,46 @@ export default function Login({ status, canResetPassword }) {
         }
     };
 
-    // Submit: decide entre login online (POST) ou offline (redirect direto)
+    // Submit: decide entre login online (POST) ou offline (PBKDF2 local)
     const submit = (e) => {
         e.preventDefault();
+        setOfflineError(null);
+
         if (effectiveMode === 'offline') {
-            if (canOfflineLogin) {
-                window.location.href = '/mobile/veiculos';
-            }
-            // Se não tem marker, botão já está desabilitado — não cai aqui
+            // ===== LOGIN OFFLINE: valida a senha contra o hash PBKDF2 local =====
+            if (!canOfflineLogin || offlineWorking) return;
+            setOfflineWorking(true);
+            verifyOfflinePassword(data.email, data.password)
+                .then((res) => {
+                    if (res.ok) {
+                        window.location.href = '/mobile/veiculos';
+                    } else {
+                        setOfflineError(res.error || 'Não foi possível validar o acesso offline.');
+                        setOfflineWorking(false);
+                    }
+                })
+                .catch((err) => {
+                    console.error('[Login offline] erro:', err);
+                    setOfflineError('Erro ao validar o acesso offline.');
+                    setOfflineWorking(false);
+                });
             return;
         }
-        post('/login');
+
+        // ===== LOGIN ONLINE: POST /login. No sucesso, provisiona a credencial
+        // offline (o servidor acabou de validar esta senha) e abre a sessão.
+        // Captura em variável local: o form pode ser resetado no redirect.
+        const typedPassword = data.password;
+        post('/login', {
+            onSuccess: (page) => {
+                const user = page?.props?.auth?.user;
+                if (!user?.id) return;
+                // Best-effort: falha aqui não pode atrapalhar o login online.
+                provisionCredential(user, typedPassword)
+                    .then((ok) => { if (ok) return startOfflineSession(user); })
+                    .catch(() => {});
+            },
+        });
     };
 
     // ============= Banner de status de rede (texto + cor) =============
@@ -145,9 +188,11 @@ export default function Login({ status, canResetPassword }) {
     } else if (deviceOffline) {
         bannerIcon = 'fa-wifi-slash text-red-600';
         bannerText = 'Sem conexão — apenas OFFLINE disponível';
-        bannerSub = canOfflineLogin
-            ? 'Vamos abrir o app com seus dados em cache.'
-            : 'Conecte à internet para fazer o primeiro login.';
+        bannerSub = offlineSession?.user_id
+            ? 'Você ainda está logado — vamos abrir o app com seus dados.'
+            : canOfflineLogin
+                ? 'Digite sua senha para entrar no modo offline.'
+                : 'Faça o primeiro acesso online para habilitar o modo offline.';
         bannerBg = 'bg-red-50 border-red-200 text-red-800';
     } else if (signal === 'poor' || signal === 'fair') {
         bannerIcon = 'fa-triangle-exclamation text-amber-600';
@@ -168,6 +213,7 @@ export default function Login({ status, canResetPassword }) {
 
     const submitDisabled =
         processing
+        || offlineWorking
         || (effectiveMode === 'online' && !online)
         || (effectiveMode === 'offline' && !canOfflineLogin);
 
@@ -184,16 +230,16 @@ export default function Login({ status, canResetPassword }) {
 
             {status && <div className="mt-4 font-medium text-sm text-green-600">{status}</div>}
 
-            {/* ============= Auto-bypass banner ============= */}
-            {deviceOffline && canOfflineLogin && (
+            {/* ============= Auto-redirect: sessão offline ainda válida ============= */}
+            {deviceOffline && offlineSession?.user_id && (
                 <div className="mt-4 flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-3">
                     <i className={`fa-solid ${bypassing ? 'fa-arrow-right-to-bracket fa-bounce' : 'fa-circle-check'} text-emerald-600 mt-0.5`} />
                     <div className="text-xs flex-1">
                         <p className="font-semibold mb-0.5">
-                            {bypassing ? 'Abrindo modo offline…' : `Bem-vindo de volta, ${marker?.name?.split(' ')[0] || ''}`}
+                            {bypassing ? 'Abrindo modo offline…' : `Bem-vindo de volta, ${offlineSession?.name?.split(' ')[0] || ''}`}
                         </p>
                         <p className="text-emerald-700 leading-relaxed">
-                            Você já tem acesso liberado neste dispositivo.
+                            Sua sessão offline ainda está ativa.
                             {bypassing
                                 ? ' Redirecionando para Veículos…'
                                 : ' Vamos abrir o app com seus dados em cache.'}
@@ -288,17 +334,25 @@ export default function Login({ status, canResetPassword }) {
                     </label>
                 )}
 
+                {/* ============= Erro do login offline ============= */}
+                {offlineError && (
+                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-xs">
+                        <i className="fa-solid fa-circle-exclamation mt-0.5" />
+                        <span className="flex-1">{offlineError}</span>
+                    </div>
+                )}
+
                 {/* ============= BOTÃO PRINCIPAL ============= */}
                 <div>
                     <button type="submit" disabled={submitDisabled}
                         className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${buttonClasses}`}>
-                        {processing ? (
+                        {(processing || offlineWorking) ? (
                             <><i className="fa-solid fa-spinner fa-spin mr-2" /> Autenticando…</>
                         ) : effectiveMode === 'offline' ? (
                             canOfflineLogin ? (
                                 <><i className="fa-solid fa-wifi-slash mr-2" /> Acessar (OFFLINE)</>
                             ) : (
-                                <><i className="fa-solid fa-wifi-slash mr-2" /> Sem internet — login indisponível</>
+                                <><i className="fa-solid fa-wifi-slash mr-2" /> Faça o primeiro acesso online</>
                             )
                         ) : (
                             <><i className="fa-solid fa-right-to-bracket mr-2" /> Acessar (ONLINE)</>

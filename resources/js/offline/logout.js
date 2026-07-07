@@ -18,6 +18,7 @@
 
 import { router } from '@inertiajs/react';
 import { clearAuthMarker } from './authMarker';
+import { clearOfflineSession } from './offlineAuth';
 import { getNetworkStatus } from './hooks/useOnlineStatus';
 
 // Chaves de storage limpas no logout (qualquer cache local do app).
@@ -31,9 +32,16 @@ const STORAGE_KEYS_TO_CLEAR = [
 
 /**
  * Limpa storage local relacionado ao usuário logado.
+ *
+ * IMPORTANTE: encerra a SESSÃO offline mas MANTÉM a credencial PBKDF2
+ * (db.credenciais) — assim, após o logout, o usuário ainda consegue entrar
+ * offline digitando a senha (validada contra o hash local).
  */
-function clearLocalAuthData() {
+async function clearLocalAuthData() {
     clearAuthMarker();
+    // Aguarda: o redirect logo em seguida abortaria a escrita no IndexedDB e
+    // deixaria a sessão offline viva após o logout.
+    try { await clearOfflineSession(); } catch (_) { /* best-effort */ }
     if (typeof localStorage === 'undefined') return;
     for (const key of STORAGE_KEYS_TO_CLEAR) {
         try { localStorage.removeItem(key); } catch (_) { /* ignore */ }
@@ -51,7 +59,7 @@ export async function logoutSafely(opts = {}) {
     const { redirectTo = '/login', forceOffline = false } = opts;
 
     // Limpa storage local primeiro — em ambos os caminhos.
-    clearLocalAuthData();
+    await clearLocalAuthData();
 
     // Decide se vai tentar POST (precisa de internet REAL, não só navigator.onLine)
     const { online } = getNetworkStatus();

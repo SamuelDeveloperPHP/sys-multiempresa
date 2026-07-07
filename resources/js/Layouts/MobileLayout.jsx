@@ -15,24 +15,51 @@ import SyncButton from '@/Components/Mobile/SyncButton';
 import InstallPrompt from '@/Components/Mobile/InstallPrompt';
 import OpenCyclesBanner from '@/Components/Mobile/OpenCyclesBanner';
 import useSyncStatus from '@/offline/hooks/useSyncStatus';
+import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
 import { warmupMobileCache } from '@/offline/warmupCache';
 import { setAuthMarker, clearAuthMarker } from '@/offline/authMarker';
+import { renewOfflineSession, getOfflineSession, ensurePersistentStorage } from '@/offline/offlineAuth';
 import { logoutSafely } from '@/offline/logout';
 
 export default function MobileLayout({ header, backUrl, children, hideBottomNav = false }) {
     const { auth } = usePage().props;
     const { user } = auth || {};
     const [menuOpen, setMenuOpen] = useState(false);
+    const { online } = useOnlineStatus();
 
     // Persiste "auth marker" no localStorage quando temos auth.user válido.
-    // Esse marker é lido pelo /login quando offline para fazer bypass automático
-    // (se já logou aqui antes, redireciona direto para /mobile/veiculos em vez
-    // de exibir tela de login impossível de prosseguir sem internet).
+    // (Mantido por compatibilidade; a fonte de verdade do acesso offline agora
+    // é a SESSÃO offline gerenciada pelo offline/offlineAuth.js.)
     useEffect(() => {
         if (user?.id) {
             setAuthMarker(user);
         }
     }, [user?.id]);
+
+    // ===== Sessão offline (arquitetura.md §5) =====
+    // ONLINE: a página veio do servidor com sessão Laravel válida → renova a
+    // janela offline (TTL) e garante storage persistente (iOS pode limpar
+    // IndexedDB de PWA pouco usado).
+    // OFFLINE: página veio do cache do SW (sem validação de servidor) → exige
+    // sessão offline válida; sem ela, volta para /login (que offline pede a
+    // senha contra o hash PBKDF2 local).
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                if (online && user?.id) {
+                    await renewOfflineSession(user);
+                    await ensurePersistentStorage();
+                } else if (!online) {
+                    const session = await getOfflineSession();
+                    if (!cancelled && !session) {
+                        window.location.replace('/login');
+                    }
+                }
+            } catch (_) { /* gate é best-effort — nunca derruba a página */ }
+        })();
+        return () => { cancelled = true; };
+    }, [online, user?.id]);
 
     // Pre-warm do cache de navegação: quando o usuário abre qualquer página
     // mobile estando online, disparamos fetch em background das outras rotas

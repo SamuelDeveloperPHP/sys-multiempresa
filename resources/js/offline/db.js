@@ -52,6 +52,13 @@ db.version(3).stores({
     checklist_itens: 'id, checklist_id, veiculo_id',
 });
 
+// ---------- v4: credenciais do login offline (arquitetura.md §5) ----------
+// Guarda o hash PBKDF2 (+ salt + iterações) do ÚLTIMO usuário que logou
+// online neste device. NUNCA a senha em texto puro. Ver offline/offlineAuth.js.
+db.version(4).stores({
+    credenciais: 'id',
+});
+
 // -----------------------------------------------------------------------------
 // API utilitária para gerar IDs locais temporários
 // -----------------------------------------------------------------------------
@@ -83,10 +90,15 @@ export async function setLastSync(tableName, isoDate = null) {
 }
 
 // -----------------------------------------------------------------------------
-// Limpa todos os dados locais (útil em logout)
+// Limpa todos os dados locais (útil em logout).
+// Por padrão PRESERVA 'credenciais' — apagá-la desabilitaria o login offline
+// até o próximo acesso online (ver offline/offlineAuth.js). Passe
+// { keepCredentials: false } para um wipe completo (ex.: troca de device).
 // -----------------------------------------------------------------------------
-export async function clearAllLocal() {
-    const names = db.tables.map(t => t.name);
+export async function clearAllLocal({ keepCredentials = true } = {}) {
+    const names = db.tables
+        .map(t => t.name)
+        .filter(name => !(keepCredentials && name === 'credenciais'));
     await db.transaction('rw', names, async () => {
         for (const name of names) {
             await db.table(name).clear();
