@@ -40,6 +40,8 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
     const [veiculo, setVeiculo] = useState(null);
     const [template, setTemplate] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
+    const [reloadKey, setReloadKey] = useState(0); // "Tentar novamente" re-dispara o load
     const [respostas, setRespostas] = useState({}); // { item_id: { ok, obs, foto_data_url } }
     const [meta, setMeta] = useState({
         responsavel: auth?.user?.name || '',
@@ -56,25 +58,40 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
     useEffect(() => {
         (async () => {
             setLoading(true);
+            setLoadError(null);
             try {
                 const v = await veiculosRepo.find(id);
                 setVeiculo(v?.veiculo || v);
-                const tpl = await repo.findChecklist(tplId);
-                setTemplate(tpl);
-                if (tpl?.itens) {
+
+                let tpl = await repo.findChecklist(tplId);
+                // Deep-link/refresh com cache frio: o template só é populado ao
+                // visitar o Index do checklist. Se ausente (ou sem itens),
+                // tenta sincronizar direto do servidor antes de desistir.
+                if (!tpl?.itens?.length) {
+                    try {
+                        await repo.syncChecklists(id);
+                        tpl = await repo.findChecklist(tplId);
+                    } catch (_) { /* offline/servidor indisponível — tratado abaixo */ }
+                }
+
+                if (tpl?.itens?.length) {
+                    setTemplate(tpl);
                     const init = {};
                     tpl.itens.forEach((it) => {
                         init[it.id] = { ok: null, obs: '', foto_data_url: null };
                     });
                     setRespostas(init);
+                } else {
+                    setTemplate(null);
+                    setLoadError('Este checklist ainda não está disponível neste dispositivo. Conecte-se à internet e tente novamente.');
                 }
             } catch (err) {
-                setError(err.message);
+                setLoadError(err.message || 'Falha ao carregar o checklist.');
             } finally {
                 setLoading(false);
             }
         })();
-    }, [id, tplId]);
+    }, [id, tplId, reloadKey]);
 
     const setResposta = (itemId, key, value) => {
         setRespostas((r) => ({ ...r, [itemId]: { ...(r[itemId] || {}), [key]: value } }));
@@ -91,6 +108,16 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
         const naoRespondidos = obrigatorios.filter((i) => respostas[i.id]?.ok == null);
         if (naoRespondidos.length) {
             setError(`Responda os ${naoRespondidos.length} item(s) obrigatório(s).`);
+            return;
+        }
+        // Não conformidade exige evidência: observação obrigatória
+        // (o servidor valida a mesma regra — ver StoreChecklistServicoRequest).
+        const semObs = (template?.itens || []).filter(
+            (i) => respostas[i.id]?.ok === false && !(respostas[i.id]?.obs || '').trim()
+        );
+        if (semObs.length) {
+            const nomes = semObs.map((i) => i.nome || i.descricao).slice(0, 3).join(', ');
+            setError(`Descreva a não conformidade de: ${nomes}${semObs.length > 3 ? '…' : ''}`);
             return;
         }
         setSaving(true);
@@ -126,13 +153,43 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
         }
     }, [respostas, meta, id, tplId, template, auth, userId, tipo, isAbertura]);
 
-    if (loading || !template) {
+    if (loading) {
         return (
             <MobileLayout header={isAbertura ? 'Abrir Checklist' : 'Encerrar Checklist'}
                 backUrl={`/mobile/veiculos/${id}/checklist`} hideBottomNav>
                 <div className="p-8 text-center text-gray-400">
                     <i className="fa-solid fa-spinner fa-spin text-2xl mb-2" />
                     <p className="text-sm">Carregando…</p>
+                </div>
+            </MobileLayout>
+        );
+    }
+
+    // Template indisponível (cache frio + sem rede): erro claro com retry,
+    // em vez do antigo spinner infinito.
+    if (!template) {
+        return (
+            <MobileLayout header={isAbertura ? 'Abrir Checklist' : 'Encerrar Checklist'}
+                backUrl={`/mobile/veiculos/${id}/checklist`} hideBottomNav>
+                <div className="p-4 space-y-3">
+                    <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 text-amber-900 text-center">
+                        <i className="fa-solid fa-cloud-arrow-down text-3xl text-amber-600 mb-2" />
+                        <h3 className="font-bold text-base mb-1">Checklist indisponível offline</h3>
+                        <p className="text-sm leading-relaxed">
+                            {loadError || 'Não foi possível carregar este checklist.'}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setReloadKey((k) => k + 1)}
+                        className="block w-full py-2.5 bg-[#557bbb] text-white rounded-lg font-semibold text-sm text-center"
+                    >
+                        <i className="fa-solid fa-rotate-right mr-1" /> Tentar novamente
+                    </button>
+                    <Link href={`/mobile/veiculos/${id}/checklist`}
+                        className="block w-full py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium text-sm text-center">
+                        Voltar
+                    </Link>
                 </div>
             </MobileLayout>
         );
@@ -276,8 +333,10 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
                                 {invalida && (
                                     <textarea rows={2} value={resp.obs || ''}
                                         onChange={(e) => setResposta(item.id, 'obs', e.target.value)}
-                                        placeholder="Descreva a não conformidade…"
-                                        className="w-full px-2 py-1.5 mb-2 rounded-md border border-gray-200 text-xs resize-none focus:outline-none focus:border-red-400" />
+                                        placeholder="Descreva a não conformidade… (obrigatório)"
+                                        className={`w-full px-2 py-1.5 mb-2 rounded-md border text-xs resize-none focus:outline-none focus:border-red-400 ${
+                                            (resp.obs || '').trim() ? 'border-gray-200' : 'border-red-300 bg-red-50/50'
+                                        }`} />
                                 )}
 
                                 {/* Foto do item */}

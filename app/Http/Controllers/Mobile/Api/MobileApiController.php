@@ -29,6 +29,7 @@ use App\Services\Frota\CicloAbertoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 
 /**
@@ -100,6 +101,62 @@ class MobileApiController extends Controller
             }
             throw $e;
         }
+    }
+
+    /**
+     * Extrai as fotos base64 (foto_data_url) das respostas de checklist e as
+     * salva como ARQUIVO no disco público (mesma convenção do SyncController
+     * legado: uploads/aplicativo/{contexto}/). No JSON persistido fica apenas
+     * 'foto_path' — sem isso, cada execução de checklist inflaria a coluna
+     * `respostas` com megabytes de base64 (estourando post_max_size /
+     * max_allowed_packet e inchando o banco).
+     *
+     * Entradas já validadas pelo FormRequest (formato data:image + tamanho).
+     * 'foto_path' pré-existente (edição de registro já sincronizado) passa
+     * intacto; base64 inválido é descartado sem derrubar o request.
+     */
+    private function extrairFotosRespostas(?array $respostas): ?array
+    {
+        if (!$respostas) {
+            return $respostas;
+        }
+        foreach ($respostas as $i => $r) {
+            $dataUrl = $r['foto_data_url'] ?? null;
+            unset($respostas[$i]['foto_data_url']);
+            if (!$dataUrl || !is_string($dataUrl)) {
+                continue;
+            }
+            if (!preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,/', $dataUrl, $m)) {
+                continue;
+            }
+            $conteudo = base64_decode(substr($dataUrl, strpos($dataUrl, ',') + 1), true);
+            if (!$conteudo) {
+                continue;
+            }
+            $ext = $m[1] === 'jpg' ? 'jpeg' : $m[1];
+            $nome = uniqid('chk_', true) . '.' . $ext;
+            $caminho = 'uploads/aplicativo/checklist_servicos/' . $nome;
+            Storage::disk('public')->put($caminho, $conteudo);
+            $respostas[$i]['foto_path'] = $caminho;
+        }
+        return array_values($respostas);
+    }
+
+    /**
+     * Complementa cada resposta com 'foto_url' navegável a partir do
+     * 'foto_path' persistido (para o front exibir a foto sincronizada).
+     */
+    private function respostasComFotoUrl(?array $respostas): ?array
+    {
+        if (!$respostas) {
+            return $respostas;
+        }
+        return array_map(function ($r) {
+            if (is_array($r) && !empty($r['foto_path'])) {
+                $r['foto_url'] = url('storage/' . ltrim($r['foto_path'], '/'));
+            }
+            return $r;
+        }, $respostas);
     }
 
     // -------------------------------------------------------------------------
@@ -479,6 +536,9 @@ class MobileApiController extends Controller
                 'descricao' => $i->descricao ?? null,
                 'periodo_maq_vei' => $i->periodo_maq_vei ?? null,
                 'tipo_itens' => $i->tipo_itens ?? null,
+                // Não existe config por item no schema (veiculo_checklist_itens
+                // não tem coluna 'obrigatorio'). Regra de negócio vigente:
+                // TODOS os itens do checklist devem ser respondidos.
                 'obrigatorio' => true,
             ]),
         ]);
@@ -500,8 +560,25 @@ class MobileApiController extends Controller
 
     public function checklistsAll()
     {
-        $checklists = VeiculoChecklist::all();
-        $itens = VeiculoChecklistItem::all();
+        // ESCOPO DE EMPRESA obrigatório: sem ele este endpoint vazava os
+        // checklists de TODAS as empresas (multi-tenant). Mesmo filtro de
+        // situação usado em checklistsByVeiculo.
+        $companyId = $this->companyId();
+
+        $qc = VeiculoChecklist::query()->where(function ($q) {
+            $q->whereNull('situacao')->orWhere('situacao', 'Ativo')->orWhere('situacao', 'ativo');
+        });
+        if ($companyId) {
+            $qc->where('company_id', $companyId);
+        }
+        $checklists = $qc->get();
+
+        $itens = VeiculoChecklistItem::whereIn('id_checklist', $checklists->pluck('id'))
+            ->where(function ($q) {
+                $q->whereNull('situacao')->orWhere('situacao', 'Ativo')->orWhere('situacao', 'ativo');
+            })
+            ->get();
+
         return response()->json([
             'status' => true,
             'checklists' => $checklists,
@@ -542,6 +619,10 @@ class MobileApiController extends Controller
         $statusCiclo = strtoupper($request->input('ciclo_status')
             ?: ($ehAbertura ? CicloAbertoService::STATUS_ABERTO : CicloAbertoService::STATUS_FECHADO));
 
+        // Usa as respostas VALIDADAS (whitelist de chaves) e extrai as fotos
+        // base64 para arquivos — o JSON persiste apenas foto_path.
+        $respostas = $this->extrairFotosRespostas($request->validated()['respostas'] ?? null);
+
         [$rec, $jaExistia] = $this->createComClientUuid(VeiculoChecklistServico::class, [
             'company_id'    => $this->companyId(),
             'client_uuid'   => $request->input('client_uuid'),
@@ -552,7 +633,7 @@ class MobileApiController extends Controller
             'responsavel'   => $request->responsavel,
             'km_atual'      => $request->km_atual,
             'hr_atual'      => $request->hr_atual,
-            'respostas'     => $request->respostas,
+            'respostas'     => $respostas,
             'observacao_geral' => $request->observacao_geral,
             'user_create'   => $user?->email,
             'id_user'       => $user?->id,
@@ -572,7 +653,10 @@ class MobileApiController extends Controller
             'data', 'responsavel', 'km_atual', 'hr_atual', 'observacao_geral'
         ]);
         if ($request->has('respostas')) {
-            $payload['respostas'] = $request->respostas;  // cast 'array' no model serializa
+            // Validadas + fotos base64 extraídas para arquivo (foto_path).
+            $payload['respostas'] = $this->extrairFotosRespostas(
+                $request->validated()['respostas'] ?? []
+            );
         }
         if (isset($payload['data'])) {
             $payload['data_execucao'] = $payload['data'];
@@ -602,6 +686,7 @@ class MobileApiController extends Controller
         if (is_string($respostas)) {
             $respostas = json_decode($respostas, true) ?: [];
         }
+        $respostas = $this->respostasComFotoUrl($respostas);
         return [
             'id'              => $r->id,
             'client_uuid'     => $r->client_uuid,

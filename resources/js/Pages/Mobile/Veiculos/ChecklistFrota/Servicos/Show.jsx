@@ -94,6 +94,8 @@ export default function ChecklistServicoShow({ veiculoId, servicoId }) {
                                     {r.obs && (
                                         <p className="text-[11px] text-gray-600 mt-1 italic">"{r.obs}"</p>
                                     )}
+                                    {/* Foto: local (base64, pendente) ou do servidor (foto_url) */}
+                                    <FotoEvidencia src={r.foto_data_url || r.foto_url} />
                                 </div>
                             </div>
                         </div>
@@ -135,5 +137,22 @@ function Row({ label, value }) {
             <span className="text-gray-500">{label}:</span>
             <span className="text-gray-800">{value}</span>
         </div>
+    );
+}
+
+// Miniatura da foto de evidência; toque alterna para tamanho cheio.
+function FotoEvidencia({ src }) {
+    const [expanded, setExpanded] = useState(false);
+    if (!src) return null;
+    return (
+        <img
+            src={src}
+            alt="Foto de evidência"
+            loading="lazy"
+            onClick={() => setExpanded((v) => !v)}
+            className={`mt-2 rounded-md border border-gray-200 cursor-zoom-in object-cover transition-all ${
+                expanded ? 'w-full h-auto cursor-zoom-out' : 'w-20 h-20'
+            }`}
+        />
     );
 }
