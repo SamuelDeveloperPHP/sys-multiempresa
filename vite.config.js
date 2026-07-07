@@ -72,6 +72,10 @@ export default defineConfig({
                 ],
             },
             workbox: {
+                // Background Sync (bônus Android/Chrome — arquitetura.md §7):
+                // script autocontido anexado ao SW gerado. Absoluto porque o
+                // sw.js é servido na raiz (/sw.js) pela rota Laravel.
+                importScripts: ['/sw-bg-sync.js'],
                 // Atualização agressiva: novo SW assume controle imediatamente
                 // sem esperar todas as abas/PWA fecharem. Sem isso, mudanças
                 // no SW só pegam efeito depois do usuário fechar tudo —

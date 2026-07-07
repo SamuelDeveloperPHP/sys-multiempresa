@@ -45,7 +45,54 @@ export async function enqueue({ table, op, payload, endpoint, local_id = null, s
         created_at: now,
         updated_at: now,
     });
+    // Bônus Android/Chrome: agenda envio em background (app fechado).
+    // Fire-and-forget — iOS/Safari não suporta e o envio manual continua
+    // sendo o caminho principal (arquitetura.md §7).
+    registerBackgroundSync();
     return id;
+}
+
+// -----------------------------------------------------------------------------
+// Background Sync (bônus Android/Chrome) — degradação limpa onde não há suporte
+// -----------------------------------------------------------------------------
+export const BG_SYNC_TAG = 'sga-sync-pendentes';
+
+export async function registerBackgroundSync() {
+    try {
+        if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false;
+        if (!('SyncManager' in window)) return false; // iOS/Safari: sem suporte
+        const reg = await navigator.serviceWorker.ready;
+        await reg.sync.register(BG_SYNC_TAG);
+        return true;
+    } catch (_) {
+        return false; // permissão negada / SW não registrado — segue manual
+    }
+}
+
+// Reconcilia itens processados pelo SW em background (public/sw-bg-sync.js):
+// o SW só atualiza a FILA (sw_processed + server_data); aplicar o resultado
+// nas tabelas locais (onSyncSuccess / markRecordRejected) é feito aqui, na
+// próxima abertura do app. Chamado pelo MobileLayout.
+export async function reconcileSwResults() {
+    let aplicados = 0;
+    const processados = await db.sync_queue
+        .filter((i) => i.sw_processed === true)
+        .toArray();
+
+    for (const item of processados) {
+        try {
+            if (item.status === 'completed') {
+                await onSyncSuccess(item, item.server_data || null);
+            } else if (item.status === 'rejected') {
+                await markRecordRejected(item, item.last_error || 'Rejeitado pelo servidor');
+            }
+            aplicados++;
+        } catch (e) {
+            console.warn('[syncQueue] reconcileSwResults:', e?.message);
+        }
+        await db.sync_queue.update(item.id, { sw_processed: false, server_data: null });
+    }
+    return aplicados;
 }
 
 // -----------------------------------------------------------------------------
@@ -438,4 +485,6 @@ export default {
     localCreate,
     localUpdate,
     localDelete,
+    registerBackgroundSync,
+    reconcileSwResults,
 };

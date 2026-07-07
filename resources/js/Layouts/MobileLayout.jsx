@@ -16,6 +16,7 @@ import InstallPrompt from '@/Components/Mobile/InstallPrompt';
 import OpenCyclesBanner from '@/Components/Mobile/OpenCyclesBanner';
 import useSyncStatus from '@/offline/hooks/useSyncStatus';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+import { reconcileSwResults } from '@/offline/syncQueue';
 import { warmupMobileCache } from '@/offline/warmupCache';
 import { setAuthMarker, clearAuthMarker } from '@/offline/authMarker';
 import { renewOfflineSession, getOfflineSession, ensurePersistentStorage } from '@/offline/offlineAuth';
@@ -68,6 +69,9 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
     // Throttled internamente (5 min) e silencioso em caso de erro.
     useEffect(() => {
         warmupMobileCache().catch(() => { /* silent */ });
+        // Aplica nos registros locais o que o Background Sync (Android)
+        // processou com o app fechado — no-op quando não há nada.
+        reconcileSwResults().catch(() => { /* silent */ });
     }, []);
 
     const handleBack = () => {

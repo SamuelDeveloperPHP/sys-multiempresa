@@ -300,11 +300,17 @@ window.addEventListener('online',  () => banner('Conexão restabelecida'));
 - [x] Login offline com comparação de hash em tempo constante (+ lockout 5 tentativas/5 min)
 - [x] CRUD local gravando no IndexedDB (UUID por registro: client_uuid em localCreate)
 - [x] Botão "Enviar Dados" + fila assíncrona com retry/backoff exponencial e triagem de rejeitados
-- [ ] Background Sync no Android (bônus) — degradação limpa no iOS
+- [x] Background Sync no Android (bônus) — degradação limpa no iOS
+      (public/sw-bg-sync.js via workbox.importScripts; tag 'sga-sync-pendentes';
+      reconciliação em syncQueue.reconcileSwResults na abertura do app)
 - [x] Toggle de conexão + banners de status (useOnlineStatus: forcedOffline + NetworkStatusBar)
 - [x] Endpoint idempotente no servidor (deduplicação por client_uuid nos stores mobile)
-- [ ] Testes: primeiro acesso online → uso offline → reconexão → sincronização
+- [x] Testes automatizados server-side: idempotência, fotos, evidência, ciclo,
+      multi-tenant (tests/Feature/Mobile — schema próprio em sqlite :memory:)
+- [ ] Testes em DEVICE: primeiro acesso online → uso offline → reconexão →
+      sincronização (roteiro pronto: docs/mobile-roteiro-testes.md, T1–T7)
 - [ ] Teste no Safari/iOS: storage, instalação, comportamento sem rede
+      (roteiro pronto: docs/mobile-roteiro-testes.md, T8)
 
 ---
 
