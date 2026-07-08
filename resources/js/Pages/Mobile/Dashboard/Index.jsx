@@ -21,6 +21,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import MobileLayout from '@/Layouts/MobileLayout';
 import db from '@/offline/db';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+import { ToggleSwitch } from '@/Components/Mobile/NetworkStatusBar';
 import abastecimentosRepo from '@/offline/repositories/abastecimentosRepo';
 import diarioBordoRepo from '@/offline/repositories/diarioBordoRepo';
 import checklistsRepo from '@/offline/repositories/checklistsRepo';
@@ -60,7 +61,7 @@ function isInPeriod(dateStr, start) {
 export default function DashboardIndex() {
     const { auth } = usePage().props;
     const user = auth?.user || {};
-    const { online } = useOnlineStatus();
+    const { online, deviceOffline, forcedOffline, setForcedOffline } = useOnlineStatus();
     const [periodKey, setPeriodKey] = useState('semana');
     const [syncing, setSyncing] = useState(false);
 
@@ -200,7 +201,9 @@ export default function DashboardIndex() {
                                 {(user.name || 'Motorista').split(' ')[0]}
                             </h2>
                             <p className="text-[11px] text-white/60 mt-1">
-                                {online ? 'Conectado' : 'Modo offline'}
+                                {online ? 'Conectado'
+                                    : forcedOffline ? 'Modo offline (manual)'
+                                    : 'Modo offline'}
                                 {syncing && ' • Sincronizando…'}
                             </p>
                         </div>
@@ -214,6 +217,35 @@ export default function DashboardIndex() {
                             <i className={`fa-solid fa-rotate ${syncing ? 'fa-spin' : ''}`} />
                         </button>
                     </div>
+                </div>
+
+                {/* Toggle de conexão (arquitetura.md §8): controla o MODO do app
+                    — não desliga o rádio do device. Com o modo offline ativo,
+                    o app inteiro ignora a rede (sync, botões e banners já
+                    respeitam o forcedOffline do useOnlineStatus). */}
+                <div className={`rounded-xl p-3.5 shadow-sm border flex items-center gap-3 transition-colors ${
+                    forcedOffline ? 'bg-slate-100 border-slate-300' : 'bg-white border-gray-100'
+                }`}>
+                    <div className={`w-10 h-10 flex items-center justify-center rounded-lg flex-shrink-0 ${
+                        forcedOffline ? 'bg-slate-200 text-slate-600' : 'bg-emerald-50 text-emerald-600'
+                    }`}>
+                        <i className={`fa-solid ${forcedOffline ? 'fa-wifi-slash' : 'fa-wifi'}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800">Trabalhar offline</p>
+                        <p className="text-[11px] text-gray-500 leading-tight">
+                            {forcedOffline
+                                ? 'Internet ignorada — usando somente os dados do dispositivo.'
+                                : deviceOffline
+                                    ? 'Sem conexão real agora — o app já está usando os dados locais.'
+                                    : 'Ative para o app parar de usar a internet (economiza dados e bateria).'}
+                        </p>
+                    </div>
+                    <ToggleSwitch
+                        value={forcedOffline}
+                        onChange={() => setForcedOffline(!forcedOffline)}
+                        ariaLabel="Trabalhar offline"
+                    />
                 </div>
 
                 {/* Filtro de período */}

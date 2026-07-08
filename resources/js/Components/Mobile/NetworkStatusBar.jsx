@@ -105,9 +105,9 @@ export default function NetworkStatusBar({ alwaysVisible = false }) {
 }
 
 // =============================================================================
-// Toggle Switch reutilizável
+// Toggle Switch reutilizável (exportado — usado também no Dashboard)
 // =============================================================================
-function ToggleSwitch({ value, onChange, ariaLabel }) {
+export function ToggleSwitch({ value, onChange, ariaLabel }) {
     return (
         <button
             type="button"
