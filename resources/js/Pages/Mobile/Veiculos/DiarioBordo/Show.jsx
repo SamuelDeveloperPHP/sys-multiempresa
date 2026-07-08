@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { router, Link, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { alertDialog } from '@/utils/dialogs';
 import repo from '@/offline/repositories/diarioBordoRepo';
 
 export default function DiarioBordoShow({ veiculoId, diarioId }) {
@@ -21,7 +22,8 @@ export default function DiarioBordoShow({ veiculoId, diarioId }) {
             await repo.remove(dId);
             router.visit(`/mobile/veiculos/${id}/diario-bordo`);
         } catch (e) {
-            alert(e.message); setDeleting(false);
+            await alertDialog({ title: 'Erro ao excluir', text: e.message, icon: 'error' });
+            setDeleting(false);
         }
     };
 

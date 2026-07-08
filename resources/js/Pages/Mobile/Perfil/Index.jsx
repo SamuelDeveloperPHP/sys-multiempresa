@@ -21,6 +21,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import MobileLayout from '@/Layouts/MobileLayout';
 import apiClient from '@/offline/api/client';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+import { toast } from '@/utils/dialogs';
 import BiometriaSetup from '@/Components/Mobile/BiometriaSetup';
 import { logoutSafely } from '@/offline/logout';
 
@@ -156,7 +157,7 @@ export default function PerfilIndex() {
                         </Link>
                         <button
                             type="button"
-                            onClick={() => alert('Em breve: edição de perfil.')}
+                            onClick={() => toast('Em breve: edição de perfil.', 'info')}
                             className="flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-xs bg-orange-100 text-[#e67e22] hover:bg-orange-200"
                         >
                             <i className="fa-solid fa-pencil" />

@@ -12,24 +12,32 @@
 //   onCleared : async () => void — recarrega a lista da página após limpar
 // -----------------------------------------------------------------------------
 import { useState } from 'react';
+import { confirmDialog, alertDialog } from '@/utils/dialogs';
 
 export default function ClearCacheButton({ clearFn, onCleared }) {
     const [clearing, setClearing] = useState(false);
 
     const handleClear = async () => {
         if (clearing) return;
-        const ok = window.confirm(
-            'Limpar os dados deste módulo salvos no dispositivo?\n\n'
-            + 'Somente registros já sincronizados serão removidos — '
-            + 'registros pendentes de envio serão mantidos.'
-        );
+        const ok = await confirmDialog({
+            title: 'Limpar cache deste módulo?',
+            text: 'Somente registros já sincronizados serão removidos. '
+                + 'Registros pendentes de envio serão mantidos.',
+            icon: 'warning',
+            confirmText: 'Limpar',
+            danger: true,
+        });
         if (!ok) return;
         setClearing(true);
         try {
             await clearFn();
             await onCleared?.();
         } catch (e) {
-            alert('Falha ao limpar o cache: ' + (e?.message || 'erro desconhecido'));
+            await alertDialog({
+                title: 'Falha ao limpar o cache',
+                text: e?.message || 'Erro desconhecido.',
+                icon: 'error',
+            });
         } finally {
             setClearing(false);
         }

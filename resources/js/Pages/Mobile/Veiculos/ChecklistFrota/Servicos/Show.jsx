@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { router, Link, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
 import FotoEvidencia from '@/Components/Mobile/FotoEvidencia';
+import { alertDialog } from '@/utils/dialogs';
 import repo from '@/offline/repositories/checklistsRepo';
 
 export default function ChecklistServicoShow({ veiculoId, servicoId }) {
@@ -22,7 +23,8 @@ export default function ChecklistServicoShow({ veiculoId, servicoId }) {
             await repo.removeServico(sId);
             router.visit(`/mobile/veiculos/${id}/checklist`);
         } catch (e) {
-            alert(e.message); setDeleting(false);
+            await alertDialog({ title: 'Erro ao excluir', text: e.message, icon: 'error' });
+            setDeleting(false);
         }
     };
 

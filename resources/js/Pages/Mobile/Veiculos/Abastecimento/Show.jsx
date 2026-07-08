@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { router, Link, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
 import FotoEvidencia from '@/Components/Mobile/FotoEvidencia';
+import { alertDialog } from '@/utils/dialogs';
 import repo from '@/offline/repositories/abastecimentosRepo';
 
 export default function AbastecimentoShow({ veiculoId, abastecimentoId }) {
@@ -24,7 +25,7 @@ export default function AbastecimentoShow({ veiculoId, abastecimentoId }) {
             await repo.remove(aId);
             router.visit(`/mobile/veiculos/${id}/abastecimentos`);
         } catch (e) {
-            alert('Erro: ' + e.message);
+            await alertDialog({ title: 'Erro ao excluir', text: e.message, icon: 'error' });
             setDeleting(false);
         }
     };

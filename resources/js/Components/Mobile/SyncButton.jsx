@@ -12,6 +12,7 @@ import { usePage } from '@inertiajs/react';
 import useSyncStatus from '@/offline/hooks/useSyncStatus';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
 import useOpenCycles from '@/offline/hooks/useOpenCycles';
+import { confirmDialog, toast } from '@/utils/dialogs';
 
 // Rótulos amigáveis das tabelas da fila
 const TABLE_LABELS = {
@@ -35,38 +36,46 @@ export default function SyncButton({ compact = false }) {
 
     const handleDiscard = async (item) => {
         const label = TABLE_LABELS[item.table] || item.table;
-        if (window.confirm(`Descartar este registro de ${label}? Ele não será enviado ao servidor.`)) {
-            await discardRejected(item.id);
-        }
+        const ok = await confirmDialog({
+            title: `Descartar ${label}?`,
+            text: 'Este registro não será enviado ao servidor.',
+            icon: 'warning',
+            confirmText: 'Descartar',
+            danger: true,
+        });
+        if (ok) await discardRejected(item.id);
     };
 
     // Regra operacional da frota: todo ciclo tem ABERTURA e ENCERRAMENTO.
     // Ao enviar com ciclo aberto, lembra o usuário — pode ser legítimo
     // (sync no meio do turno), então confirma em vez de bloquear.
-    const confirmarCiclosAbertos = () => {
+    const confirmarCiclosAbertos = async () => {
         if (!openDiario && !openChecklist) return true;
         const linhas = [];
-        if (openDiario) linhas.push(`• Diário de Bordo ABERTO — veículo ${openDiario.prefixo}`);
-        if (openChecklist) linhas.push(`• Checklist ABERTO — veículo ${openChecklist.prefixo}`);
-        return window.confirm(
-            'Atenção: você tem ciclo(s) em aberto:\n\n'
-            + linhas.join('\n')
-            + '\n\nLembre-se: todo Diário de Bordo e Checklist precisa de uma '
-            + 'ABERTURA e um ENCERRAMENTO. Se o turno já terminou, encerre o '
-            + 'ciclo antes de enviar.\n\nEnviar os dados mesmo assim?'
-        );
+        if (openDiario) linhas.push(`<li>📓 Diário de Bordo ABERTO — veículo <strong>${openDiario.prefixo}</strong></li>`);
+        if (openChecklist) linhas.push(`<li>✅ Checklist ABERTO — veículo <strong>${openChecklist.prefixo}</strong></li>`);
+        return await confirmDialog({
+            title: 'Você tem ciclo(s) em aberto',
+            html: `<ul class="text-left space-y-1 mb-3">${linhas.join('')}</ul>`
+                + '<p class="text-left">Lembre-se: todo Diário de Bordo e Checklist precisa de uma '
+                + '<strong>ABERTURA</strong> e um <strong>ENCERRAMENTO</strong>. '
+                + 'Se o turno já terminou, encerre o ciclo antes de enviar.</p>',
+            icon: 'warning',
+            confirmText: 'Enviar mesmo assim',
+            cancelText: 'Voltar',
+        });
     };
 
     const handleSync = async () => {
         if (!online) {
-            alert('Você está offline. Conecte-se à internet para sincronizar.');
+            toast('Você está offline. Conecte-se para sincronizar.', 'warning');
             return;
         }
         if (pendingCount === 0) {
-            alert('Nada para sincronizar.');
+            toast('Nada para sincronizar.', 'success');
             return;
         }
-        if (!confirmarCiclosAbertos()) return;
+        if (!(await confirmarCiclosAbertos())) return;
         const res = await sync();
         if (res) {
             setShowResult(true);
