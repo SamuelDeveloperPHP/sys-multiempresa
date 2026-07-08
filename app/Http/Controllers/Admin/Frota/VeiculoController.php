@@ -899,7 +899,7 @@ class VeiculoController extends Controller
         $data['user_create'] = Auth::user()?->email;
         $registro = VeiculoDocLegal::create($data + ['arquivo' => null]);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $veiculo->id, "docs_legais/{$registro->id}");
+            $path = $this->uploadOneDrive($request->file('arquivo'), $veiculo->id, 'docs_legais');
             $registro->update(['arquivo' => $path]);
         }
         return back()->with('success', 'Documento legal cadastrado.');
@@ -911,7 +911,7 @@ class VeiculoController extends Controller
         $data['user_edit'] = Auth::user()?->email;
         $doc->update($data);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $doc->id_veiculo, "docs_legais/{$doc->id}");
+            $path = $this->uploadOneDrive($request->file('arquivo'), $doc->id_veiculo, 'docs_legais');
             $doc->update(['arquivo' => $path]);
         }
         return back()->with('success', 'Documento atualizado.');
@@ -930,7 +930,7 @@ class VeiculoController extends Controller
         $data['user_create'] = Auth::user()?->email;
         $registro = VeiculoDocTecnico::create($data + ['arquivo' => null]);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $veiculo->id, "docs_tecnicos/{$registro->id}");
+            $path = $this->uploadOneDrive($request->file('arquivo'), $veiculo->id, 'docs_tecnicos');
             $registro->update(['arquivo' => $path]);
         }
         return back()->with('success', 'Documento técnico cadastrado.');
@@ -942,7 +942,7 @@ class VeiculoController extends Controller
         $data['user_edit'] = Auth::user()?->email;
         $doc->update($data);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $doc->id_veiculo, "docs_tecnicos/{$doc->id}");
+            $path = $this->uploadOneDrive($request->file('arquivo'), $doc->id_veiculo, 'docs_tecnicos');
             $doc->update(['arquivo' => $path]);
         }
         return back()->with('success', 'Documento atualizado.');

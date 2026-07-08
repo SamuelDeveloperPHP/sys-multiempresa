@@ -1071,7 +1071,7 @@ function ModalDoc({ veiculo, doc, tipo, onClose, onSaved }) {
         <F label="Data de validade" name="data_validade" type="date" data={data} setData={setData} errors={errors} />
         <FilePdfField
           label={`Arquivo PDF ${editando ? '(deixe vazio para manter o atual)' : '*'}`}
-          subfolder={`${subfolder}/${doc?.id ?? 'novo'}`}
+          subfolder={subfolder}
           setData={setData} errors={errors} veiculo={veiculo} className="md:col-span-2"
         />
         <ModalFooter onClose={onClose} processing={processing} editando={editando} />
@@ -1080,25 +1080,90 @@ function ModalDoc({ veiculo, doc, tipo, onClose, onSaved }) {
   );
 }
 
-/* Campo de upload restrito a PDF (com validação client-side amigável). */
+/* Campo de upload restrito a PDF, com zona de ARRASTAR-E-SOLTAR + clique.
+   Valida PDF no cliente (tipo/extensão) e mostra o arquivo escolhido. */
 function FilePdfField({ label, subfolder, setData, errors, veiculo, className = '' }) {
+  const inputRef = useRef(null);
   const [erroLocal, setErroLocal] = useState(null);
-  const onPick = (e) => {
-    const file = e.target.files?.[0] ?? null;
+  const [arquivoNome, setArquivoNome] = useState(null);
+  const [dragging, setDragging] = useState(false);
+
+  const aplicarArquivo = (file) => {
     setErroLocal(null);
-    if (file && file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
       setErroLocal('Apenas arquivos PDF são permitidos.');
-      e.target.value = '';
+      setArquivoNome(null);
       setData('arquivo', null);
+      if (inputRef.current) inputRef.current.value = '';
       return;
     }
+    setArquivoNome(file.name);
     setData('arquivo', file);
   };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    aplicarArquivo(e.dataTransfer.files?.[0] ?? null);
+  };
+
+  const limpar = (e) => {
+    e.stopPropagation();
+    setArquivoNome(null);
+    setErroLocal(null);
+    setData('arquivo', null);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
   return (
     <div className={className}>
       <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">{label}</label>
-      <input type="file" accept="application/pdf,.pdf" onChange={onPick} className="text-sm" />
-      <p className="text-xs text-gray-500 mt-1">Somente PDF (máx. 10 MB). Vai para o OneDrive em veiculos/{veiculo.id}/{subfolder}/</p>
+
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && inputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        className={`flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-4 py-6 text-center cursor-pointer transition ${
+          dragging
+            ? 'border-rise-500 bg-rise-50'
+            : arquivoNome
+              ? 'border-green-300 bg-green-50'
+              : 'border-gray-300 bg-gray-50 hover:border-rise-400 hover:bg-rise-50/40'
+        }`}
+      >
+        {arquivoNome ? (
+          <>
+            <span className="text-2xl">📄</span>
+            <span className="text-sm font-medium text-gray-800 break-all">{arquivoNome}</span>
+            <button type="button" onClick={limpar} className="text-xs text-red-600 hover:underline mt-0.5">Remover</button>
+          </>
+        ) : (
+          <>
+            <span className="text-2xl">⬆️</span>
+            <span className="text-sm text-gray-700">
+              <span className="font-semibold text-rise-700">Arraste o PDF aqui</span> ou clique para escolher
+            </span>
+            <span className="text-xs text-gray-400">Somente PDF (máx. 10 MB)</span>
+          </>
+        )}
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        onChange={(e) => aplicarArquivo(e.target.files?.[0] ?? null)}
+        className="hidden"
+      />
+
+      <p className="text-xs text-gray-500 mt-1">
+        Vai para o OneDrive em <code>veiculos/{veiculo.id}/{subfolder}/</code>
+      </p>
       {(erroLocal || errors?.arquivo) && <p className="text-red-600 text-xs mt-1">{erroLocal || errors.arquivo}</p>}
     </div>
   );
