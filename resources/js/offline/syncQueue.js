@@ -74,6 +74,9 @@ export async function registerBackgroundSync() {
 // nas tabelas locais (onSyncSuccess / markRecordRejected) é feito aqui, na
 // próxima abertura do app. Chamado pelo MobileLayout.
 export async function reconcileSwResults() {
+    // Aproveita a abertura do app para sanear itens órfãos legados
+    await healOrphanLocalIdItems().catch(() => {});
+
     let aplicados = 0;
     const processados = await db.sync_queue
         .filter((i) => i.sw_processed === true)
@@ -174,6 +177,9 @@ async function markRecordRejected(item, errorMsg) {
 // Retorna { sent, failed, rejected, total, aborted }.
 // -----------------------------------------------------------------------------
 export async function processAll(onProgress = null) {
+    // Converte/remove itens órfãos legados antes de processar
+    await healOrphanLocalIdItems();
+
     const items = await listPending();
     const total = items.length;
     let sent = 0;
@@ -276,6 +282,70 @@ export async function processAll(onProgress = null) {
     await clearCompleted(24);
 
     return { sent, failed, rejected, total, aborted };
+}
+
+// -----------------------------------------------------------------------------
+// Saneamento: versões antigas do app enfileiravam UPDATE/DELETE com o id
+// LOCAL do registro (bug corrigido em localUpdate/localDelete). Esses itens
+// nunca poderão ser enviados — o servidor não conhece o id — e ficavam
+// eternamente como rejeitados ("No query results for model...").
+// Aqui eles são convertidos ou removidos automaticamente:
+//   - update de registro local-only que ainda existe → funde no CREATE da fila
+//   - delete de registro local-only → remove só localmente
+//   - registro não existe mais → item órfão, sai da fila
+// Roda no início de processAll e na abertura do app (reconcileSwResults).
+// -----------------------------------------------------------------------------
+export async function healOrphanLocalIdItems() {
+    const orfaos = await db.sync_queue
+        .filter(i => (i.op === 'update' || i.op === 'delete')
+            && i.status !== 'completed'
+            && i.server_id != null
+            && Number.isNaN(Number(i.server_id))) // id não-numérico = id local
+        .toArray();
+
+    let healed = 0;
+    for (const item of orfaos) {
+        try {
+            const record = await db.table(item.table).get(item.server_id);
+
+            if (item.op === 'update' && isLocalOnly(record)) {
+                const createItem = await db.sync_queue
+                    .where('local_id').equals(item.server_id)
+                    .and(q => q.op === 'create' && q.status !== 'completed')
+                    .first();
+                if (createItem) {
+                    await db.sync_queue.update(createItem.id, {
+                        payload: { ...createItem.payload, ...item.payload },
+                        status: 'pending',
+                        last_error: null,
+                        sw_processed: false,
+                        updated_at: new Date().toISOString(),
+                    });
+                } else {
+                    // Sem create na fila: recria a partir do registro local completo
+                    await enqueue({
+                        table: item.table,
+                        op: 'create',
+                        payload: payloadFromRecord({ ...record, ...item.payload }),
+                        endpoint: item.endpoint.replace(/\/[^/]+$/, ''),
+                        local_id: item.server_id,
+                    });
+                }
+                await db.table(item.table).update(item.server_id, {
+                    _sync_status: 'pending_create',
+                    _sync_error: null,
+                });
+            } else if (item.op === 'delete' && record) {
+                await db.table(item.table).delete(item.server_id);
+            }
+            // registro inexistente: nada a preservar — só remove o item órfão
+        } catch (e) {
+            console.warn('[syncQueue] healOrphanLocalIdItems:', e?.message);
+        }
+        await db.sync_queue.delete(item.id);
+        healed++;
+    }
+    return healed;
 }
 
 // -----------------------------------------------------------------------------
@@ -526,4 +596,5 @@ export default {
     localDelete,
     registerBackgroundSync,
     reconcileSwResults,
+    healOrphanLocalIdItems,
 };

@@ -53,14 +53,11 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
             <div className="p-3 space-y-4">
                 {/* Templates disponíveis */}
                 <section>
-                    <div className="flex items-start justify-between mb-2">
-                        <h2 className="text-sm font-semibold text-gray-700">
-                            <i className="fa-solid fa-clipboard-list mr-1.5 text-[#0057a3]" />
-                            Templates disponíveis
-                        </h2>
-                        <div className="flex flex-col items-end gap-1.5">
+                    {/* Ações na mesma linha; título logo abaixo */}
+                    <div className="space-y-1.5 mb-2">
+                        <div className="flex items-center justify-end gap-4 flex-wrap">
                             {online && (
-                                <button onClick={syncNow} className="text-xs text-[#557bbb] font-medium">
+                                <button onClick={syncNow} className="text-sm text-[#557bbb] font-medium">
                                     <i className="fa-solid fa-rotate mr-1" /> Atualizar
                                 </button>
                             )}
@@ -70,6 +67,10 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                                 onCleared={load}
                             />
                         </div>
+                        <h2 className="text-sm font-semibold text-gray-700">
+                            <i className="fa-solid fa-clipboard-list mr-1.5 text-[#0057a3]" />
+                            Templates disponíveis
+                        </h2>
                     </div>
                     {loading ? (
                         <div className="text-center py-6 text-gray-400">

@@ -47,23 +47,19 @@ export default function AbastecimentoIndex({ veiculoId }) {
             <Head title="Abastecimentos" />
 
             <div className="p-3 space-y-3">
-                <div className="flex items-start justify-between">
-                    <h2 className="text-sm font-semibold text-gray-700">
-                        {items.length} registro(s) em cache
-                    </h2>
-                    <div className="flex gap-3 items-start">
-                        <div className="flex flex-col items-end gap-1.5">
-                            {online && !syncing && (
-                                <button onClick={syncNow} className="text-xs text-[#557bbb] font-medium">
-                                    <i className="fa-solid fa-rotate mr-1" /> Atualizar
-                                </button>
-                            )}
-                            {/* Limpa SÓ o cache deste módulo (abastecimentos do veículo) */}
-                            <ClearCacheButton
-                                clearFn={() => repo.clearSyncedByVeiculo(id)}
-                                onCleared={load}
-                            />
-                        </div>
+                {/* Ações na mesma linha; contagem logo abaixo */}
+                <div className="space-y-1.5">
+                    <div className="flex items-center justify-end gap-4 flex-wrap">
+                        {online && !syncing && (
+                            <button onClick={syncNow} className="text-sm text-[#557bbb] font-medium">
+                                <i className="fa-solid fa-rotate mr-1" /> Atualizar
+                            </button>
+                        )}
+                        {/* Limpa SÓ o cache deste módulo (abastecimentos do veículo) */}
+                        <ClearCacheButton
+                            clearFn={() => repo.clearSyncedByVeiculo(id)}
+                            onCleared={load}
+                        />
                         <Link
                             href={`/mobile/veiculos/${id}/abastecimentos/criar`}
                             className="bg-[#e67e22] text-white text-xs font-semibold px-3 py-1.5 rounded-md"
@@ -71,6 +67,9 @@ export default function AbastecimentoIndex({ veiculoId }) {
                             <i className="fa-solid fa-plus mr-1" /> Novo
                         </Link>
                     </div>
+                    <h2 className="text-sm font-semibold text-gray-700">
+                        {items.length} registro(s) em cache
+                    </h2>
                 </div>
 
                 {loading ? (
@@ -127,6 +126,7 @@ function SyncBadge({ status }) {
         pending_create: { label: 'Pendente', color: 'bg-amber-100 text-amber-700' },
         pending_update: { label: 'Editado', color: 'bg-blue-100 text-blue-700' },
         pending_delete: { label: 'A excluir', color: 'bg-red-100 text-red-700' },
+        rejected:       { label: 'Rejeitado', color: 'bg-red-100 text-red-700' },
     };
     const m = map[status];
     if (!m) return null;

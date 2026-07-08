@@ -49,7 +49,7 @@ export default function ClearCacheButton({ clearFn, onCleared }) {
                 type="button"
                 onClick={handleClear}
                 disabled={clearing}
-                className="text-xs text-red-500 font-medium disabled:opacity-50"
+                className="text-sm text-red-500 font-medium disabled:opacity-50"
             >
                 <i className="fa-solid fa-broom mr-1" /> Limpar cache
             </button>
