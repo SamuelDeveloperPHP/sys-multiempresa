@@ -59,6 +59,14 @@ db.version(4).stores({
     credenciais: 'id',
 });
 
+// ---------- v5: indexa local_id na sync_queue ----------
+// syncQueue funde updates/deletes no CREATE pendente via where('local_id') —
+// sem o índice o Dexie lança "KeyPath local_id on object store sync_queue
+// is not indexed" (visto em campo ao fechar o diário de bordo).
+db.version(5).stores({
+    sync_queue: '++id, table, op, status, local_id, created_at, [status+created_at]',
+});
+
 // -----------------------------------------------------------------------------
 // API utilitária para gerar IDs locais temporários
 // -----------------------------------------------------------------------------
