@@ -2,20 +2,24 @@
 
 namespace App\Services\Frota;
 
-use App\Models\Frota\VeiculoChecklistServico;
 use App\Models\Frota\VeiculoDiarioBordo;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
- * Regra de negócio (legado, FASE 4/6): um motorista só pode ter UM ciclo
- * ABERTO por vez — diário de bordo OU checklist. Para abrir em outro veículo,
- * precisa fechar o ciclo anterior.
+ * Regra de negócio: um motorista só pode ter UM diário de bordo ABERTO por
+ * vez. Para abrir em outro veículo, precisa fechar o ciclo anterior.
  *
- * A FASE 6 implementou essa checagem no front (useOpenCycles). Este serviço é o
- * complemento server-side: garante a regra mesmo se o cliente for burlado ou
- * mandar requisição direto na API.
+ * O front espelha a checagem (useOpenCycles); este serviço é o complemento
+ * server-side: garante a regra mesmo se o cliente for burlado ou mandar
+ * requisição direto na API.
  *
- * Status considerado "aberto": ciclo_status / status_ciclo = 'ABERTO'.
+ * HISTÓRICO: até 2026-07-08 o CHECKLIST também tinha ciclo (abertura/
+ * encerramento) e entrava neste bloqueio. Por decisão da gerência, checklist
+ * virou cadastro único (com cooldown de 1h no controller) e saiu daqui —
+ * registros antigos com status_ciclo='ABERTO' permanecem no banco e são
+ * simplesmente ignorados.
+ *
+ * Status considerado "aberto": ciclo_status = 'ABERTO'.
  */
 class CicloAbertoService
 {
@@ -23,8 +27,8 @@ class CicloAbertoService
     public const STATUS_FECHADO = 'FECHADO';
 
     /**
-     * Procura um ciclo aberto do usuário em OUTRO veículo (≠ $veiculoId).
-     * Retorna ['tipo' => 'diario'|'checklist', 'id' => X, 'id_veiculo' => Y] ou null.
+     * Procura um diário aberto do usuário em OUTRO veículo (≠ $veiculoId).
+     * Retorna ['tipo' => 'diario', 'id' => X, 'id_veiculo' => Y] ou null.
      */
     public function bloqueioEmOutroVeiculo(int $userId, int $veiculoId, ?string $userEmail = null): ?array
     {
@@ -37,23 +41,6 @@ class CicloAbertoService
 
         if ($diario) {
             return ['tipo' => 'diario', 'id' => $diario->id, 'id_veiculo' => $diario->id_veiculo];
-        }
-
-        $checklist = VeiculoChecklistServico::query()
-            ->where('status_ciclo', self::STATUS_ABERTO)
-            ->where('id_veiculo', '!=', $veiculoId)
-            // id_user (registros novos) OU user_create=email (legados sem id_user)
-            ->where(function ($q) use ($userId, $userEmail) {
-                $q->where('id_user', $userId);
-                if ($userEmail) {
-                    $q->orWhere('user_create', $userEmail);
-                }
-            })
-            ->orderByDesc('id')
-            ->first(['id', 'id_veiculo']);
-
-        if ($checklist) {
-            return ['tipo' => 'checklist', 'id' => $checklist->id, 'id_veiculo' => $checklist->id_veiculo];
         }
 
         return null;

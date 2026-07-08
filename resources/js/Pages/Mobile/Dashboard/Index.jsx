@@ -121,11 +121,8 @@ export default function DashboardIndex() {
         return { abertos, fechados, minutos };
     }, [diFiltered]);
 
-    const kpiChecklist = useMemo(() => {
-        const abertos  = chFiltered.filter(r => r.ciclo_status === 'ABERTO').length;
-        const fechados = chFiltered.filter(r => r.ciclo_status === 'FECHADO').length;
-        return { qtd: chFiltered.length, abertos, fechados };
-    }, [chFiltered]);
+    // Checklist é cadastro único (sem ciclo) — KPI é contagem simples.
+    const kpiChecklist = useMemo(() => ({ qtd: chFiltered.length }), [chFiltered]);
 
     // ---- Timeline (últimas 10 atividades misturadas) ----
     const timeline = useMemo(() => {
@@ -156,10 +153,10 @@ export default function DashboardIndex() {
                 id: r.id || r._local_id,
                 veiculo_id: r.veiculo_id,
                 date: r.data || r.data_execucao,
-                title: `Checklist ${r.tipo || ''}`.trim(),
+                title: 'Checklist',
                 subtitle: r.template_nome || '',
                 icon: 'fa-clipboard-check',
-                color: r.ciclo_status === 'ABERTO' ? 'amber' : 'indigo',
+                color: 'indigo',
             })),
         ];
         // Ordena DESC por data e pega 10
@@ -352,16 +349,10 @@ export default function DashboardIndex() {
                             <p className="text-2xl font-extrabold text-gray-900 mt-0.5">
                                 {kpiChecklist.qtd}
                             </p>
-                            <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-500 flex-wrap">
-                                {kpiChecklist.abertos > 0 && (
-                                    <span className="text-amber-700">
-                                        <i className="fa-solid fa-flag mr-1" />
-                                        {kpiChecklist.abertos} aberto{kpiChecklist.abertos > 1 ? 's' : ''}
-                                    </span>
-                                )}
+                            <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-500">
                                 <span className="text-indigo-700">
-                                    <i className="fa-solid fa-flag-checkered mr-1" />
-                                    {kpiChecklist.fechados} encerrado{kpiChecklist.fechados !== 1 ? 's' : ''}
+                                    <i className="fa-solid fa-clipboard-check mr-1" />
+                                    registro{kpiChecklist.qtd !== 1 ? 's' : ''} no período
                                 </span>
                             </div>
                         </div>

@@ -30,7 +30,7 @@ export default function SyncButton({ compact = false }) {
     } = useSyncStatus();
     const { online } = useOnlineStatus();
     const { auth } = usePage().props;
-    const { openDiario, openChecklist } = useOpenCycles(auth?.user?.id);
+    const { openDiario } = useOpenCycles(auth?.user?.id);
     const [showResult, setShowResult] = useState(false);
     const [showRejected, setShowRejected] = useState(false);
 
@@ -46,20 +46,18 @@ export default function SyncButton({ compact = false }) {
         if (ok) await discardRejected(item.id);
     };
 
-    // Regra operacional da frota: todo ciclo tem ABERTURA e ENCERRAMENTO.
-    // Ao enviar com ciclo aberto, lembra o usuário — pode ser legítimo
+    // Regra operacional da frota: o DIÁRIO DE BORDO tem abertura e encerramento.
+    // Ao enviar com diário aberto, lembra o usuário — pode ser legítimo
     // (sync no meio do turno), então confirma em vez de bloquear.
+    // (Checklist não tem mais ciclo — cadastro único desde 2026-07-08.)
     const confirmarCiclosAbertos = async () => {
-        if (!openDiario && !openChecklist) return true;
-        const linhas = [];
-        if (openDiario) linhas.push(`<li>📓 Diário de Bordo ABERTO — veículo <strong>${openDiario.prefixo}</strong></li>`);
-        if (openChecklist) linhas.push(`<li>✅ Checklist ABERTO — veículo <strong>${openChecklist.prefixo}</strong></li>`);
+        if (!openDiario) return true;
         return await confirmDialog({
-            title: 'Você tem ciclo(s) em aberto',
-            html: `<ul class="text-left space-y-1 mb-3">${linhas.join('')}</ul>`
-                + '<p class="text-left">Lembre-se: todo Diário de Bordo e Checklist precisa de uma '
+            title: 'Você tem um diário em aberto',
+            html: `<p class="text-left mb-2">📓 Diário de Bordo ABERTO — veículo <strong>${openDiario.prefixo}</strong></p>`
+                + '<p class="text-left">Lembre-se: todo Diário de Bordo precisa de uma '
                 + '<strong>ABERTURA</strong> e um <strong>ENCERRAMENTO</strong>. '
-                + 'Se o turno já terminou, encerre o ciclo antes de enviar.</p>',
+                + 'Se o turno já terminou, feche o diário antes de enviar.</p>',
             icon: 'warning',
             confirmText: 'Enviar mesmo assim',
             cancelText: 'Voltar',

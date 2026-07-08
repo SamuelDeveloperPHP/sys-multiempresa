@@ -1,13 +1,12 @@
 // resources/js/Pages/Mobile/Veiculos/ChecklistFrota/Servicos/Create.jsx
 // -----------------------------------------------------------------------------
-// Execução de checklist — port das regras do legado.
+// Registro de checklist — CADASTRO ÚNICO (decisão da gerência, 2026-07-08).
 //
 // REGRAS:
-//   - Tipo via query string: ?tipo=abertura ou ?tipo=encerramento
-//   - Default: ABERTURA (salva com ciclo_status='ABERTO')
-//   - ENCERRAMENTO salva com ciclo_status='FECHADO'
-//   - BLOQUEIA abertura se já há checklist ABERTO em OUTRO veículo
-//   - Cada item: OK / Não OK + observação + FOTO via câmera
+//   - Sem ciclo de abertura/encerramento: um checklist é um registro completo
+//   - Único impedimento: intervalo mínimo de 1h entre checklists do mesmo
+//     usuário no mesmo veículo (anti-duplicação; validado aqui e no servidor)
+//   - Cada item: Conforme / Não conforme (+observação obrigatória) + FOTO
 // -----------------------------------------------------------------------------
 
 import { useEffect, useState, useCallback } from 'react';
@@ -17,15 +16,10 @@ import repo from '@/offline/repositories/checklistsRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 import IntegerInput from '@/Components/Mobile/IntegerInput';
 import CameraCapture from '@/Components/Mobile/CameraCapture';
-import useOpenCycles from '@/offline/hooks/useOpenCycles';
 import { integerNumberValue } from '@/utils/numberInput';
 import { nowLocalDMYHM, nowLocalTimestamp } from '@/utils/datetime';
 
-function getTipoFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const t = (params.get('tipo') || 'abertura').toLowerCase();
-    return t === 'encerramento' || t === 'encerrar' || t === 'fechamento' ? 'ENCERRAMENTO' : 'ABERTURA';
-}
+const COOLDOWN_MS = 60 * 60 * 1000; // 1 hora entre checklists (usuário+veículo)
 
 export default function ChecklistCreate({ veiculoId, templateId }) {
     const parts = window.location.pathname.split('/');
@@ -34,14 +28,12 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
     const { auth } = usePage().props;
     const userId = auth?.user?.id;
 
-    const [tipo] = useState(getTipoFromUrl());
-    const isAbertura = tipo === 'ABERTURA';
-
     const [veiculo, setVeiculo] = useState(null);
     const [template, setTemplate] = useState(null);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(null);
     const [reloadKey, setReloadKey] = useState(0); // "Tentar novamente" re-dispara o load
+    const [cooldownMin, setCooldownMin] = useState(null); // minutos restantes do intervalo de 1h
     const [respostas, setRespostas] = useState({}); // { item_id: { ok, obs, foto_data_url } }
     const [meta, setMeta] = useState({
         responsavel: auth?.user?.name || '',
@@ -53,8 +45,6 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
     const [error, setError] = useState(null);
     const [cameraOpen, setCameraOpen] = useState(null); // item_id atualmente capturando
 
-    const { getOpenInOtherVehicle } = useOpenCycles(userId);
-
     useEffect(() => {
         (async () => {
             setLoading(true);
@@ -62,6 +52,20 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
             try {
                 const v = await veiculosRepo.find(id);
                 setVeiculo(v?.veiculo || v);
+
+                // Cooldown de 1h (regra da gerência): já existe checklist DESTE
+                // usuário NESTE veículo há menos de 1h? Checagem local para
+                // feedback imediato — o servidor revalida no sync.
+                const servicos = await repo.listServicosByVeiculo(id);
+                const agora = Date.now();
+                const recente = (servicos || []).find((s) => {
+                    if (Number(s.user_id) !== Number(userId)) return false;
+                    const t = s.data ? new Date(s.data).getTime() : 0;
+                    return t && Math.abs(agora - t) < COOLDOWN_MS;
+                });
+                setCooldownMin(recente
+                    ? Math.max(1, 60 - Math.round(Math.abs(agora - new Date(recente.data).getTime()) / 60000))
+                    : null);
 
                 let tpl = await repo.findChecklist(tplId);
                 // Deep-link/refresh com cache frio: o template só é populado ao
@@ -130,8 +134,6 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
                 user_id: userId,
                 user_create: auth?.user?.email || '',
                 template_nome: template?.nome || template?.titulo || null,
-                tipo,                                        // 'ABERTURA' | 'ENCERRAMENTO'
-                ciclo_status: isAbertura ? 'ABERTO' : 'FECHADO',
                 data: now,
                 responsavel: meta.responsavel,
                 km_atual: meta.km_atual ? integerNumberValue(meta.km_atual) : null,
@@ -151,11 +153,11 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
             setError(e.message);
             setSaving(false);
         }
-    }, [respostas, meta, id, tplId, template, auth, userId, tipo, isAbertura]);
+    }, [respostas, meta, id, tplId, template, auth, userId]);
 
     if (loading) {
         return (
-            <MobileLayout header={isAbertura ? 'Abrir Checklist' : 'Encerrar Checklist'}
+            <MobileLayout header="Novo Checklist"
                 backUrl={`/mobile/veiculos/${id}/checklist`} hideBottomNav>
                 <div className="p-8 text-center text-gray-400">
                     <i className="fa-solid fa-spinner fa-spin text-2xl mb-2" />
@@ -165,11 +167,33 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
         );
     }
 
+    // Cooldown de 1h: já registrou checklist deste veículo há pouco
+    if (cooldownMin != null) {
+        return (
+            <MobileLayout header="Novo Checklist" backUrl={`/mobile/veiculos/${id}/checklist`} hideBottomNav>
+                <div className="p-4 space-y-3">
+                    <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 text-amber-900 text-center">
+                        <i className="fa-solid fa-clock text-3xl text-amber-600 mb-2" />
+                        <h3 className="font-bold text-base mb-1">Aguarde para registrar novamente</h3>
+                        <p className="text-sm leading-relaxed">
+                            Você já registrou um checklist deste veículo há pouco.
+                            Um novo registro será liberado em <strong>{cooldownMin} min</strong>.
+                        </p>
+                    </div>
+                    <Link href={`/mobile/veiculos/${id}/checklist`}
+                        className="block w-full py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium text-sm text-center">
+                        Voltar
+                    </Link>
+                </div>
+            </MobileLayout>
+        );
+    }
+
     // Template indisponível (cache frio + sem rede): erro claro com retry,
     // em vez do antigo spinner infinito.
     if (!template) {
         return (
-            <MobileLayout header={isAbertura ? 'Abrir Checklist' : 'Encerrar Checklist'}
+            <MobileLayout header="Novo Checklist"
                 backUrl={`/mobile/veiculos/${id}/checklist`} hideBottomNav>
                 <div className="p-4 space-y-3">
                     <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 text-amber-900 text-center">
@@ -195,65 +219,17 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
         );
     }
 
-    // BLOQUEIO: apenas para ABERTURA (encerrar não bloqueia)
-    if (isAbertura) {
-        const blockers = getOpenInOtherVehicle(id);
-        if (blockers.length > 0) {
-            return (
-                <MobileLayout header="Abrir Checklist" backUrl={`/mobile/veiculos/${id}/checklist`} hideBottomNav>
-                    <div className="p-4 space-y-3">
-                        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 text-amber-900">
-                            <div className="flex items-start gap-3">
-                                <i className="fa-solid fa-triangle-exclamation text-3xl text-amber-600 mt-1" />
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-base mb-2">Você tem ciclo aberto em outro veículo</h3>
-                                    <p className="text-sm leading-relaxed mb-3">
-                                        Encerre o ciclo anterior antes de abrir um novo checklist.
-                                    </p>
-                                    <ul className="space-y-2">
-                                        {blockers.map((b) => (
-                                            <li key={`${b.kind}-${b.id}`} className="bg-white rounded-lg p-3 border border-amber-200">
-                                                <p className="text-xs text-amber-700 font-semibold uppercase mb-1">
-                                                    {b.kind === 'diario' ? '📓 Diário de Bordo' : '✅ Checklist'}
-                                                </p>
-                                                <p className="text-sm font-medium text-gray-800">Veículo: {b.prefixo}</p>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                        <Link href={`/mobile/veiculos/${id}/checklist`}
-                            className="block w-full py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium text-sm text-center">
-                            Voltar
-                        </Link>
-                    </div>
-                </MobileLayout>
-            );
-        }
-    }
-
     const isMaquina = veiculo?.tipo == 4 || veiculo?.tipo_hr == 1;
     const respondidos = Object.values(respostas).filter((r) => r.ok != null).length;
     const total = template.itens?.length || 0;
 
     return (
         <MobileLayout
-            header={isAbertura ? `Abrir: ${template.nome}` : `Encerrar: ${template.nome}`}
+            header={`Checklist: ${template.nome}`}
             backUrl={`/mobile/veiculos/${id}/checklist`} hideBottomNav>
-            <Head title={isAbertura ? 'Abrir checklist' : 'Encerrar checklist'} />
+            <Head title="Novo checklist" />
 
             <div className="p-3 space-y-3">
-                {/* Banner do tipo */}
-                <div className={`rounded-lg px-3 py-2 text-xs font-semibold flex items-center gap-2 ${
-                    isAbertura
-                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
-                        : 'bg-orange-50 border border-orange-200 text-orange-800'
-                }`}>
-                    <i className={`fa-solid ${isAbertura ? 'fa-flag' : 'fa-flag-checkered'}`} />
-                    <span>{isAbertura ? 'CHECKLIST DE ABERTURA' : 'CHECKLIST DE ENCERRAMENTO'}</span>
-                </div>
-
                 {veiculo && (
                     <div className="bg-[#557bbb]/10 border border-[#557bbb]/20 rounded-lg px-3 py-2 text-xs text-gray-700">
                         Veículo: <strong>{veiculo.prefixo}</strong>
@@ -384,26 +360,17 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
                         Cancelar
                     </button>
                     <button onClick={handleSave} disabled={saving}
-                        className={`flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-60 text-white ${
-                            isAbertura ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-orange-600 hover:bg-orange-700'
-                        }`}>
+                        className="flex-1 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-60 text-white bg-emerald-600 hover:bg-emerald-700">
                         {saving ? <><i className="fa-solid fa-spinner fa-spin mr-1" /> Salvando…</>
-                                : isAbertura
-                                    ? <><i className="fa-solid fa-flag mr-1" /> Abrir Checklist</>
-                                    : <><i className="fa-solid fa-flag-checkered mr-1" /> Encerrar Checklist</>}
+                                : <><i className="fa-solid fa-check mr-1" /> Salvar Checklist</>}
                     </button>
                 </div>
 
-                {isAbertura && (
-                    /* Aviso do ciclo em destaque (mesma regra do diário de bordo) */
-                    <div className="flex items-start gap-2.5 bg-amber-50 border-2 border-amber-300 rounded-xl p-3">
-                        <i className="fa-solid fa-triangle-exclamation text-amber-500 text-2xl mt-0.5 shrink-0" />
-                        <p className="text-sm font-semibold text-amber-900 leading-snug">
-                            Após abrir, você precisará <span className="font-extrabold underline">ENCERRAR este checklist</span> antes
-                            de iniciar outro em qualquer veículo.
-                        </p>
-                    </div>
-                )}
+                {/* Regra vigente: cadastro único, com intervalo mínimo de 1h */}
+                <p className="text-xs text-gray-400 text-center pt-1">
+                    <i className="fa-solid fa-circle-info mr-1" />
+                    Um novo checklist deste veículo só poderá ser registrado após 1 hora.
+                </p>
             </div>
 
             <CameraCapture

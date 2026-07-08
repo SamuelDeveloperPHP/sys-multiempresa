@@ -659,26 +659,46 @@ class MobileApiController extends Controller
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
-    public function checklistServicosStore(StoreChecklistServicoRequest $request, CicloAbertoService $ciclo)
+    public function checklistServicosStore(StoreChecklistServicoRequest $request)
     {
         $veiculoId = (int) $request->veiculo_id;
         $this->veiculoDaEmpresa($veiculoId);
         $user = Auth::user();
 
-        // Idempotência ANTES da regra de ciclo: o replay de um create que já
-        // abriu ciclo não pode falhar com 422 — devolve o registro existente.
+        // Idempotência ANTES de qualquer regra: o replay de um create já
+        // efetivado não pode falhar (nem cair no cooldown) — devolve o existente.
         if ($existing = $this->findByClientUuid(VeiculoChecklistServico::class, $request->input('client_uuid'))) {
             return response()->json(['status' => true, 'data' => $this->mapChecklistServico($existing), 'deduplicated' => true]);
         }
 
-        // Abertura de checklist = abre ciclo. Encerramento (tipo/ciclo_status) não bloqueia.
-        $ehAbertura = $ciclo->ehAbertura($request->input('ciclo_status'), $request->input('tipo'));
-        if ($ehAbertura) {
-            $ciclo->assertPodeAbrir((int) $user->id, $veiculoId, $user->email);
-        }
+        // REGRA (gerência, 2026-07-08): checklist é CADASTRO ÚNICO — sem ciclo
+        // de abertura/encerramento. Único impedimento: intervalo mínimo de 1h
+        // entre checklists do MESMO usuário no MESMO veículo (anti-duplicação;
+        // outro motorista no mesmo veículo não é bloqueado — troca de turno).
+        // Compara por data_execucao (hora do PREENCHIMENTO), não pela hora do
+        // sync — registros feitos offline sincronizam muito depois.
+        $dataExecucao = \Illuminate\Support\Carbon::parse($request->input('data'));
+        $recente = VeiculoChecklistServico::query()
+            ->where('id_veiculo', $veiculoId)
+            ->where(function ($q) use ($user) {
+                $q->where('id_user', $user->id)->orWhere('user_create', $user->email);
+            })
+            ->whereBetween('data_execucao', [
+                $dataExecucao->copy()->subHour(),
+                $dataExecucao->copy()->addHour(),
+            ])
+            ->orderByDesc('data_execucao')
+            ->first(['id', 'data_execucao']);
 
-        $statusCiclo = strtoupper($request->input('ciclo_status')
-            ?: ($ehAbertura ? CicloAbertoService::STATUS_ABERTO : CicloAbertoService::STATUS_FECHADO));
+        if ($recente) {
+            $minutosRestantes = max(1, 60 - abs($dataExecucao->diffInMinutes($recente->data_execucao)));
+            return response()->json([
+                'status'  => false,
+                'message' => "Você já registrou um checklist deste veículo há pouco. "
+                           . "Aguarde {$minutosRestantes} min para registrar um novo.",
+                'errors'  => ['cooldown' => ['minutos_restantes' => $minutosRestantes]],
+            ], 422);
+        }
 
         // Usa as respostas VALIDADAS (whitelist de chaves) e extrai as fotos
         // base64 para arquivos — o JSON persiste apenas foto_path.
@@ -689,7 +709,9 @@ class MobileApiController extends Controller
             'client_uuid'   => $request->input('client_uuid'),
             'id_veiculo'    => $veiculoId,
             'id_checklist'  => $request->checklist_id,
-            'status_ciclo'  => $statusCiclo,
+            // Registro nasce concluído (sem ciclo). 'tipo'/'ciclo_status' do
+            // payload são aceitos por compatibilidade e ignorados.
+            'status_ciclo'  => CicloAbertoService::STATUS_FECHADO,
             'data_execucao' => $request->data,
             'responsavel'   => $request->responsavel,
             'km_atual'      => $request->km_atual,
@@ -723,11 +745,7 @@ class MobileApiController extends Controller
             $payload['data_execucao'] = $payload['data'];
             unset($payload['data']);
         }
-        // Encerramento de ciclo: explícito por ciclo_status ou tipo=ENCERRAMENTO
-        if (strtoupper((string) $request->input('ciclo_status')) === CicloAbertoService::STATUS_FECHADO
-            || strtoupper((string) $request->input('tipo')) === 'ENCERRAMENTO') {
-            $payload['status_ciclo'] = CicloAbertoService::STATUS_FECHADO;
-        }
+        // Checklist não tem mais ciclo — status_ciclo não é alterado em edição.
         $payload['user_edit'] = Auth::user()?->email;
         $rec->update($payload);
         return response()->json(['status' => true, 'data' => $this->mapChecklistServico($rec->fresh())]);

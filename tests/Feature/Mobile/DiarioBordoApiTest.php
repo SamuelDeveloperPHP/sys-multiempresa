@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Mobile;
 
+use App\Models\Frota\VeiculoChecklistServico;
 use App\Models\Frota\VeiculoDiarioBordo;
 use Illuminate\Support\Facades\Storage;
 
@@ -70,6 +71,32 @@ class DiarioBordoApiTest extends MobileTestCase
             ])
             ->assertOk();
         $this->assertSame($c['user']->name, $rec->fresh()->responsavel);
+    }
+
+    public function test_checklist_aberto_legado_nao_bloqueia_abertura_do_diario(): void
+    {
+        // Histórico intocado: registros de checklist com status_ciclo='ABERTO'
+        // (do modelo antigo de ciclo) não travam mais o diário de bordo.
+        $c = $this->cenarioBase();
+        $veiculoB = $this->criarVeiculo($c['company'], 'VT-02');
+
+        VeiculoChecklistServico::forceCreate([
+            'company_id'   => $c['company']->id,
+            'id_veiculo'   => $veiculoB->id,
+            'id_checklist' => $c['checklist']->id,
+            'status_ciclo' => 'ABERTO', // legado
+            'id_user'      => $c['user']->id,
+            'user_create'  => $c['user']->email,
+        ]);
+
+        $this->comContexto($c['user'], $c['company'])
+            ->postJson('/api/mobile/diario-bordo', [
+                'veiculo_id'          => $c['veiculo']->id,
+                'data'                => now()->toIso8601String(),
+                'ciclo_status'        => 'ABERTO',
+                'descricao_atividade' => 'Turno com checklist legado aberto',
+            ])
+            ->assertStatus(201); // antes: 422 (bloqueio cruzado)
     }
 
     public function test_abertura_sem_descricao_retorna_422(): void

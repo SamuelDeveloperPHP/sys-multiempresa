@@ -152,7 +152,7 @@ export default function DiarioBordoCreate({ veiculoId }) {
                                     {blockers.map((b) => (
                                         <li key={`${b.kind}-${b.id}`} className="bg-white rounded-lg p-3 border border-amber-200">
                                             <p className="text-xs text-amber-700 font-semibold uppercase mb-1">
-                                                {b.kind === 'diario' ? '📓 Diário de Bordo' : '✅ Checklist'}
+                                                📓 Diário de Bordo
                                             </p>
                                             <p className="text-sm font-medium text-gray-800">
                                                 Veículo: {b.prefixo}

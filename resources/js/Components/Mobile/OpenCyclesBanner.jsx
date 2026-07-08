@@ -18,36 +18,22 @@ import useOpenCycles from '@/offline/hooks/useOpenCycles';
 export default function OpenCyclesBanner() {
     const { auth } = usePage().props;
     const userId = auth?.user?.id;
-    const { openDiario, openChecklist } = useOpenCycles(userId);
+    const { openDiario } = useOpenCycles(userId);
     const [dismissed, setDismissed] = useState(false);
 
     if (dismissed) return null;
-    if (!openDiario && !openChecklist) return null;
+    if (!openDiario) return null;
 
-    // Prioriza diário; mas se houver os dois, mostra os dois (raro)
-    const cycles = [];
-    if (openDiario) {
-        cycles.push({
-            kind: 'diario',
-            icon: 'fa-book',
-            label: 'Diário de Bordo',
-            color: 'amber',
-            prefixo: openDiario.prefixo,
-            closeHref: `/mobile/veiculos/${openDiario.veiculo_id}/diario-bordo/${openDiario.id}/close`,
-            indexHref: `/mobile/veiculos/${openDiario.veiculo_id}/diario-bordo`,
-        });
-    }
-    if (openChecklist) {
-        cycles.push({
-            kind: 'checklist',
-            icon: 'fa-clipboard-check',
-            label: 'Checklist',
-            color: 'amber',
-            prefixo: openChecklist.prefixo,
-            closeHref: `/mobile/veiculos/${openChecklist.veiculo_id}/checklist`,
-            indexHref: `/mobile/veiculos/${openChecklist.veiculo_id}/checklist`,
-        });
-    }
+    // Só o DIÁRIO tem ciclo — checklist virou cadastro único (2026-07-08).
+    const cycles = [{
+        kind: 'diario',
+        icon: 'fa-book',
+        label: 'Diário de Bordo',
+        color: 'amber',
+        prefixo: openDiario.prefixo,
+        closeHref: `/mobile/veiculos/${openDiario.veiculo_id}/diario-bordo/${openDiario.id}/close`,
+        indexHref: `/mobile/veiculos/${openDiario.veiculo_id}/diario-bordo`,
+    }];
 
     return (
         <div className="bg-amber-50 border-b border-amber-200">
