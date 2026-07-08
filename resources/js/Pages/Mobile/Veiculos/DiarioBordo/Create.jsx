@@ -298,10 +298,15 @@ export default function DiarioBordoCreate({ veiculoId }) {
                     </button>
                 </div>
 
-                <p className="text-[11px] text-gray-400 text-center pt-1">
-                    <i className="fa-solid fa-circle-info mr-1" />
-                    Após abrir, você precisará FECHAR este diário antes de abrir outro em qualquer veículo.
-                </p>
+                {/* Aviso do ciclo em destaque: regra operacional que o motorista
+                    precisa LER antes de abrir (abertura obriga encerramento). */}
+                <div className="flex items-start gap-2.5 bg-amber-50 border-2 border-amber-300 rounded-xl p-3">
+                    <i className="fa-solid fa-triangle-exclamation text-amber-500 text-2xl mt-0.5 shrink-0" />
+                    <p className="text-sm font-semibold text-amber-900 leading-snug">
+                        Após abrir, você precisará <span className="font-extrabold underline">FECHAR este diário</span> antes
+                        de abrir outro em qualquer veículo.
+                    </p>
+                </div>
             </div>
 
             <CameraCapture isOpen={cameraOpen} onClose={() => setCameraOpen(false)}

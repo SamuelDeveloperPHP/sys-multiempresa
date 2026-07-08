@@ -395,10 +395,14 @@ export default function ChecklistCreate({ veiculoId, templateId }) {
                 </div>
 
                 {isAbertura && (
-                    <p className="text-[11px] text-gray-400 text-center pt-1">
-                        <i className="fa-solid fa-circle-info mr-1" />
-                        Após abrir, você precisará encerrar este checklist antes de iniciar outro em qualquer veículo.
-                    </p>
+                    /* Aviso do ciclo em destaque (mesma regra do diário de bordo) */
+                    <div className="flex items-start gap-2.5 bg-amber-50 border-2 border-amber-300 rounded-xl p-3">
+                        <i className="fa-solid fa-triangle-exclamation text-amber-500 text-2xl mt-0.5 shrink-0" />
+                        <p className="text-sm font-semibold text-amber-900 leading-snug">
+                            Após abrir, você precisará <span className="font-extrabold underline">ENCERRAR este checklist</span> antes
+                            de iniciar outro em qualquer veículo.
+                        </p>
+                    </div>
                 )}
             </div>
 
