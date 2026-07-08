@@ -10,6 +10,7 @@ import MobileLayout from '@/Layouts/MobileLayout';
 import repo from '@/offline/repositories/checklistsRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+import ClearCacheButton from '@/Components/Mobile/ClearCacheButton';
 
 export default function ChecklistFrotaIndex({ veiculoId }) {
     const id = veiculoId || window.location.pathname.split('/').reverse()[1];
@@ -52,10 +53,24 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
             <div className="p-3 space-y-4">
                 {/* Templates disponíveis */}
                 <section>
-                    <h2 className="text-sm font-semibold text-gray-700 mb-2">
-                        <i className="fa-solid fa-clipboard-list mr-1.5 text-[#0057a3]" />
-                        Templates disponíveis
-                    </h2>
+                    <div className="flex items-start justify-between mb-2">
+                        <h2 className="text-sm font-semibold text-gray-700">
+                            <i className="fa-solid fa-clipboard-list mr-1.5 text-[#0057a3]" />
+                            Templates disponíveis
+                        </h2>
+                        <div className="flex flex-col items-end gap-1.5">
+                            {online && (
+                                <button onClick={syncNow} className="text-xs text-[#557bbb] font-medium">
+                                    <i className="fa-solid fa-rotate mr-1" /> Atualizar
+                                </button>
+                            )}
+                            {/* Limpa SÓ o cache deste módulo (checklists do veículo) */}
+                            <ClearCacheButton
+                                clearFn={() => repo.clearSyncedByVeiculo(id)}
+                                onCleared={load}
+                            />
+                        </div>
+                    </div>
                     {loading ? (
                         <div className="text-center py-6 text-gray-400">
                             <i className="fa-solid fa-spinner fa-spin" />

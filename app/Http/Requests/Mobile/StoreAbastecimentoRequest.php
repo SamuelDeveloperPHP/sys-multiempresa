@@ -35,6 +35,12 @@ class StoreAbastecimentoRequest extends FormRequest
             'km_atual'       => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'hr_atual'       => ['nullable', 'numeric', 'min:0', 'max:9999999'],
             'observacao'     => ['nullable', 'string', 'max:2000'],
+            // Foto do comprovante (data URL): o controller salva como arquivo
+            // e persiste arquivo_app/arquivo_servidor (convenção do legado).
+            'arquivo_app_data_url' => [
+                'nullable', 'string', 'max:' . StoreChecklistServicoRequest::FOTO_MAX_CHARS,
+                'regex:/^data:image\/(jpeg|jpg|png|webp);base64,/',
+            ],
         ];
     }
 

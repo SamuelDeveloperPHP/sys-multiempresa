@@ -76,10 +76,11 @@ export default function SyncButton({ compact = false }) {
                     hasPending ? `${pendingCount} item(ns) pendente(s)` :
                     'Tudo sincronizado'
                 }
-                className={`relative p-2 rounded-full transition-colors ${buttonColor}`}
+                className={`relative p-3 rounded-full transition-colors ${buttonColor}`}
             >
-                <i className={`fa-solid fa-cloud-arrow-up text-sm ${syncing ? 'animate-pulse' : ''}`} />
-                {(hasPending || hasRejected) && (
+                {/* Spinner animado enquanto envia (feedback claro de progresso) */}
+                <i className={`fa-solid ${syncing ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-up'} text-lg`} />
+                {(hasPending || hasRejected) && !syncing && (
                     <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
                         {(pendingCount + rejectedCount) > 99 ? '99+' : pendingCount + rejectedCount}
                     </span>
@@ -93,18 +94,18 @@ export default function SyncButton({ compact = false }) {
             <button
                 onClick={handleSync}
                 disabled={syncing || !online}
-                className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-colors ${buttonColor}`}
+                className={`flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl font-semibold text-base transition-colors ${buttonColor}`}
             >
                 {syncing ? (
                     <>
-                        <i className="fa-solid fa-spinner animate-spin" />
-                        <span>Sincronizando… {progress.percent}%</span>
+                        <i className="fa-solid fa-spinner fa-spin text-lg" />
+                        <span>Enviando… {progress.percent}%</span>
                     </>
                 ) : (
                     <>
-                        <i className="fa-solid fa-cloud-arrow-up" />
+                        <i className="fa-solid fa-cloud-arrow-up text-lg" />
                         <span>
-                            {hasPending ? `Sincronizar (${pendingCount})` : 'Tudo sincronizado'}
+                            {hasPending ? `Enviar dados (${pendingCount})` : 'Tudo sincronizado'}
                         </span>
                     </>
                 )}

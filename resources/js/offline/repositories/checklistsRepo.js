@@ -116,6 +116,26 @@ export async function syncAllRecentServicos() {
     return rows.length;
 }
 
+// -----------------------------------------------------------------------------
+// LIMPAR CACHE do módulo (botão "Limpar cache" da página): remove execuções
+// JÁ SINCRONIZADAS + templates/itens do veículo (catálogo re-sincronizável).
+// Pendências de envio ficam intactas.
+// -----------------------------------------------------------------------------
+export async function clearSyncedByVeiculo(veiculoId) {
+    const vid = Number(veiculoId);
+    await db.transaction('rw', [db.checklist_servicos, db.checklists, db.checklist_itens], async () => {
+        await db.checklist_servicos
+            .where('veiculo_id').equals(vid)
+            .and(r => r._sync_status === 'synced')
+            .delete();
+        const tplIds = (await db.checklists.where('veiculo_id').equals(vid).toArray()).map(c => c.id);
+        if (tplIds.length) {
+            await db.checklist_itens.where('checklist_id').anyOf(tplIds).delete();
+        }
+        await db.checklists.where('veiculo_id').equals(vid).delete();
+    });
+}
+
 export default {
     syncChecklists,
     listChecklists,
@@ -128,4 +148,5 @@ export default {
     removeServico,
     listAllRecentServicos,
     syncAllRecentServicos,
+    clearSyncedByVeiculo,
 };

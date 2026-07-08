@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { router, Link, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import FotoEvidencia from '@/Components/Mobile/FotoEvidencia';
 import repo from '@/offline/repositories/abastecimentosRepo';
 
 export default function AbastecimentoShow({ veiculoId, abastecimentoId }) {
@@ -69,6 +70,13 @@ export default function AbastecimentoShow({ veiculoId, abastecimentoId }) {
                         <div className="pt-2 border-t border-gray-100">
                             <p className="text-xs text-gray-500">Observação:</p>
                             <p className="text-sm text-gray-700 whitespace-pre-line">{a.observacao}</p>
+                        </div>
+                    )}
+                    {/* Comprovante: base64 local (pendente) ou URL do servidor */}
+                    {(a.arquivo_app_data_url || a.comprovante_url) && (
+                        <div className="pt-2 border-t border-gray-100">
+                            <p className="text-xs text-gray-500">Comprovante:</p>
+                            <FotoEvidencia src={a.arquivo_app_data_url || a.comprovante_url} alt="Foto do comprovante" />
                         </div>
                     )}
                 </div>

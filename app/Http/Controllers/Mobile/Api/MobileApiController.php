@@ -104,14 +104,35 @@ class MobileApiController extends Controller
     }
 
     /**
-     * Extrai as fotos base64 (foto_data_url) das respostas de checklist e as
-     * salva como ARQUIVO no disco público (mesma convenção do SyncController
-     * legado: uploads/aplicativo/{contexto}/). No JSON persistido fica apenas
-     * 'foto_path' — sem isso, cada execução de checklist inflaria a coluna
-     * `respostas` com megabytes de base64 (estourando post_max_size /
-     * max_allowed_packet e inchando o banco).
-     *
+     * Salva uma foto base64 (data URL) como ARQUIVO no disco público, na
+     * convenção do SyncController legado: uploads/aplicativo/{contexto}/.
+     * Retorna ['nome', 'path', 'url'] ou null se o data URL for inválido.
      * Entradas já validadas pelo FormRequest (formato data:image + tamanho).
+     */
+    private function salvarFotoBase64(?string $dataUrl, string $contexto, string $prefixo = 'img'): ?array
+    {
+        if (!$dataUrl || !is_string($dataUrl)) {
+            return null;
+        }
+        if (!preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,/', $dataUrl, $m)) {
+            return null;
+        }
+        $conteudo = base64_decode(substr($dataUrl, strpos($dataUrl, ',') + 1), true);
+        if (!$conteudo) {
+            return null;
+        }
+        $ext = $m[1] === 'jpg' ? 'jpeg' : $m[1];
+        $nome = uniqid($prefixo . '_', true) . '.' . $ext;
+        $caminho = "uploads/aplicativo/{$contexto}/{$nome}";
+        Storage::disk('public')->put($caminho, $conteudo);
+        return ['nome' => $nome, 'path' => $caminho, 'url' => url('storage/' . $caminho)];
+    }
+
+    /**
+     * Extrai as fotos base64 (foto_data_url) das respostas de checklist e as
+     * salva como arquivo. No JSON persistido fica apenas 'foto_path' — sem
+     * isso, cada execução inflaria a coluna `respostas` com megabytes de
+     * base64 (estourando post_max_size / max_allowed_packet e inchando o banco).
      * 'foto_path' pré-existente (edição de registro já sincronizado) passa
      * intacto; base64 inválido é descartado sem derrubar o request.
      */
@@ -123,21 +144,10 @@ class MobileApiController extends Controller
         foreach ($respostas as $i => $r) {
             $dataUrl = $r['foto_data_url'] ?? null;
             unset($respostas[$i]['foto_data_url']);
-            if (!$dataUrl || !is_string($dataUrl)) {
-                continue;
+            $foto = $this->salvarFotoBase64($dataUrl, 'checklist_servicos', 'chk');
+            if ($foto) {
+                $respostas[$i]['foto_path'] = $foto['path'];
             }
-            if (!preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,/', $dataUrl, $m)) {
-                continue;
-            }
-            $conteudo = base64_decode(substr($dataUrl, strpos($dataUrl, ',') + 1), true);
-            if (!$conteudo) {
-                continue;
-            }
-            $ext = $m[1] === 'jpg' ? 'jpeg' : $m[1];
-            $nome = uniqid('chk_', true) . '.' . $ext;
-            $caminho = 'uploads/aplicativo/checklist_servicos/' . $nome;
-            Storage::disk('public')->put($caminho, $conteudo);
-            $respostas[$i]['foto_path'] = $caminho;
         }
         return array_values($respostas);
     }
@@ -314,6 +324,14 @@ class MobileApiController extends Controller
         if ($uuid = $request->input('client_uuid')) {
             $payload['client_uuid'] = $uuid;
         }
+        // Foto do comprovante: base64 vira arquivo (convenção legada:
+        // arquivo_app = nome, arquivo_servidor = URL). O campo era ignorado
+        // e a foto do comprovante nunca chegava ao servidor.
+        $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'abastecimentos', 'abast');
+        if ($foto) {
+            $payload['arquivo_app'] = $foto['nome'];
+            $payload['arquivo_servidor'] = $foto['url'];
+        }
         [$rec, $jaExistia] = $this->createComClientUuid(VeiculoAbastecimento::class, $payload);
         return response()->json(
             ['status' => true, 'data' => $this->mapAbastecimento($rec), 'deduplicated' => $jaExistia],
@@ -326,6 +344,12 @@ class MobileApiController extends Controller
         $rec = VeiculoAbastecimento::findOrFail($id);
         $this->veiculoDaEmpresa((int) $rec->veiculo_id);  // ownership check
         $payload = $this->normalizeAbastecimento($request->validated(), false);
+        // Troca de foto do comprovante na edição (mesma convenção do store)
+        $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'abastecimentos', 'abast');
+        if ($foto) {
+            $payload['arquivo_app'] = $foto['nome'];
+            $payload['arquivo_servidor'] = $foto['url'];
+        }
         $rec->update($payload);
         return response()->json(['status' => true, 'data' => $this->mapAbastecimento($rec->fresh())]);
     }
@@ -376,6 +400,8 @@ class MobileApiController extends Controller
             'km_atual'       => $r->km_atual,
             'hr_atual'       => $r->hr_atual,
             'observacao'     => null,
+            // URL do comprovante salvo no servidor (foto capturada no app)
+            'comprovante_url' => $r->arquivo_servidor,
             'created_at'     => $r->created_at?->toIso8601String(),
             'updated_at'     => $r->updated_at?->toIso8601String(),
         ];

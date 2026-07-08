@@ -86,4 +86,15 @@ export async function syncAllRecent() {
     return rows.length;
 }
 
-export default { syncByVeiculo, listByVeiculo, find, create, update, remove, listAllRecent, syncAllRecent };
+// -----------------------------------------------------------------------------
+// LIMPAR CACHE do módulo (botão "Limpar cache" da página): remove apenas os
+// registros JÁ SINCRONIZADOS do veículo — pendências de envio ficam intactas.
+// -----------------------------------------------------------------------------
+export async function clearSyncedByVeiculo(veiculoId) {
+    return await db.abastecimentos
+        .where('veiculo_id').equals(Number(veiculoId))
+        .and(r => r._sync_status === 'synced')
+        .delete();
+}
+
+export default { syncByVeiculo, listByVeiculo, find, create, update, remove, listAllRecent, syncAllRecent, clearSyncedByVeiculo };

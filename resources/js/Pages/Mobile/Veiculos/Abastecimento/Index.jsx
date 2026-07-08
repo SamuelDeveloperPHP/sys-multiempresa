@@ -5,6 +5,7 @@ import MobileLayout from '@/Layouts/MobileLayout';
 import repo from '@/offline/repositories/abastecimentosRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+import ClearCacheButton from '@/Components/Mobile/ClearCacheButton';
 
 export default function AbastecimentoIndex({ veiculoId }) {
     const id = veiculoId || window.location.pathname.split('/').reverse()[1];
@@ -46,16 +47,23 @@ export default function AbastecimentoIndex({ veiculoId }) {
             <Head title="Abastecimentos" />
 
             <div className="p-3 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between">
                     <h2 className="text-sm font-semibold text-gray-700">
-                        {items.length} registro(s)
+                        {items.length} registro(s) em cache
                     </h2>
-                    <div className="flex gap-2">
-                        {online && !syncing && (
-                            <button onClick={syncNow} className="text-xs text-[#557bbb] font-medium">
-                                <i className="fa-solid fa-rotate mr-1" /> Atualizar
-                            </button>
-                        )}
+                    <div className="flex gap-3 items-start">
+                        <div className="flex flex-col items-end gap-1.5">
+                            {online && !syncing && (
+                                <button onClick={syncNow} className="text-xs text-[#557bbb] font-medium">
+                                    <i className="fa-solid fa-rotate mr-1" /> Atualizar
+                                </button>
+                            )}
+                            {/* Limpa SÓ o cache deste módulo (abastecimentos do veículo) */}
+                            <ClearCacheButton
+                                clearFn={() => repo.clearSyncedByVeiculo(id)}
+                                onCleared={load}
+                            />
+                        </div>
                         <Link
                             href={`/mobile/veiculos/${id}/abastecimentos/criar`}
                             className="bg-[#e67e22] text-white text-xs font-semibold px-3 py-1.5 rounded-md"

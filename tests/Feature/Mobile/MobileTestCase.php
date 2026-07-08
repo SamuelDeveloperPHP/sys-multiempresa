@@ -33,6 +33,7 @@ abstract class MobileTestCase extends TestCase
             'users', 'companies', 'veiculos',
             'veiculo_checklist', 'veiculo_checklist_itens',
             'veiculo_checklist_itens_servicos', 'veiculos_diario_bordo',
+            'veiculo_abastecimentos',
             'modules', 'module_permissions',
         ] as $tabela) {
             Schema::dropIfExists($tabela);
@@ -158,6 +159,38 @@ abstract class MobileTestCase extends TestCase
             $t->text('respostas')->nullable();
             $t->text('observacao_geral')->nullable();
             $t->dateTime('data_execucao')->nullable();
+            $t->string('sync_status')->nullable();
+            $t->dateTime('data_sincronizacao')->nullable();
+            $t->text('sync_error')->nullable();
+            $t->integer('sync_attempts')->nullable();
+            $t->dateTime('synced_at')->nullable();
+            $t->string('client_uuid', 64)->nullable()->unique();
+            $t->timestamps();
+            $t->softDeletes();
+        });
+
+        Schema::create('veiculo_abastecimentos', function (Blueprint $t) {
+            $t->id();
+            $t->unsignedBigInteger('company_id')->nullable();
+            $t->string('id_local')->nullable();
+            $t->unsignedBigInteger('veiculo_id')->nullable();
+            $t->unsignedBigInteger('id_obra')->nullable();
+            $t->unsignedBigInteger('id_funcionario')->nullable();
+            $t->string('user_create')->nullable();
+            $t->string('user_edit')->nullable();
+            $t->dateTime('data_abastecimento')->nullable();
+            $t->decimal('km_anterior', 12, 2)->nullable();
+            $t->decimal('km_atual', 12, 2)->nullable();
+            $t->decimal('hr_anterior', 12, 2)->nullable();
+            $t->decimal('hr_atual', 12, 2)->nullable();
+            $t->string('fornecedor')->nullable();
+            $t->string('combustivel')->nullable();
+            $t->string('tipo')->nullable();
+            $t->decimal('quantidade', 10, 2)->nullable();
+            $t->decimal('valor_do_litro', 10, 4)->nullable();
+            $t->decimal('valor_total', 12, 2)->nullable();
+            $t->string('arquivo_app')->nullable();
+            $t->string('arquivo_servidor')->nullable();
             $t->string('sync_status')->nullable();
             $t->dateTime('data_sincronizacao')->nullable();
             $t->text('sync_error')->nullable();
