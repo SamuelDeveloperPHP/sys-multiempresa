@@ -6,42 +6,40 @@
 // -----------------------------------------------------------------------------
 import { useEffect, useState, useCallback } from 'react';
 import { Link, Head } from '@inertiajs/react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import MobileLayout from '@/Layouts/MobileLayout';
 import repo from '@/offline/repositories/checklistsRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
 import ClearCacheButton from '@/Components/Mobile/ClearCacheButton';
+import { toast } from '@/utils/dialogs';
 
 export default function ChecklistFrotaIndex({ veiculoId }) {
     const id = veiculoId || window.location.pathname.split('/').reverse()[1];
     const { online } = useOnlineStatus();
     const [veiculo, setVeiculo] = useState(null);
-    const [templates, setTemplates] = useState([]);
-    const [historico, setHistorico] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
 
-    const load = useCallback(async () => {
-        const v = await veiculosRepo.find(id);
-        setVeiculo(v?.veiculo);
-        // Templates de checklist são POR VEÍCULO (não por obra)
-        setTemplates(await repo.listChecklists(id));
-        setHistorico(await repo.listServicosByVeiculo(id));
-    }, [id]);
+    // Listas REATIVAS (Dexie liveQuery): refletem sync/limpeza na hora —
+    // o badge "Pendente" some assim que o envio conclui.
+    const templates = useLiveQuery(() => repo.listChecklists(id), [id]);
+    const historico = useLiveQuery(() => repo.listServicosByVeiculo(id), [id]);
+    const loading = templates === undefined || historico === undefined;
 
     const syncNow = useCallback(async () => {
         if (!online) return;
+        setSyncing(true);
         try {
             await repo.syncChecklists(id);                 // sync POR VEÍCULO
             await repo.syncServicosByVeiculo(id);
-            await load();
         } catch (e) { /* cache */ }
-    }, [online, id, load]);
+        finally { setSyncing(false); }
+    }, [online, id]);
 
     useEffect(() => {
         (async () => {
-            setLoading(true);
-            await load();
-            setLoading(false);
+            const v = await veiculosRepo.find(id);
+            setVeiculo(v?.veiculo);
             if (online) await syncNow();
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,19 +51,32 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
             <div className="p-3 space-y-4">
                 {/* Templates disponíveis */}
                 <section>
-                    {/* Ações na mesma linha; título logo abaixo */}
+                    {/* Ações na mesma linha, CENTRALIZADAS (mesmo padrão do diário) */}
                     <div className="space-y-1.5 mb-2">
-                        <div className="flex items-center justify-end gap-4 flex-wrap">
-                            {online && (
+                        <div className="flex items-center justify-center gap-4 flex-wrap">
+                            {online && !syncing && (
                                 <button onClick={syncNow} className="text-sm text-[#557bbb] font-medium">
                                     <i className="fa-solid fa-rotate mr-1" /> Atualizar
                                 </button>
                             )}
-                            {/* Limpa SÓ o cache deste módulo (checklists do veículo) */}
-                            <ClearCacheButton
-                                clearFn={() => repo.clearSyncedByVeiculo(id)}
-                                onCleared={load}
-                            />
+                            {/* Limpa SÓ o cache deste módulo (listas reativas — atualizam sozinhas) */}
+                            <ClearCacheButton clearFn={() => repo.clearSyncedByVeiculo(id)} />
+                            {(templates || []).length === 1 ? (
+                                <Link
+                                    href={`/mobile/veiculos/${id}/checklist/iniciar/${templates[0].id}`}
+                                    className="bg-[#2ecc71] text-white text-xs font-semibold px-3 py-1.5 rounded-md"
+                                >
+                                    <i className="fa-solid fa-plus mr-1" /> Novo
+                                </Link>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => toast('Escolha um template na lista abaixo.', 'info')}
+                                    className="bg-[#2ecc71] text-white text-xs font-semibold px-3 py-1.5 rounded-md"
+                                >
+                                    <i className="fa-solid fa-plus mr-1" /> Novo
+                                </button>
+                            )}
                         </div>
                         <h2 className="text-sm font-semibold text-gray-700">
                             <i className="fa-solid fa-clipboard-list mr-1.5 text-[#0057a3]" />
@@ -109,7 +120,7 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                     <div className="flex items-center justify-between mb-2">
                         <h2 className="text-sm font-semibold text-gray-700">
                             <i className="fa-solid fa-clock-rotate-left mr-1.5 text-gray-500" />
-                            Histórico ({historico.length})
+                            Histórico ({(historico || []).length})
                         </h2>
                         <Link
                             href={`/mobile/veiculos/${id}/checklist/historico`}
@@ -118,11 +129,11 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                             Ver tudo
                         </Link>
                     </div>
-                    {historico.length === 0 ? (
+                    {(historico || []).length === 0 ? (
                         <p className="text-center text-xs text-gray-400 py-4">Nenhuma execução ainda.</p>
                     ) : (
                         <ul className="space-y-2">
-                            {historico.slice(0, 5).map(s => (
+                            {(historico || []).slice(0, 5).map(s => (
                                 <li key={s.id || s._local_id}>
                                     <Link
                                         href={`/mobile/veiculos/${id}/checklist/servicos/${s.id || s._local_id}`}

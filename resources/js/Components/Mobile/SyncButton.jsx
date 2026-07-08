@@ -93,8 +93,27 @@ export default function SyncButton({ compact = false }) {
                 ? 'bg-amber-500 hover:bg-amber-600 text-white'
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white';
 
+    // Overlay que BLOQUEIA a tela durante o envio (evita navegação/toques no
+    // meio da sincronização); as listas são reativas e refletem o resultado
+    // assim que o overlay sai.
+    const syncOverlay = syncing ? (
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center">
+            <div className="bg-white rounded-2xl px-6 py-5 flex flex-col items-center gap-3 shadow-xl mx-6 w-64">
+                <i className="fa-solid fa-cloud-arrow-up text-3xl text-[#557bbb] animate-pulse" />
+                <p className="text-sm font-semibold text-gray-800">Enviando dados…</p>
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#557bbb] rounded-full transition-all"
+                        style={{ width: `${progress.percent || 0}%` }} />
+                </div>
+                <p className="text-[11px] text-gray-500 text-center">{progress.message || `${progress.percent || 0}%`}</p>
+            </div>
+        </div>
+    ) : null;
+
     if (compact) {
         return (
+            <>
+            {syncOverlay}
             <button
                 onClick={handleSync}
                 disabled={syncing || !online}
@@ -115,11 +134,13 @@ export default function SyncButton({ compact = false }) {
                     </span>
                 )}
             </button>
+            </>
         );
     }
 
     return (
         <div className="flex flex-col gap-1 w-full">
+            {syncOverlay}
             <button
                 onClick={handleSync}
                 disabled={syncing || !online}

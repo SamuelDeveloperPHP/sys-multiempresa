@@ -13,6 +13,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from '@inertiajs/react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
 import db from '@/offline/db';
 
@@ -26,24 +27,24 @@ export default function GlobalRecentList({
     emptyLabel = 'Nenhum registro ainda.',
 }) {
     const { online } = useOnlineStatus();
-    const [items, setItems] = useState([]);
-    const [veiculosMap, setVeiculosMap] = useState({});
-    const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [query, setQuery] = useState('');
 
-    const load = useCallback(async () => {
-        const [list, veiculos] = await Promise.all([
-            repo.listAllRecent ? repo.listAllRecent(100)
-              : repo.listAllRecentServicos ? repo.listAllRecentServicos(100)
-              : repo.listAll(),
-            db.veiculos.toArray(),
-        ]);
+    // Listas REATIVAS (Dexie liveQuery): refletem sync/limpeza na hora —
+    // o badge "Pendente" some assim que o envio conclui.
+    const items = useLiveQuery(() => (
+        repo.listAllRecent ? repo.listAllRecent(100)
+          : repo.listAllRecentServicos ? repo.listAllRecentServicos(100)
+          : repo.listAll()
+    ), [repo]);
+    const veiculos = useLiveQuery(() => db.veiculos.toArray(), []);
+    const loading = items === undefined || veiculos === undefined;
+
+    const veiculosMap = useMemo(() => {
         const map = {};
-        veiculos.forEach(v => { map[v.id] = v; });
-        setVeiculosMap(map);
-        setItems(list);
-    }, [repo]);
+        (veiculos || []).forEach(v => { map[v.id] = v; });
+        return map;
+    }, [veiculos]);
 
     const syncNow = useCallback(async () => {
         if (!online) return;
@@ -51,21 +52,15 @@ export default function GlobalRecentList({
         try {
             if (repo.syncAllRecent) await repo.syncAllRecent();
             else if (repo.syncAllRecentServicos) await repo.syncAllRecentServicos();
-            await load();
         } catch (e) {
             console.warn('[GlobalRecentList] sync falhou:', e.message);
         } finally {
             setSyncing(false);
         }
-    }, [online, repo, load]);
+    }, [online, repo]);
 
     useEffect(() => {
-        (async () => {
-            setLoading(true);
-            await load();
-            setLoading(false);
-            if (online) await syncNow();
-        })();
+        if (online) syncNow();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

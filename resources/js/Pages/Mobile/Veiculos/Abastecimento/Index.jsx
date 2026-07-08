@@ -1,6 +1,7 @@
 // resources/js/Pages/Mobile/Veiculos/Abastecimento/Index.jsx
 import { useEffect, useState, useCallback } from 'react';
 import { Link, Head } from '@inertiajs/react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import MobileLayout from '@/Layouts/MobileLayout';
 import repo from '@/offline/repositories/abastecimentosRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
@@ -11,32 +12,25 @@ export default function AbastecimentoIndex({ veiculoId }) {
     const id = veiculoId || window.location.pathname.split('/').reverse()[1];
     const { online } = useOnlineStatus();
     const [veiculo, setVeiculo] = useState(null);
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
 
-    const load = useCallback(async () => {
-        const v = await veiculosRepo.find(id);
-        setVeiculo(v?.veiculo);
-        const list = await repo.listByVeiculo(id);
-        setItems(list);
-    }, [id]);
+    // Lista REATIVA (Dexie liveQuery): re-renderiza sozinha quando o sync ou
+    // o limpar cache mexem no banco local — o badge "Pendente" some na hora.
+    const items = useLiveQuery(() => repo.listByVeiculo(id), [id]);
+    const loading = items === undefined;
 
     const syncNow = useCallback(async () => {
         if (!online) return;
         setSyncing(true);
-        try {
-            await repo.syncByVeiculo(id);
-            await load();
-        } catch (err) { /* mantém cache */ }
+        try { await repo.syncByVeiculo(id); }
+        catch (err) { /* mantém cache */ }
         finally { setSyncing(false); }
-    }, [online, id, load]);
+    }, [online, id]);
 
     useEffect(() => {
         (async () => {
-            setLoading(true);
-            await load();
-            setLoading(false);
+            const v = await veiculosRepo.find(id);
+            setVeiculo(v?.veiculo);
             if (online) await syncNow();
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -47,19 +41,16 @@ export default function AbastecimentoIndex({ veiculoId }) {
             <Head title="Abastecimentos" />
 
             <div className="p-3 space-y-3">
-                {/* Ações na mesma linha; contagem logo abaixo */}
+                {/* Ações na mesma linha, CENTRALIZADAS; contagem logo abaixo */}
                 <div className="space-y-1.5">
-                    <div className="flex items-center justify-end gap-4 flex-wrap">
+                    <div className="flex items-center justify-center gap-4 flex-wrap">
                         {online && !syncing && (
                             <button onClick={syncNow} className="text-sm text-[#557bbb] font-medium">
                                 <i className="fa-solid fa-rotate mr-1" /> Atualizar
                             </button>
                         )}
-                        {/* Limpa SÓ o cache deste módulo (abastecimentos do veículo) */}
-                        <ClearCacheButton
-                            clearFn={() => repo.clearSyncedByVeiculo(id)}
-                            onCleared={load}
-                        />
+                        {/* Limpa SÓ o cache deste módulo (lista é reativa — atualiza sozinha) */}
+                        <ClearCacheButton clearFn={() => repo.clearSyncedByVeiculo(id)} />
                         <Link
                             href={`/mobile/veiculos/${id}/abastecimentos/criar`}
                             className="bg-[#e67e22] text-white text-xs font-semibold px-3 py-1.5 rounded-md"
@@ -68,7 +59,7 @@ export default function AbastecimentoIndex({ veiculoId }) {
                         </Link>
                     </div>
                     <h2 className="text-sm font-semibold text-gray-700">
-                        {items.length} registro(s) em cache
+                        {(items || []).length} registro(s) em cache
                     </h2>
                 </div>
 
