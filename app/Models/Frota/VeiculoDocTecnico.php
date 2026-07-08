@@ -18,7 +18,7 @@ class VeiculoDocTecnico extends Model
         'id_tipo_veiculo', 'id_doc_tecnico',
         'nome_documento', 'arquivo',
         'data_documento', 'validade', 'data_validade',
-        'status',
+        'status', 'obsoleto',
         'user_create', 'user_edit',
     ];
 
@@ -26,6 +26,7 @@ class VeiculoDocTecnico extends Model
         'data_documento' => 'date',
         'data_validade'  => 'date',
         'validade'       => 'integer',
+        'obsoleto'       => 'boolean',
     ];
 
     public function veiculo() { return $this->belongsTo(Veiculo::class, 'id_veiculo'); }

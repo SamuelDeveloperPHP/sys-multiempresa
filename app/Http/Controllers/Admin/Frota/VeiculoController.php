@@ -132,9 +132,8 @@ class VeiculoController extends Controller
             ->orderByDesc('referencia_ano')
             ->get();
 
-        // Aba: Docs Legais e Tecnicos
-        $docsLegais   = $veiculo->docsLegais()->orderByDesc('data_validade')->get();
-        $docsTecnicos = $veiculo->docsTecnicos()->orderByDesc('data_validade')->get();
+        // Abas Docs Legais/Técnicos: carregadas sob demanda pela própria aba
+        // (GET paginado com busca + filtro de obsoletos) — ver listDocs*.
 
         // Aba: Abastecimentos
         $abastecimentos = $veiculo->abastecimentos()
@@ -245,8 +244,6 @@ class VeiculoController extends Controller
             'manutencoes'              => $manutencoes,
             'seguros'                  => $seguros,
             'ipvas'                    => $ipvas,
-            'docs_legais'              => $docsLegais,
-            'docs_tecnicos'            => $docsTecnicos,
             'abastecimentos'           => $abastecimentos,
             'medicoes'                 => $medicoes,
             'preventivas'              => $preventivas,
@@ -1024,8 +1021,104 @@ class VeiculoController extends Controller
             'data_documento' => 'nullable|date',
             'data_validade'  => 'nullable|date',
             'status'         => 'nullable|string|max:30',
-            'arquivo'        => 'nullable|file|max:10240',
+            'obsoleto'       => 'nullable|boolean',
+            // Apenas PDF (regra do controle de documentos): valida MIME real e
+            // extensão — evita renomear .exe/.jpg para .pdf.
+            'arquivo'        => 'nullable|file|mimetypes:application/pdf|mimes:pdf|max:10240',
+        ], [
+            'arquivo.mimetypes' => 'O documento deve ser um arquivo PDF.',
+            'arquivo.mimes'     => 'O documento deve ser um arquivo PDF.',
         ]);
+    }
+
+    /**
+     * Monta a listagem paginada de documentos (técnicos ou legais) para a aba
+     * do veículo. GET com busca as-you-type (?q=), filtro de obsoletos
+     * (?obsoletos=0|1) e paginação fixa de 10 por página.
+     *
+     * Por padrão a lista mostra APENAS documentos ativos (obsoleto=false);
+     * o toggle "ver obsoletos" inverte o filtro.
+     */
+    private function paginarDocs($query, Request $request): JsonResponse
+    {
+        $verObsoletos = $request->boolean('obsoletos');
+        $termo = trim((string) $request->query('q', ''));
+
+        $query->where('obsoleto', $verObsoletos);
+        if ($termo !== '') {
+            $query->where('nome_documento', 'like', '%' . $termo . '%');
+        }
+
+        $pagina = $query
+            ->orderByDesc('data_documento')
+            ->orderByDesc('id')
+            ->paginate(10)
+            ->withQueryString();
+
+        $pagina->getCollection()->transform(fn ($d) => [
+            'id'             => $d->id,
+            'nome_documento' => $d->nome_documento,
+            'data_documento' => optional($d->data_documento)->toDateString(),
+            'data_validade'  => optional($d->data_validade)->toDateString(),
+            'diferenca_dias' => $d->diferenca_dias,
+            'obsoleto'       => (bool) $d->obsoleto,
+            'tem_arquivo'    => !empty($d->arquivo),
+            'status'         => $d->status,
+        ]);
+
+        return response()->json([
+            'data' => $pagina->items(),
+            'meta' => [
+                'current_page' => $pagina->currentPage(),
+                'last_page'    => $pagina->lastPage(),
+                'total'        => $pagina->total(),
+                'from'         => $pagina->firstItem(),
+                'to'           => $pagina->lastItem(),
+            ],
+        ]);
+    }
+
+    public function listDocsTecnicos(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        return $this->paginarDocs($veiculo->docsTecnicos()->getQuery(), $request);
+    }
+
+    public function listDocsLegais(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        return $this->paginarDocs($veiculo->docsLegais()->getQuery(), $request);
+    }
+
+    /**
+     * Alterna o flag "obsoleto" de um documento. O front envia o estado
+     * desejado (?obsoleto=0|1) para eliminar corrida de cliques — o servidor
+     * apenas grava. Documento obsoleto sai da listagem principal.
+     */
+    public function toggleObsoletoDocTecnico(Request $request, VeiculoDocTecnico $doc): JsonResponse
+    {
+        return $this->gravarObsoleto($request, $doc, 'técnico');
+    }
+
+    public function toggleObsoletoDocLegal(Request $request, VeiculoDocLegal $doc): JsonResponse
+    {
+        return $this->gravarObsoleto($request, $doc, 'legal');
+    }
+
+    private function gravarObsoleto(Request $request, $doc, string $rotulo): JsonResponse
+    {
+        try {
+            $doc->obsoleto  = $request->boolean('obsoleto');
+            $doc->user_edit = Auth::user()->email ?? $doc->user_edit;
+            $doc->save();
+
+            Log::channel('main')->info((Auth::user()->email ?? '?')
+                . " | Documento {$rotulo} {$doc->id} marcado como "
+                . ($doc->obsoleto ? 'OBSOLETO' : 'ATIVO'));
+
+            return response()->json(['ok' => true, 'id' => $doc->id, 'obsoleto' => (bool) $doc->obsoleto]);
+        } catch (\Throwable $e) {
+            Log::error("Erro ao alternar obsoleto do doc {$rotulo}", ['id' => $doc->id ?? null, 'error' => $e->getMessage()]);
+            return response()->json(['ok' => false, 'message' => 'Falha ao atualizar o status.'], 500);
+        }
     }
 
     /**

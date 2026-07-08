@@ -609,17 +609,26 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::delete('seguros/{seguro}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroySeguro'])
                     ->name('seguros.destroy');
 
+                // Listagem paginada (GET JSON): busca as-you-type + filtro obsoletos
+                Route::get('veiculos/{veiculo}/docs-legais/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listDocsLegais'])
+                    ->name('veiculos.docs-legais.list');
                 Route::post('veiculos/{veiculo}/docs-legais', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeDocLegal'])
                     ->name('veiculos.docs-legais.store');
                 Route::put('docs-legais/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateDocLegal'])
                     ->name('docs-legais.update');
+                Route::patch('docs-legais/{doc}/obsoleto', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'toggleObsoletoDocLegal'])
+                    ->name('docs-legais.obsoleto');
                 Route::delete('docs-legais/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyDocLegal'])
                     ->name('docs-legais.destroy');
 
+                Route::get('veiculos/{veiculo}/docs-tecnicos/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listDocsTecnicos'])
+                    ->name('veiculos.docs-tecnicos.list');
                 Route::post('veiculos/{veiculo}/docs-tecnicos', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeDocTecnico'])
                     ->name('veiculos.docs-tecnicos.store');
                 Route::put('docs-tecnicos/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateDocTecnico'])
                     ->name('docs-tecnicos.update');
+                Route::patch('docs-tecnicos/{doc}/obsoleto', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'toggleObsoletoDocTecnico'])
+                    ->name('docs-tecnicos.obsoleto');
                 Route::delete('docs-tecnicos/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyDocTecnico'])
                     ->name('docs-tecnicos.destroy');
 

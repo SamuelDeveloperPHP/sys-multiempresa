@@ -1,5 +1,5 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
 /* ============ helpers de formatação ============ */
@@ -23,6 +23,24 @@ const corValidade = (dias) => {
   return { label: `${dias}d`, cor: 'bg-green-100 text-green-700' };
 };
 
+/* Status de vencimento: barra que enche conforme se aproxima do vencimento.
+   Janela de referência de 90 dias — a barra sai de 0% (>=90d restantes) até
+   100% (vencido). Cores: verde → âmbar → vermelho → preto (vencido). */
+const JANELA_VENCIMENTO_DIAS = 90;
+const statusVencimento = (dias) => {
+  if (dias === null || dias === undefined) {
+    return { label: 'Sem validade', percent: 0, barra: 'bg-gray-300', texto: 'text-gray-500' };
+  }
+  if (dias < 0) {
+    return { label: `Vencido há ${Math.abs(dias)}d`, percent: 100, barra: 'bg-gray-900', texto: 'text-gray-900' };
+  }
+  const percent = Math.min(100, Math.max(4, Math.round((1 - dias / JANELA_VENCIMENTO_DIAS) * 100)));
+  if (dias === 0) return { label: 'Vence hoje', percent: 100, barra: 'bg-red-600', texto: 'text-red-700' };
+  if (dias < 15)  return { label: `Faltam ${dias}d`, percent, barra: 'bg-red-500', texto: 'text-red-700' };
+  if (dias < 40)  return { label: `Faltam ${dias}d`, percent, barra: 'bg-amber-500', texto: 'text-amber-700' };
+  return { label: `Faltam ${dias}d`, percent, barra: 'bg-green-500', texto: 'text-green-700' };
+};
+
 const TABS = [
   { id: 'detalhes',       label: 'Detalhes' },
   { id: 'galeria',        label: 'Biblioteca' },
@@ -41,8 +59,6 @@ export default function VeiculoShow({
   manutencoes = [],
   seguros = [],
   ipvas = [],
-  docs_legais: docsLegais = [],
-  docs_tecnicos: docsTecnicos = [],
   abastecimentos = [],
   medicoes = [],
   preventivas = [],
@@ -137,8 +153,8 @@ export default function VeiculoShow({
             />
           )}
           {tab === 'galeria'        && <TabGaleria veiculo={veiculo} />}
-          {tab === 'docs_tecnicos'  && <TabDocs tipo="técnicos" registros={docsTecnicos} veiculo={veiculo} />}
-          {tab === 'docs_legais'    && <TabDocs tipo="legais" registros={docsLegais} veiculo={veiculo} />}
+          {tab === 'docs_tecnicos'  && <TabDocs tipo="técnicos" veiculo={veiculo} />}
+          {tab === 'docs_legais'    && <TabDocs tipo="legais" veiculo={veiculo} />}
           {tab === 'corretivas'     && <TabCorretivas veiculo={veiculo} registros={manutencoes} fornecedores={fornecedores} />}
           {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} historico={servicosPreventiva} veiculo={veiculo} fornecedores={fornecedores} />}
           {tab === 'seguros'        && <TabSeguros registros={seguros} veiculo={veiculo} />}
@@ -794,8 +810,13 @@ function TabGaleria({ veiculo }) {
   );
 }
 
-/* ============ TAB: Docs (Técnicos / Legais) ============ */
-function TabDocs({ tipo, registros, veiculo }) {
+/* ============ TAB: Docs (Técnicos / Legais) ============
+ * Auto-suficiente: busca a listagem via GET paginado (busca as-you-type +
+ * filtro de obsoletos). A lista principal mostra só documentos ATIVOS; o
+ * botão "Ver obsoletos" alterna para os fora de uso. Coluna Obsoleto tem um
+ * toggle que tira/traz o documento do uso; coluna Status mostra barra de
+ * proximidade do vencimento. */
+function TabDocs({ tipo, veiculo }) {
   const [editando, setEditando] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
@@ -803,53 +824,160 @@ function TabDocs({ tipo, registros, veiculo }) {
   const routeNamePrefix = isLegal ? 'docs-legais' : 'docs-tecnicos';
   const anexoTipo = isLegal ? 'doc-legal' : 'doc-tecnico';
 
+  const [busca, setBusca] = useState('');
+  const [buscaDebounced, setBuscaDebounced] = useState('');
+  const [verObsoletos, setVerObsoletos] = useState(false);
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0, from: 0, to: 0 });
+  const [loading, setLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
+
+  // Debounce da busca (pesquisa conforme digita, sem estourar requests)
+  useEffect(() => {
+    const t = setTimeout(() => { setBuscaDebounced(busca); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [busca]);
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const url = route(`admin.frota.veiculos.${routeNamePrefix}.list`, {
+        veiculo: veiculo.id,
+        q: buscaDebounced || undefined,
+        obsoletos: verObsoletos ? 1 : 0,
+        page,
+      });
+      const { data } = await window.axios.get(url);
+      setRows(data.data || []);
+      setMeta(data.meta || { current_page: 1, last_page: 1, total: 0, from: 0, to: 0 });
+    } catch (e) {
+      console.error('[TabDocs] falha ao carregar', e);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [routeNamePrefix, veiculo.id, buscaDebounced, verObsoletos, page]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
   const abrirNovo = () => { setEditando(null); setShowForm(true); };
   const abrirEdit = (d) => { setEditando(d); setShowForm(true); };
+
+  const onSaved = () => { setShowForm(false); carregar(); };
+
   const excluir = (d) => {
     if (!confirm('Remover este documento?')) return;
-    router.delete(route(`admin.frota.${routeNamePrefix}.destroy`, d.id), { preserveScroll: true });
+    router.delete(route(`admin.frota.${routeNamePrefix}.destroy`, d.id), {
+      preserveScroll: true,
+      onSuccess: carregar,
+    });
+  };
+
+  const toggleObsoleto = async (d) => {
+    const novo = !d.obsoleto;
+    setTogglingId(d.id);
+    try {
+      await window.axios.patch(
+        route(`admin.frota.${routeNamePrefix}.obsoleto`, d.id),
+        { obsoleto: novo ? 1 : 0 }
+      );
+      // O documento sai da visão atual (ativo↔obsoleto) — recarrega a página.
+      carregar();
+    } catch (e) {
+      alert('Falha ao atualizar o status do documento.');
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Documentos {tipo}</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">{registros.length} registros</span>
-          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1 rounded text-sm hover:bg-rise-700">+ Novo documento</button>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 className="text-lg font-semibold">
+          Documentos {tipo}
+          {verObsoletos && <span className="ml-2 text-sm font-normal text-gray-400">(obsoletos)</span>}
+        </h2>
+        <div className="flex items-center gap-2">
+          {/* Busca via GET, as-you-type */}
+          <div className="relative">
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Pesquisar pelo nome…"
+              className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500 w-56"
+            />
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+          </div>
+          {/* Filtro ativos / obsoletos */}
+          <button
+            onClick={() => { setVerObsoletos((v) => !v); setPage(1); }}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
+              verObsoletos
+                ? 'bg-gray-800 text-white border-gray-800 hover:bg-gray-900'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {verObsoletos ? '↩ Ver ativos' : '🗄 Ver obsoletos'}
+          </button>
+          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700">+ Cadastrar</button>
         </div>
       </div>
 
       {showForm && (
-        <ModalDoc veiculo={veiculo} doc={editando} tipo={tipo} onClose={() => setShowForm(false)} />
+        <ModalDoc veiculo={veiculo} doc={editando} tipo={tipo} onClose={() => setShowForm(false)} onSaved={onSaved} />
       )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left">
             <tr>
-              <th className="px-3 py-2 w-16">ID</th>
+              <th className="px-3 py-2 w-14">ID</th>
               <th className="px-3 py-2">Nome do documento</th>
-              <th className="px-3 py-2">Data documento</th>
-              <th className="px-3 py-2">Data validade</th>
-              <th className="px-3 py-2">Restam</th>
+              <th className="px-3 py-2 whitespace-nowrap">Dt Documento</th>
+              <th className="px-3 py-2 whitespace-nowrap">Dt Validade</th>
+              <th className="px-3 py-2 w-48">Status</th>
+              <th className="px-3 py-2 text-center w-24">Obsoleto</th>
               <th className="px-3 py-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {registros.length === 0 ? (
-              <tr><td colSpan={6} className="text-center text-gray-500 py-6">Nenhum documento cadastrado.</td></tr>
-            ) : registros.map((d) => {
-              const v = corValidade(d.diferenca_dias);
+            {loading ? (
+              <tr><td colSpan={7} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={7} className="text-center text-gray-500 py-6">
+                {buscaDebounced ? `Nada encontrado para "${buscaDebounced}".`
+                  : verObsoletos ? 'Nenhum documento obsoleto.'
+                  : 'Nenhum documento cadastrado.'}
+              </td></tr>
+            ) : rows.map((d) => {
+              const s = statusVencimento(d.diferenca_dias);
               return (
-                <tr key={d.id} className="hover:bg-gray-50">
+                <tr key={d.id} className={`hover:bg-gray-50 ${d.obsoleto ? 'opacity-60' : ''}`}>
                   <td className="px-3 py-2 text-gray-500">#{d.id}</td>
-                  <td className="px-3 py-2 font-medium">{d.nome_documento || '—'}</td>
-                  <td className="px-3 py-2">{fmtData(d.data_documento)}</td>
-                  <td className="px-3 py-2">{fmtData(d.data_validade)}</td>
-                  <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${v.cor}`}>{v.label}</span></td>
+                  <td className={`px-3 py-2 font-medium ${d.obsoleto ? 'line-through text-gray-500' : ''}`}>
+                    {d.nome_documento || '—'}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">{fmtData(d.data_documento)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{fmtData(d.data_validade)}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden min-w-[70px]">
+                        <div className={`h-full rounded-full ${s.barra} transition-all`} style={{ width: `${s.percent}%` }} />
+                      </div>
+                      <span className={`text-[11px] font-medium whitespace-nowrap ${s.texto}`}>{s.label}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <ToggleObsoleto
+                      ligado={!!d.obsoleto}
+                      carregando={togglingId === d.id}
+                      onChange={() => toggleObsoleto(d)}
+                    />
+                  </td>
                   <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
-                    {d.arquivo && (
+                    {d.tem_arquivo && (
                       <a href={route('admin.frota.anexos.view', [anexoTipo, d.id])} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">Abrir</a>
                     )}
                     <button onClick={() => abrirEdit(d)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
@@ -861,11 +989,58 @@ function TabDocs({ tipo, registros, veiculo }) {
           </tbody>
         </table>
       </div>
+
+      {/* Paginação (10 por página) */}
+      <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
+        <span>
+          {meta.total > 0
+            ? `Mostrando ${meta.from}–${meta.to} de ${meta.total} registro(s)`
+            : '—'}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            disabled={meta.current_page <= 1 || loading}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+          >
+            Anterior
+          </button>
+          <span className="px-2">Página {meta.current_page} de {meta.last_page}</span>
+          <button
+            disabled={meta.current_page >= meta.last_page || loading}
+            onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
+            className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+          >
+            Próximo
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function ModalDoc({ veiculo, doc, tipo, onClose }) {
+/* Toggle switch de "obsoleto" (checkbox estilizado) */
+function ToggleObsoleto({ ligado, carregando, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={ligado}
+      disabled={carregando}
+      onClick={onChange}
+      title={ligado ? 'Documento obsoleto — clique para reativar' : 'Marcar como obsoleto'}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+        ligado ? 'bg-indigo-600' : 'bg-gray-300'
+      }`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+        ligado ? 'translate-x-4' : 'translate-x-0.5'
+      }`} />
+    </button>
+  );
+}
+
+function ModalDoc({ veiculo, doc, tipo, onClose, onSaved }) {
   const editando = !!doc?.id;
   const isLegal = tipo === 'legais';
   const routePrefix = isLegal ? 'docs-legais' : 'docs-tecnicos';
@@ -885,7 +1060,7 @@ function ModalDoc({ veiculo, doc, tipo, onClose }) {
     const url = editando
       ? route(`admin.frota.${routePrefix}.update`, doc.id)
       : route(`admin.frota.veiculos.${routePrefix}.store`, veiculo.id);
-    post(url, { forceFormData: true, preserveScroll: true, onSuccess: onClose });
+    post(url, { forceFormData: true, preserveScroll: true, onSuccess: () => (onSaved ? onSaved() : onClose()) });
   };
 
   return (
@@ -894,17 +1069,38 @@ function ModalDoc({ veiculo, doc, tipo, onClose }) {
         <F label="Nome do documento *" name="nome_documento" data={data} setData={setData} errors={errors} className="md:col-span-2" />
         <F label="Data do documento" name="data_documento" type="date" data={data} setData={setData} errors={errors} />
         <F label="Data de validade" name="data_validade" type="date" data={data} setData={setData} errors={errors} />
-        <F label="Status" name="status" errors={errors}>
-          <select value={data.status} onChange={(e) => setData('status', e.target.value)} className={inputCls}>
-            <option>Ativo</option>
-            <option>Inativo</option>
-            <option>Vencido</option>
-          </select>
-        </F>
-        <FileFieldOneDrive label="Arquivo (PDF / imagem)" subfolder={`${subfolder}/${doc?.id ?? 'novo'}`} setData={setData} errors={errors} veiculo={veiculo} className="md:col-span-2" />
+        <FilePdfField
+          label={`Arquivo PDF ${editando ? '(deixe vazio para manter o atual)' : '*'}`}
+          subfolder={`${subfolder}/${doc?.id ?? 'novo'}`}
+          setData={setData} errors={errors} veiculo={veiculo} className="md:col-span-2"
+        />
         <ModalFooter onClose={onClose} processing={processing} editando={editando} />
       </form>
     </ModalShell>
+  );
+}
+
+/* Campo de upload restrito a PDF (com validação client-side amigável). */
+function FilePdfField({ label, subfolder, setData, errors, veiculo, className = '' }) {
+  const [erroLocal, setErroLocal] = useState(null);
+  const onPick = (e) => {
+    const file = e.target.files?.[0] ?? null;
+    setErroLocal(null);
+    if (file && file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+      setErroLocal('Apenas arquivos PDF são permitidos.');
+      e.target.value = '';
+      setData('arquivo', null);
+      return;
+    }
+    setData('arquivo', file);
+  };
+  return (
+    <div className={className}>
+      <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">{label}</label>
+      <input type="file" accept="application/pdf,.pdf" onChange={onPick} className="text-sm" />
+      <p className="text-xs text-gray-500 mt-1">Somente PDF (máx. 10 MB). Vai para o OneDrive em veiculos/{veiculo.id}/{subfolder}/</p>
+      {(erroLocal || errors?.arquivo) && <p className="text-red-600 text-xs mt-1">{erroLocal || errors.arquivo}</p>}
+    </div>
   );
 }
 
