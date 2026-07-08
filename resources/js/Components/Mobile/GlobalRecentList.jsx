@@ -89,7 +89,8 @@ export default function GlobalRecentList({
                         <p className="text-[11px] text-gray-500">{items.length} registro(s) no cache</p>
                     </div>
                     {online && !syncing && (
-                        <button onClick={syncNow} className="text-xs text-[#557bbb] font-medium px-2 py-1">
+                        <button onClick={syncNow}
+                            className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#557bbb]/10 text-[#557bbb] border border-[#557bbb]/40 active:bg-[#557bbb]/20 whitespace-nowrap">
                             <i className="fa-solid fa-rotate mr-1" /> Atualizar
                         </button>
                     )}

@@ -55,7 +55,8 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                     <div className="space-y-1.5 mb-2">
                         <div className="flex items-center justify-center gap-4 flex-wrap">
                             {online && !syncing && (
-                                <button onClick={syncNow} className="text-sm text-[#557bbb] font-medium">
+                                <button onClick={syncNow}
+                                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#557bbb]/10 text-[#557bbb] border border-[#557bbb]/40 active:bg-[#557bbb]/20">
                                     <i className="fa-solid fa-rotate mr-1" /> Atualizar
                                 </button>
                             )}
@@ -64,7 +65,7 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                             {(templates || []).length === 1 ? (
                                 <Link
                                     href={`/mobile/veiculos/${id}/checklist/iniciar/${templates[0].id}`}
-                                    className="bg-[#2ecc71] text-white text-xs font-semibold px-3 py-1.5 rounded-md"
+                                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#2ecc71] text-white active:bg-[#27ae60]"
                                 >
                                     <i className="fa-solid fa-plus mr-1" /> Novo
                                 </Link>
@@ -72,7 +73,7 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                                 <button
                                     type="button"
                                     onClick={() => toast('Escolha um template na lista abaixo.', 'info')}
-                                    className="bg-[#2ecc71] text-white text-xs font-semibold px-3 py-1.5 rounded-md"
+                                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#2ecc71] text-white active:bg-[#27ae60]"
                                 >
                                     <i className="fa-solid fa-plus mr-1" /> Novo
                                 </button>
@@ -88,9 +89,14 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                             <i className="fa-solid fa-spinner fa-spin" />
                         </div>
                     ) : templates.length === 0 ? (
-                        <div className="bg-white rounded-lg p-3 text-center text-xs text-gray-400">
-                            Nenhum template disponível para esta obra.
-                            {online && <button onClick={syncNow} className="text-[#557bbb] ml-1 font-medium">Atualizar</button>}
+                        <div className="bg-white rounded-lg p-3 text-center text-xs text-gray-400 space-y-2">
+                            <p>Nenhum template disponível para esta obra.</p>
+                            {online && (
+                                <button onClick={syncNow}
+                                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#557bbb]/10 text-[#557bbb] border border-[#557bbb]/40 active:bg-[#557bbb]/20">
+                                    <i className="fa-solid fa-rotate mr-1" /> Atualizar
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <ul className="space-y-2">
@@ -124,9 +130,9 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                         </h2>
                         <Link
                             href={`/mobile/veiculos/${id}/checklist/historico`}
-                            className="text-xs text-[#557bbb] font-medium"
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#557bbb]/10 text-[#557bbb] border border-[#557bbb]/40 active:bg-[#557bbb]/20"
                         >
-                            Ver tudo
+                            Ver tudo <i className="fa-solid fa-chevron-right ml-0.5 text-[9px]" />
                         </Link>
                     </div>
                     {(historico || []).length === 0 ? (

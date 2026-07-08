@@ -43,7 +43,8 @@ export default function DiarioBordoIndex({ veiculoId }) {
                 <div className="space-y-1.5">
                     <div className="flex items-center justify-center gap-4 flex-wrap">
                         {online && !syncing && (
-                            <button onClick={syncNow} className="text-sm text-[#557bbb] font-medium">
+                            <button onClick={syncNow}
+                                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#557bbb]/10 text-[#557bbb] border border-[#557bbb]/40 active:bg-[#557bbb]/20">
                                 <i className="fa-solid fa-rotate mr-1" /> Atualizar
                             </button>
                         )}
@@ -51,7 +52,7 @@ export default function DiarioBordoIndex({ veiculoId }) {
                         <ClearCacheButton clearFn={() => repo.clearSyncedByVeiculo(id)} />
                         <Link
                             href={`/mobile/veiculos/${id}/diario-bordo/criar`}
-                            className="bg-[#2ecc71] text-white text-xs font-semibold px-3 py-1.5 rounded-md"
+                            className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#2ecc71] text-white active:bg-[#27ae60]"
                         >
                             <i className="fa-solid fa-plus mr-1" /> Novo
                         </Link>
