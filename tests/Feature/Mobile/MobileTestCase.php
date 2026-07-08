@@ -221,6 +221,7 @@ abstract class MobileTestCase extends TestCase
             $t->decimal('hr_atual', 12, 2)->nullable();
             $t->decimal('km_atual', 12, 2)->nullable();
             $t->text('descricao_atividade')->nullable();
+            $t->string('responsavel')->nullable();
             $t->string('arquivo_app')->nullable();
             $t->string('arquivo_servidor')->nullable();
             $t->string('arquivo_fechamento_app')->nullable();

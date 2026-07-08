@@ -23,7 +23,7 @@ class VeiculoDiarioBordo extends Model
         'user_create', 'user_edit',
         'data_cadastro', 'horario_inicial', 'hr_anterior', 'km_anterior',
         'horario_final', 'hr_atual', 'km_atual',
-        'descricao_atividade', 'arquivo_app', 'arquivo_servidor',
+        'descricao_atividade', 'responsavel', 'arquivo_app', 'arquivo_servidor',
         'arquivo_fechamento_app', 'arquivo_fechamento_servidor', // foto do encerramento (mobile)
         'sync_status', 'data_sincronizacao', 'sync_error', 'sync_attempts', 'synced_at',
         'client_uuid', // idempotência do sync mobile (dedupe por UUID do device)

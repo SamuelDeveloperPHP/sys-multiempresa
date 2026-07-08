@@ -209,6 +209,17 @@ export default function DiarioBordoCreate({ veiculoId }) {
                         className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 text-sm cursor-not-allowed" />
                 </div>
 
+                {/* Responsável = usuário logado. Somente-leitura: o servidor define
+                    o valor pelo usuário autenticado (só o admin pode ajustar). */}
+                <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Responsável
+                        <i className="fa-solid fa-lock ml-1 text-gray-400" title="Definido automaticamente" />
+                    </label>
+                    <input type="text" readOnly value={auth?.user?.name || ''}
+                        className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 text-sm cursor-not-allowed" />
+                </div>
+
                 {isMaquina ? (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
                         <div className="flex items-center gap-2 text-amber-800 text-xs font-semibold">

@@ -44,6 +44,34 @@ class DiarioBordoApiTest extends MobileTestCase
         Storage::disk('public')->assertExists('uploads/aplicativo/diario_bordo/' . $rec->arquivo_app);
     }
 
+    public function test_responsavel_e_definido_pelo_servidor_e_imutavel_pelo_app(): void
+    {
+        $c = $this->cenarioBase();
+
+        // Cliente tenta FORJAR outro responsável no create → servidor ignora
+        $resp = $this->comContexto($c['user'], $c['company'])
+            ->postJson('/api/mobile/diario-bordo', [
+                'veiculo_id'          => $c['veiculo']->id,
+                'data'                => now()->toIso8601String(),
+                'descricao_atividade' => 'Turno normal de operação',
+                'responsavel'         => 'Fulano Forjado',
+            ]);
+        $resp->assertStatus(201);
+        $this->assertSame($c['user']->name, $resp->json('data.responsavel'));
+
+        $rec = VeiculoDiarioBordo::withoutGlobalScopes()->firstOrFail();
+        $this->assertSame($c['user']->name, $rec->responsavel);
+
+        // Tenta ALTERAR via update mobile → permanece o nome original
+        $this->comContexto($c['user'], $c['company'])
+            ->putJson("/api/mobile/diario-bordo/{$rec->id}", [
+                'responsavel' => 'Outro Nome Qualquer',
+                'observacao'  => 'apenas uma edição',
+            ])
+            ->assertOk();
+        $this->assertSame($c['user']->name, $rec->fresh()->responsavel);
+    }
+
     public function test_abertura_sem_descricao_retorna_422(): void
     {
         $c = $this->cenarioBase();

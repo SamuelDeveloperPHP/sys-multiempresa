@@ -442,6 +442,10 @@ class MobileApiController extends Controller
         $payload = $this->normalizeDiario($request->validated());
         $payload['company_id']  = $this->companyId();
         $payload['ciclo_status'] = strtoupper($request->input('ciclo_status', CicloAbertoService::STATUS_ABERTO));
+        // AUTORITATIVO: o responsável é quem abriu o diário (usuário autenticado).
+        // Qualquer 'responsavel' vindo do cliente é ignorado — o app exibe o
+        // campo somente-leitura; ajustes são prerrogativa do admin (painel web).
+        $payload['responsavel'] = $user?->name;
         if ($uuid = $request->input('client_uuid')) {
             $payload['client_uuid'] = $uuid;
         }
@@ -531,7 +535,8 @@ class MobileApiController extends Controller
             'user_id'      => $r->id_user,
             'ciclo_status' => $r->ciclo_status,
             'data'         => optional($r->data_cadastro)->toIso8601String(),
-            'responsavel'  => $r->user?->name,
+            // Snapshot persistido; registros antigos caem no nome do usuário vinculado
+            'responsavel'  => $r->responsavel ?: $r->user?->name,
             'descricao'    => $r->descricao_atividade,
             'descricao_atividade' => $r->descricao_atividade,
             'horario_inicial' => optional($r->horario_inicial)->toIso8601String(),

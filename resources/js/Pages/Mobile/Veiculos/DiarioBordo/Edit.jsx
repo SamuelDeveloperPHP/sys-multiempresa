@@ -67,9 +67,11 @@ export default function DiarioBordoEdit({ veiculoId, diarioId }) {
                     <input type="datetime-local" value={form.data || ''}
                         onChange={(e) => handleChange('data', e.target.value)} className="input" />
                 </Field>
-                <Field label="Responsável">
-                    <input value={form.responsavel || ''}
-                        onChange={(e) => handleChange('responsavel', e.target.value)} className="input" />
+                {/* Responsável é definido pelo servidor (quem abriu o diário) e
+                    imutável pelo app — só o administrador ajusta, no painel web. */}
+                <Field label="Responsável 🔒">
+                    <input value={form.responsavel || ''} readOnly
+                        className="input bg-gray-50 text-gray-600 cursor-not-allowed" />
                 </Field>
 
                 {isMaquina ? (
