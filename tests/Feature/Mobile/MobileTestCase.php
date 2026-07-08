@@ -223,6 +223,8 @@ abstract class MobileTestCase extends TestCase
             $t->text('descricao_atividade')->nullable();
             $t->string('arquivo_app')->nullable();
             $t->string('arquivo_servidor')->nullable();
+            $t->string('arquivo_fechamento_app')->nullable();
+            $t->string('arquivo_fechamento_servidor')->nullable();
             $t->string('sync_status')->nullable();
             $t->dateTime('data_sincronizacao')->nullable();
             $t->text('sync_error')->nullable();

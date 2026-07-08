@@ -401,21 +401,44 @@ export async function localCreate(tableName, payload, endpoint) {
     return record;
 }
 
+// Um registro é "local-only" quando ainda não tem id do servidor (o id é o
+// próprio _local_id, string). Para esses registros NUNCA se enfileira
+// update/delete — o servidor não conhece esse id (geraria PUT/DELETE 404).
+function isLocalOnly(record) {
+    return !!record?._local_id && String(record.id) === String(record._local_id);
+}
+
+// Payload "limpo" a partir do registro local (sem campos de controle _*)
+function payloadFromRecord(record) {
+    const out = {};
+    for (const [k, v] of Object.entries(record || {})) {
+        if (k === 'id' || k.startsWith('_')) continue;
+        out[k] = v;
+    }
+    return out;
+}
+
 export async function localUpdate(tableName, id, payload, endpoint) {
     const now = new Date().toISOString();
     const existing = await db.table(tableName).get(id);
+    const localOnly = isLocalOnly(existing);
+
     const merged = {
         ...(existing || {}),
         ...payload,
         id,
-        _sync_status: existing?._sync_status === 'pending_create' ? 'pending_create' : 'pending_update',
+        _sync_status: localOnly ? 'pending_create' : 'pending_update',
+        _sync_error: null,
         _updated_at: now,
         updated_at: now,
     };
     await db.table(tableName).put(merged);
 
-    // Se ainda nem foi criado no servidor, atualiza o payload do create na fila
-    if (existing?._sync_status === 'pending_create') {
+    if (localOnly) {
+        // Ainda não existe no servidor: funde as mudanças no CREATE da fila.
+        // Vale para pending, failed E rejected — editar um registro rejeitado
+        // (ex.: 422 de validação) dá nova chance ao create corrigido.
+        // (Antes, um update sobre create rejeitado virava PUT com id local → 404.)
         const createItem = await db.sync_queue
             .where('local_id').equals(id)
             .and(q => q.op === 'create' && q.status !== 'completed')
@@ -423,10 +446,24 @@ export async function localUpdate(tableName, id, payload, endpoint) {
         if (createItem) {
             await db.sync_queue.update(createItem.id, {
                 payload: { ...createItem.payload, ...payload },
+                status: 'pending',
+                last_error: null,
+                sw_processed: false,
                 updated_at: now,
             });
-            return merged;
+        } else {
+            // CREATE sumiu da fila (ex.: descartado na triagem): re-enfileira
+            // um create completo a partir do registro local consolidado.
+            await enqueue({
+                table: tableName,
+                op: 'create',
+                payload: payloadFromRecord(merged),
+                endpoint: endpoint.replace(/\/[^/]+$/, ''), // tira o /{id} do endpoint de update
+                local_id: id,
+            });
         }
+        registerBackgroundSync();
+        return merged;
     }
 
     await enqueue({
@@ -442,8 +479,10 @@ export async function localUpdate(tableName, id, payload, endpoint) {
 export async function localDelete(tableName, id, endpoint) {
     const existing = await db.table(tableName).get(id);
 
-    // Se nunca foi enviado ao servidor (pending_create), apenas remove local + cancela enqueue
-    if (existing?._sync_status === 'pending_create') {
+    // Se nunca foi enviado ao servidor (local-only, inclui create rejeitado):
+    // apenas remove local + cancela os itens da fila. NUNCA enfileira DELETE
+    // com id local (o servidor não conhece esse id).
+    if (isLocalOnly(existing)) {
         await db.table(tableName).delete(id);
         const queued = await db.sync_queue
             .where('local_id').equals(id)

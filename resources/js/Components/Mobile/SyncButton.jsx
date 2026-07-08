@@ -8,8 +8,10 @@
 // -----------------------------------------------------------------------------
 
 import { useState } from 'react';
+import { usePage } from '@inertiajs/react';
 import useSyncStatus from '@/offline/hooks/useSyncStatus';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
+import useOpenCycles from '@/offline/hooks/useOpenCycles';
 
 // Rótulos amigáveis das tabelas da fila
 const TABLE_LABELS = {
@@ -26,6 +28,8 @@ export default function SyncButton({ compact = false }) {
         retryRejected, discardRejected,
     } = useSyncStatus();
     const { online } = useOnlineStatus();
+    const { auth } = usePage().props;
+    const { openDiario, openChecklist } = useOpenCycles(auth?.user?.id);
     const [showResult, setShowResult] = useState(false);
     const [showRejected, setShowRejected] = useState(false);
 
@@ -34,6 +38,23 @@ export default function SyncButton({ compact = false }) {
         if (window.confirm(`Descartar este registro de ${label}? Ele não será enviado ao servidor.`)) {
             await discardRejected(item.id);
         }
+    };
+
+    // Regra operacional da frota: todo ciclo tem ABERTURA e ENCERRAMENTO.
+    // Ao enviar com ciclo aberto, lembra o usuário — pode ser legítimo
+    // (sync no meio do turno), então confirma em vez de bloquear.
+    const confirmarCiclosAbertos = () => {
+        if (!openDiario && !openChecklist) return true;
+        const linhas = [];
+        if (openDiario) linhas.push(`• Diário de Bordo ABERTO — veículo ${openDiario.prefixo}`);
+        if (openChecklist) linhas.push(`• Checklist ABERTO — veículo ${openChecklist.prefixo}`);
+        return window.confirm(
+            'Atenção: você tem ciclo(s) em aberto:\n\n'
+            + linhas.join('\n')
+            + '\n\nLembre-se: todo Diário de Bordo e Checklist precisa de uma '
+            + 'ABERTURA e um ENCERRAMENTO. Se o turno já terminou, encerre o '
+            + 'ciclo antes de enviar.\n\nEnviar os dados mesmo assim?'
+        );
     };
 
     const handleSync = async () => {
@@ -45,6 +66,7 @@ export default function SyncButton({ compact = false }) {
             alert('Nada para sincronizar.');
             return;
         }
+        if (!confirmarCiclosAbertos()) return;
         const res = await sync();
         if (res) {
             setShowResult(true);

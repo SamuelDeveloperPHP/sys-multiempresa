@@ -445,6 +445,12 @@ class MobileApiController extends Controller
         if ($uuid = $request->input('client_uuid')) {
             $payload['client_uuid'] = $uuid;
         }
+        // Foto da ABERTURA (base64 → arquivo; convenção legada)
+        $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'diario_bordo', 'diario');
+        if ($foto) {
+            $payload['arquivo_app'] = $foto['nome'];
+            $payload['arquivo_servidor'] = $foto['url'];
+        }
         [$rec, $jaExistia] = $this->createComClientUuid(VeiculoDiarioBordo::class, $payload);
         return response()->json(
             ['status' => true, 'data' => $this->mapDiario($rec), 'deduplicated' => $jaExistia],
@@ -462,6 +468,19 @@ class MobileApiController extends Controller
         if (strtoupper((string) $request->input('ciclo_status')) === CicloAbertoService::STATUS_FECHADO
             || $request->filled('horario_final') || $request->filled('hr_final') || $request->filled('km_final')) {
             $payload['ciclo_status'] = CicloAbertoService::STATUS_FECHADO;
+        }
+
+        // Foto do FECHAMENTO — coluna própria para não sobrescrever a da abertura
+        $fotoFech = $this->salvarFotoBase64($request->validated()['arquivo_fechamento_data_url'] ?? null, 'diario_bordo', 'diario_fech');
+        if ($fotoFech) {
+            $payload['arquivo_fechamento_app'] = $fotoFech['nome'];
+            $payload['arquivo_fechamento_servidor'] = $fotoFech['url'];
+        }
+        // Troca da foto de abertura (edição)
+        $fotoAb = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'diario_bordo', 'diario');
+        if ($fotoAb) {
+            $payload['arquivo_app'] = $fotoAb['nome'];
+            $payload['arquivo_servidor'] = $fotoAb['url'];
         }
 
         $rec->update($payload);
@@ -490,6 +509,9 @@ class MobileApiController extends Controller
             'km_atual'              => $in['km_final']   ?? $in['km_atual'] ?? null,
             'hr_anterior'           => $in['hr_inicial'] ?? null,
             'hr_atual'              => $in['hr_final']   ?? $in['hr_atual'] ?? null,
+            // Campos do encerramento (Close.jsx)
+            'horas_trabalhadas_minutos' => $in['horas_trabalhadas_minutos'] ?? null,
+            'descricao_encerramento'    => $in['observacao_fechamento'] ?? $in['descricao_encerramento'] ?? null,
         ];
         if ($create) {
             $out['user_create'] = $user?->email;
@@ -511,11 +533,19 @@ class MobileApiController extends Controller
             'data'         => optional($r->data_cadastro)->toIso8601String(),
             'responsavel'  => $r->user?->name,
             'descricao'    => $r->descricao_atividade,
+            'descricao_atividade' => $r->descricao_atividade,
+            'horario_inicial' => optional($r->horario_inicial)->toIso8601String(),
+            'horario_final'   => optional($r->horario_final)->toIso8601String(),
+            'horas_trabalhadas_minutos' => $r->horas_trabalhadas_minutos,
             'km_inicial'   => $r->km_anterior,
             'km_final'     => $r->km_atual,
             'hr_inicial'   => $r->hr_anterior,
             'hr_final'     => $r->hr_atual,
             'observacao'   => $r->descricao_encerramento,
+            'observacao_fechamento' => $r->descricao_encerramento,
+            // Fotos: abertura e fechamento (colunas separadas)
+            'foto_url'            => $r->arquivo_servidor,
+            'foto_fechamento_url' => $r->arquivo_fechamento_servidor,
             'created_at'   => $r->created_at?->toIso8601String(),
         ];
     }

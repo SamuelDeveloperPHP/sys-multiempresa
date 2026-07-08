@@ -124,11 +124,11 @@ export default function VeiculoShow({ veiculoId }) {
                         src={
                             v.imagem
                                 ? `${baseImageUrl}/${v.id}/${v.imagem}`
-                                : '/icons/no-photo.svg'
+                                : '/imagens/icons/no-photo.svg'
                         }
                         alt={v.prefixo}
                         className="w-full h-48 object-cover bg-gray-100"
-                        onError={(e) => { e.target.src = '/icons/no-photo.svg'; }}
+                        onError={(e) => { e.target.src = '/imagens/icons/no-photo.svg'; }}
                     />
                     <div className="p-3 space-y-1">
                         <div className="flex items-center justify-between">
