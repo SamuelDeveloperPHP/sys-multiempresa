@@ -56,7 +56,6 @@ const TABS = [
 
 export default function VeiculoShow({
   veiculo,
-  manutencoes = [],
   seguros = [],
   ipvas = [],
   abastecimentos = [],
@@ -155,7 +154,7 @@ export default function VeiculoShow({
           {tab === 'galeria'        && <TabGaleria veiculo={veiculo} />}
           {tab === 'docs_tecnicos'  && <TabDocs tipo="técnicos" veiculo={veiculo} />}
           {tab === 'docs_legais'    && <TabDocs tipo="legais" veiculo={veiculo} />}
-          {tab === 'corretivas'     && <TabCorretivas veiculo={veiculo} registros={manutencoes} fornecedores={fornecedores} />}
+          {tab === 'corretivas'     && <TabCorretivas veiculo={veiculo} fornecedores={fornecedores} />}
           {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} historico={servicosPreventiva} veiculo={veiculo} fornecedores={fornecedores} />}
           {tab === 'seguros'        && <TabSeguros registros={seguros} veiculo={veiculo} />}
           {tab === 'ipvas'          && <TabIpvas registros={ipvas} veiculo={veiculo} />}
@@ -1207,30 +1206,75 @@ function FileFieldOneDrive({ label, subfolder, setData, errors, veiculo, classNa
   );
 }
 
-/* ============ TAB: Corretivas ============ */
-function TabCorretivas({ veiculo, registros, fornecedores = [] }) {
+/* ============ TAB: Corretivas ============
+ * Auto-suficiente (mesmo padrão dos docs): busca a listagem via GET paginado
+ * com pesquisa as-you-type por fornecedor / tipo / descrição. */
+function TabCorretivas({ veiculo, fornecedores = [] }) {
   const [editando, setEditando] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
+  const [busca, setBusca] = useState('');
+  const [buscaDebounced, setBuscaDebounced] = useState('');
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0, from: 0, to: 0 });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setBuscaDebounced(busca); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [busca]);
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const url = route('admin.frota.veiculos.manutencoes.list', {
+        veiculo: veiculo.id, q: buscaDebounced || undefined, page,
+      });
+      const { data } = await window.axios.get(url);
+      setRows(data.data || []);
+      setMeta(data.meta || { current_page: 1, last_page: 1, total: 0, from: 0, to: 0 });
+    } catch (e) {
+      console.error('[TabCorretivas] falha ao carregar', e);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [veiculo.id, buscaDebounced, page]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
   const abrirNovo = () => { setEditando(null); setShowForm(true); };
   const abrirEdit = (m) => { setEditando(m); setShowForm(true); };
+  const onSaved = () => { setShowForm(false); carregar(); };
   const excluir = (m) => {
     if (!confirm('Remover esta manutenção?')) return;
-    router.delete(route('admin.frota.manutencoes.destroy', m.id), { preserveScroll: true });
+    router.delete(route('admin.frota.manutencoes.destroy', m.id), {
+      preserveScroll: true, onSuccess: carregar,
+    });
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">Manutenções corretivas</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">{registros.length} registros</span>
-          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1 rounded text-sm hover:bg-rise-700">+ Nova manutenção</button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Pesquisar fornecedor / tipo…"
+              className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500 w-60"
+            />
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+          </div>
+          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700">+ Nova manutenção</button>
         </div>
       </div>
 
       {showForm && (
-        <ModalCorretiva veiculo={veiculo} manutencao={editando} fornecedores={fornecedores} onClose={() => setShowForm(false)} />
+        <ModalCorretiva veiculo={veiculo} manutencao={editando} fornecedores={fornecedores} onClose={() => setShowForm(false)} onSaved={onSaved} />
       )}
 
       <div className="overflow-x-auto">
@@ -1249,9 +1293,13 @@ function TabCorretivas({ veiculo, registros, fornecedores = [] }) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {registros.length === 0 ? (
-              <tr><td colSpan={9} className="text-center text-gray-500 py-6">Nenhuma manutenção registrada.</td></tr>
-            ) : registros.map((m) => {
+            {loading ? (
+              <tr><td colSpan={9} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={9} className="text-center text-gray-500 py-6">
+                {buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhuma manutenção registrada.'}
+              </td></tr>
+            ) : rows.map((m) => {
               const s = situacaoCorretiva[m.situacao] ?? { label: '—', cor: 'bg-gray-200 text-gray-700' };
               return (
                 <tr key={m.id} className="hover:bg-gray-50">
@@ -1264,7 +1312,7 @@ function TabCorretivas({ veiculo, registros, fornecedores = [] }) {
                   <td className="px-3 py-2">{fmtData(m.data_de_vencimento)}</td>
                   <td className="px-3 py-2 text-right font-semibold">{fmtMoney(m.valor_do_servico)}</td>
                   <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
-                    {m.arquivo && (
+                    {m.tem_arquivo && (
                       <a href={route('admin.frota.anexos.view', ['manutencao', m.id])} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">Anexo</a>
                     )}
                     <button onClick={() => abrirEdit(m)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
@@ -1276,11 +1324,23 @@ function TabCorretivas({ veiculo, registros, fornecedores = [] }) {
           </tbody>
         </table>
       </div>
+
+      {/* Paginação (10 por página) */}
+      <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
+        <span>{meta.total > 0 ? `Mostrando ${meta.from}–${meta.to} de ${meta.total} registro(s)` : '—'}</span>
+        <div className="flex items-center gap-1">
+          <button disabled={meta.current_page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50">Anterior</button>
+          <span className="px-2">Página {meta.current_page} de {meta.last_page}</span>
+          <button disabled={meta.current_page >= meta.last_page || loading} onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
+            className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50">Próximo</button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function ModalCorretiva({ veiculo, manutencao, fornecedores, onClose }) {
+function ModalCorretiva({ veiculo, manutencao, fornecedores, onClose, onSaved }) {
   const editando = !!manutencao?.id;
   const { data, setData, post, processing, errors } = useForm({
     fornecedor_id:         manutencao?.fornecedor_id ?? '',
@@ -1305,7 +1365,7 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, onClose }) {
     const url = editando
       ? route('admin.frota.manutencoes.update', manutencao.id)
       : route('admin.frota.veiculos.manutencoes.store', veiculo.id);
-    post(url, { forceFormData: true, preserveScroll: true, onSuccess: onClose });
+    post(url, { forceFormData: true, preserveScroll: true, onSuccess: () => (onSaved ? onSaved() : onClose()) });
   };
 
   return (

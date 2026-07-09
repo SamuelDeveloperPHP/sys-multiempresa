@@ -115,12 +115,8 @@ class VeiculoController extends Controller
                 ]),
         ]);
 
-        // Aba: Corretivas
-        $manutencoes = $veiculo->manutencoes()
-            ->with('fornecedor:id,nome_fantasia,razao_social')
-            ->orderByDesc('data_de_execucao')
-            ->limit(200)
-            ->get();
+        // Aba Corretivas: carregada sob demanda pela própria aba
+        // (GET paginado + busca por fornecedor/tipo/descrição) — ver listManutencoes.
 
         // Aba: Seguros
         $seguros = $veiculo->seguros()
@@ -241,7 +237,6 @@ class VeiculoController extends Controller
 
         return Inertia::render('Admin/Frota/Veiculos/Show', [
             'veiculo'                  => $veiculo,
-            'manutencoes'              => $manutencoes,
             'seguros'                  => $seguros,
             'ipvas'                    => $ipvas,
             'abastecimentos'           => $abastecimentos,
@@ -1068,6 +1063,61 @@ class VeiculoController extends Controller
             'obsoleto'       => (bool) $d->obsoleto,
             'tem_arquivo'    => !empty($d->arquivo),
             'status'         => $d->status,
+        ]);
+
+        return response()->json([
+            'data' => $pagina->items(),
+            'meta' => [
+                'current_page' => $pagina->currentPage(),
+                'last_page'    => $pagina->lastPage(),
+                'total'        => $pagina->total(),
+                'from'         => $pagina->firstItem(),
+                'to'           => $pagina->lastItem(),
+            ],
+        ]);
+    }
+
+    /**
+     * Listagem paginada das manutenções CORRETIVAS do veículo, com busca
+     * as-you-type por fornecedor / tipo / descrição (?q=). Mesmo padrão dos
+     * docs (GET JSON, 10 por página). Carregada sob demanda pela aba.
+     */
+    public function listManutencoes(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        $termo = trim((string) $request->query('q', ''));
+
+        $query = $veiculo->manutencoes()
+            ->with('fornecedor:id,nome_fantasia,razao_social');
+
+        if ($termo !== '') {
+            $like = '%' . $termo . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('tipo', 'like', $like)
+                    ->orWhere('descricao', 'like', $like)
+                    ->orWhereHas('fornecedor', function ($f) use ($like) {
+                        $f->where('nome_fantasia', 'like', $like)
+                            ->orWhere('razao_social', 'like', $like);
+                    });
+            });
+        }
+
+        $pagina = $query->orderByDesc('data_de_execucao')->orderByDesc('id')
+            ->paginate(10)->withQueryString();
+
+        $pagina->getCollection()->transform(fn ($m) => [
+            'id'                 => $m->id,
+            'situacao'           => (int) $m->situacao,
+            'quilometragem_atual'=> $m->quilometragem_atual,
+            'horimetro_atual'    => $m->horimetro_atual,
+            'fornecedor'         => $m->fornecedor
+                ? ['nome_fantasia' => $m->fornecedor->nome_fantasia]
+                : null,
+            'tipo'               => $m->tipo,
+            'data_de_execucao'   => optional($m->data_de_execucao)->toDateString(),
+            'data_conclusao'     => optional($m->data_conclusao)->toDateString(),
+            'data_de_vencimento' => optional($m->data_de_vencimento)->toDateString(),
+            'valor_do_servico'   => $m->valor_do_servico,
+            'tem_arquivo'        => !empty($m->arquivo),
         ]);
 
         return response()->json([

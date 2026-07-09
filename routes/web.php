@@ -588,6 +588,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('veiculos.os-preventiva.store');
 
                 // CRUDs aninhados das abas Show
+                Route::get('veiculos/{veiculo}/manutencoes/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listManutencoes'])
+                    ->name('veiculos.manutencoes.list');
                 Route::post('veiculos/{veiculo}/manutencoes', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeManutencao'])
                     ->name('veiculos.manutencoes.store');
                 Route::put('manutencoes/{manutencao}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateManutencao'])
