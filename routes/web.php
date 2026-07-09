@@ -644,6 +644,13 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::get('veiculos/{veiculo}/servicos-preventiva/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listServicosPreventiva'])
                     ->name('veiculos.servicos-preventiva.list');
 
+                // FIPE — cascata Marca/Modelo/Ano/Valor do formulário de veículo
+                Route::get('fipe/tabela-referencia', [\App\Http\Controllers\Admin\Frota\FipeController::class, 'tabelaReferencia'])->name('fipe.tabela-referencia');
+                Route::get('fipe/marcas', [\App\Http\Controllers\Admin\Frota\FipeController::class, 'marcas'])->name('fipe.marcas');
+                Route::get('fipe/modelos', [\App\Http\Controllers\Admin\Frota\FipeController::class, 'modelos'])->name('fipe.modelos');
+                Route::get('fipe/anos', [\App\Http\Controllers\Admin\Frota\FipeController::class, 'anos'])->name('fipe.anos');
+                Route::get('fipe/valor', [\App\Http\Controllers\Admin\Frota\FipeController::class, 'valor'])->name('fipe.valor');
+
                 Route::post('veiculos/{veiculo}/ipvas', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeIpva'])
                     ->name('veiculos.ipvas.store');
                 Route::put('ipvas/{ipva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateIpva'])
