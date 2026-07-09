@@ -71,11 +71,16 @@ MAIL_FROM_ADDRESS=naoresponda@engetecnica.com.br
 MAIL_FROM_NAME="${APP_NAME}"
 
 # === OneDrive (Microsoft Graph) ===
-# Galeria de veículos + uploads do módulo Frota
-ONEDRIVE_TENANT_ID=...
-ONEDRIVE_CLIENT_ID=...
-ONEDRIVE_CLIENT_SECRET=...
-ONEDRIVE_ROOT_FOLDER=SGA-Engeativos
+# Galeria de veículos + uploads do módulo Frota.
+# ⚠️ Nomes das chaves são MS_GRAPH_* (NÃO ONEDRIVE_*). Sem elas o upload
+#    falha — não há mais fallback hardcoded no código (segurança).
+# ⚠️ ROTACIONE o client_secret no Azure: o valor antigo esteve versionado
+#    no git e deve ser considerado comprometido.
+MS_GRAPH_TENANT_ID=...
+MS_GRAPH_CLIENT_ID=...
+MS_GRAPH_CLIENT_SECRET=...          # secret NOVO (rotacionado)
+MS_GRAPH_SITE_ID=...
+MS_GRAPH_ROOT_FOLDER=SGA-Engeativos
 ```
 
 ### 3. Permissões de arquivo

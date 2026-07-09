@@ -12,10 +12,11 @@ use ZipArchive;
 
 class FileUploadHelper
 {
-    /** Lê credenciais de config('services.onedrive.*') — definidas via .env */
+    /** Lê credenciais de config('services.onedrive.*') — definidas SÓ via .env
+     *  (MS_GRAPH_*). Sem defaults hardcoded: segredo não vive no código. */
     private static function siteId(): string
     {
-        return config('services.onedrive.site_id', '4ca1f317-1e25-4523-ad97-3e244d17e63e');
+        return (string) config('services.onedrive.site_id');
     }
 
     private static function rootFolder(): string
@@ -28,9 +29,9 @@ class FileUploadHelper
      * ============================== */
     public static function getToken(): string
     {
-        $clientID     = config('services.onedrive.client_id',     '58f96824-8212-4e33-979e-31dbaf9f50b7');
-        $clientSecret = config('services.onedrive.client_secret', 'U-J8Q~LPMiOTxdZ3OKukdaIR3U_QMRj-~.GiYcXF');
-        $tenantId     = config('services.onedrive.tenant_id',     '3e11ccfe-ac2d-406b-9305-0f217a096f66');
+        $clientID     = config('services.onedrive.client_id');
+        $clientSecret = config('services.onedrive.client_secret');
+        $tenantId     = config('services.onedrive.tenant_id');
 
         $scope       = 'https://graph.microsoft.com/.default';
         $tokenUrl    = "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token";
