@@ -1346,6 +1346,7 @@ function FileFieldOneDrive({ label, subfolder, setData, errors, veiculo, classNa
 function TabCorretivas({ veiculo, fornecedores = [], obras = [], funcionarios = [] }) {
   const [editando, setEditando] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [verManutencao, setVerManutencao] = useState(null); // detalhes (read-only)
 
   const [busca, setBusca] = useState('');
   const [buscaDebounced, setBuscaDebounced] = useState('');
@@ -1411,6 +1412,10 @@ function TabCorretivas({ veiculo, fornecedores = [], obras = [], funcionarios = 
         <ModalCorretiva veiculo={veiculo} manutencao={editando} fornecedores={fornecedores} obras={obras} funcionarios={funcionarios} onClose={() => setShowForm(false)} onSaved={onSaved} />
       )}
 
+      {verManutencao && (
+        <ModalVerCorretiva veiculo={veiculo} manutencao={verManutencao} onClose={() => setVerManutencao(null)} />
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left">
@@ -1446,9 +1451,7 @@ function TabCorretivas({ veiculo, fornecedores = [], obras = [], funcionarios = 
                   <td className="px-3 py-2">{fmtData(m.data_de_vencimento)}</td>
                   <td className="px-3 py-2 text-right font-semibold">{fmtMoney(m.valor_do_servico)}</td>
                   <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
-                    {m.tem_arquivo && (
-                      <a href={route('admin.frota.anexos.view', ['manutencao', m.id])} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">Anexo</a>
-                    )}
+                    <button onClick={() => setVerManutencao(m)} title="Ver detalhes e arquivos" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition">👁 Ver</button>
                     <button onClick={() => abrirEdit(m)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
                     <button onClick={() => excluir(m)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
@@ -1468,6 +1471,113 @@ function TabCorretivas({ veiculo, fornecedores = [], obras = [], funcionarios = 
           <span className="px-2">Página {meta.current_page} de {meta.last_page}</span>
           <button disabled={meta.current_page >= meta.last_page || loading} onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
             className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50">Próximo</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Lista consolidada de anexos de um registro (anexo geral + PDFs das NFs).
+   `arquivos` = [{ label, href }]. Abre inline em nova aba, nunca baixa. */
+function ListaArquivos({ arquivos }) {
+  if (!arquivos || arquivos.length === 0) {
+    return <p className="text-sm text-gray-400 bg-gray-50 border rounded p-3">Nenhum arquivo anexado.</p>;
+  }
+  return (
+    <ul className="divide-y border rounded-lg overflow-hidden">
+      {arquivos.map((a, i) => (
+        <li key={i} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 gap-3">
+          <span className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
+            <span className="text-purple-600 shrink-0">📎</span>
+            <span className="truncate">{a.label}</span>
+          </span>
+          <a href={a.href} target="_blank" rel="noreferrer"
+             className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">
+            Abrir
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* Reúne os anexos de uma manutenção/OS: anexo geral + cada NF com PDF.
+   `tipo` = 'manutencao' | 'os-preventiva'; `notaRoute` = rota do PDF da NF. */
+function montarArquivos(reg, tipo, notaRoute) {
+  const arquivos = [];
+  if (reg.tem_arquivo) {
+    arquivos.push({ label: 'Comprovante / anexo geral', href: route('admin.frota.anexos.view', [tipo, reg.id]) });
+  }
+  (reg.notas_fiscais || []).forEach((n, i) => {
+    if (n?.arquivo) {
+      arquivos.push({ label: `NF ${n.numero || (i + 1)}`, href: route(notaRoute, [reg.id, n.idx ?? i]) });
+    }
+  });
+  return arquivos;
+}
+
+/* ============ Modal: Ver Manutenção Corretiva (somente leitura + arquivos) ============ */
+function ModalVerCorretiva({ manutencao, onClose }) {
+  const m = manutencao;
+  const sit = situacaoCorretiva[m.situacao] ?? { label: '—', cor: 'bg-gray-200 text-gray-700' };
+  const arquivos = montarArquivos(m, 'manutencao', 'admin.frota.manutencoes.nota-arquivo');
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-8 px-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl my-4" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center justify-between border-b px-6 py-3">
+          <h2 className="text-base font-bold">Manutenção corretiva #{m.id}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">✕</button>
+        </header>
+        <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+            <Info label="Situação" value={<span className={`px-2 py-0.5 rounded text-xs ${sit.cor}`}>{sit.label}</span>} />
+            <Info label="Tipo" value={m.tipo || '—'} />
+            <Info label="Fornecedor" value={m.fornecedor?.nome_fantasia ?? '—'} />
+            <Info label="Execução" value={fmtData(m.data_de_execucao)} />
+            <Info label="Conclusão" value={fmtData(m.data_conclusao)} />
+            <Info label="Garantia" value={fmtData(m.data_de_vencimento)} />
+            <Info label="Valor total" value={fmtMoney(m.valor_do_servico)} />
+          </div>
+
+          {(m.notas_fiscais || []).length > 0 && (
+            <div>
+              <p className="text-xs uppercase text-gray-500 mb-1">Notas fiscais</p>
+              <div className="border rounded overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-xs text-gray-500">
+                    <tr><th className="px-3 py-1.5">Núm. NF / NFSE</th><th className="px-3 py-1.5 w-28">Data</th><th className="px-3 py-1.5 w-32 text-right">Valor</th><th className="px-3 py-1.5 w-24">PDF</th></tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {m.notas_fiscais.map((n, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 font-medium text-gray-800">{n.numero || '—'}</td>
+                        <td className="px-3 py-2">{fmtData(n.data)}</td>
+                        <td className="px-3 py-2 text-right">{fmtMoney(n.valor)}</td>
+                        <td className="px-3 py-2">
+                          {n.arquivo
+                            ? <a href={route('admin.frota.manutencoes.nota-arquivo', [m.id, i])} target="_blank" rel="noreferrer" className="text-purple-700 hover:underline">📎 ver</a>
+                            : <span className="text-gray-400">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {m.descricao && (
+            <div>
+              <p className="text-xs uppercase text-gray-500 mb-1">Descrição</p>
+              <p className="text-sm bg-gray-50 border rounded p-2 whitespace-pre-wrap">{m.descricao}</p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs uppercase text-gray-500 mb-1">Arquivos anexados</p>
+            <ListaArquivos arquivos={arquivos} />
+          </div>
         </div>
       </div>
     </div>
@@ -2842,12 +2952,10 @@ function ModalVerOs({ osId, unidade = 'km', tipoHr = false, onClose }) {
               </div>
             </div>
 
-            {os.tem_arquivo && (
-              <a href={route('admin.frota.anexos.view', ['os-preventiva', os.id])} target="_blank" rel="noreferrer"
-                 className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100">
-                📎 Ver anexo
-              </a>
-            )}
+            <div>
+              <p className="text-xs uppercase text-gray-500 mb-1">Arquivos anexados</p>
+              <ListaArquivos arquivos={montarArquivos(os, 'os-preventiva', 'admin.frota.os-preventiva.nota-arquivo')} />
+            </div>
           </div>
         )}
       </div>
