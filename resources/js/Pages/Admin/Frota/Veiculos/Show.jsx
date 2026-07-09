@@ -1426,16 +1426,22 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
     data_previsao_termino: manutencao?.data_previsao_termino?.substring(0, 10) ?? '',
     data_conclusao:        manutencao?.data_conclusao?.substring(0, 10) ?? '',
     data_de_vencimento:    manutencao?.data_de_vencimento?.substring(0, 10) ?? '',
-    valor_do_servico:      manutencao?.valor_do_servico ?? '',
-    valor_da_mao_obra:     manutencao?.valor_da_mao_obra ?? '',
-    nf_pecas:              manutencao?.nf_pecas ?? '',
-    nf_mao_obra:           manutencao?.nf_mao_obra ?? '',
+    // Lista de notas fiscais (número, data, valor). Começa com 1 linha vazia.
+    notas_fiscais: (manutencao?.notas_fiscais?.length
+      ? manutencao.notas_fiscais.map((n) => ({ numero: n.numero ?? '', data: (n.data ?? '').substring(0, 10), valor: n.valor ?? '' }))
+      : [{ numero: '', data: '', valor: '' }]),
     descricao:             manutencao?.descricao ?? '',
     arquivo:               null,
     _method:               editando ? 'put' : 'post',
   });
 
-  const total = (Number(data.valor_do_servico) || 0) + (Number(data.valor_da_mao_obra) || 0);
+  const totalNotas = (data.notas_fiscais || []).reduce((acc, n) => acc + (Number(n.valor) || 0), 0);
+
+  const addNota = () => setData('notas_fiscais', [...data.notas_fiscais, { numero: '', data: '', valor: '' }]);
+  const removeNota = (idx) => setData('notas_fiscais',
+    data.notas_fiscais.length > 1 ? data.notas_fiscais.filter((_, i) => i !== idx) : data.notas_fiscais);
+  const setNota = (idx, campo, valor) => setData('notas_fiscais',
+    data.notas_fiscais.map((n, i) => (i === idx ? { ...n, [campo]: valor } : n)));
 
   const submit = (e) => {
     e.preventDefault();
@@ -1500,17 +1506,54 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
           <F label="Garantia (vencimento)" name="data_de_vencimento" type="date" data={data} setData={setData} errors={errors} />
         </SecaoForm>
 
-        <SecaoForm titulo="Custo">
-          <F label="Valor peças/serviço (R$)" name="valor_do_servico" type="number" step="0.01" data={data} setData={setData} errors={errors} />
-          <F label="NF peças" name="nf_pecas" data={data} setData={setData} errors={errors} />
-          <div></div>
-          <F label="Valor mão de obra (R$)" name="valor_da_mao_obra" type="number" step="0.01" data={data} setData={setData} errors={errors} />
-          <F label="NF mão de obra" name="nf_mao_obra" data={data} setData={setData} errors={errors} />
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Total</label>
-            <div className="px-3 py-2 rounded border border-gray-200 bg-gray-50 text-gray-800 font-semibold text-sm">{fmtMoney(total)}</div>
+        {/* Notas fiscais — lista repetível com Adicionar/Remover + total */}
+        <div className="md:col-span-3">
+          <div className="flex items-center justify-between border-b border-gray-200 pb-1 mb-3">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-rise-700">Notas fiscais</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={addNota}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#557bbb] text-white hover:bg-[#3a5a8c]">
+                <i className="fa-solid fa-plus mr-1" /> Adicionar NF
+              </button>
+              <button type="button" onClick={() => removeNota(data.notas_fiscais.length - 1)}
+                disabled={data.notas_fiscais.length <= 1}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-40">
+                <i className="fa-solid fa-minus mr-1" /> Remover NF
+              </button>
+            </div>
           </div>
-        </SecaoForm>
+
+          <div className="space-y-2">
+            {data.notas_fiscais.map((n, idx) => (
+              <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+                <div>
+                  {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Núm. NF / NFSE</label>}
+                  <input value={n.numero} onChange={(e) => setNota(idx, 'numero', e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Data NF</label>}
+                  <input type="date" value={n.data} onChange={(e) => setNota(idx, 'data', e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Valor (R$)</label>}
+                  <input type="number" step="0.01" min="0" value={n.valor} onChange={(e) => setNota(idx, 'valor', e.target.value)} className={inputCls} />
+                </div>
+                <button type="button" onClick={() => removeNota(idx)} disabled={data.notas_fiscais.length <= 1}
+                  title="Remover esta NF"
+                  className="h-[38px] w-9 flex items-center justify-center rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-30">
+                  <i className="fa-solid fa-trash-can" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end mt-3">
+            <div className="text-right">
+              <p className="text-[11px] font-semibold uppercase text-gray-500">Total das Notas Fiscais</p>
+              <div className="mt-1 px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold">{fmtMoney(totalNotas)}</div>
+            </div>
+          </div>
+        </div>
 
         <div className="md:col-span-3">
           <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Descrição</label>

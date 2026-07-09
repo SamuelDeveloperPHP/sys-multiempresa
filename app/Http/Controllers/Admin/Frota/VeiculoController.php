@@ -768,9 +768,30 @@ class VeiculoController extends Controller
      * CRUDs aninhados (Manutencoes, IPVA, Seguros, Docs)
      * ========================================================= */
 
+    /**
+     * Limpa as notas fiscais (descarta linhas totalmente vazias) e devolve
+     * [notas_limpas, total]. O total é gravado em valor_do_servico para os
+     * gráficos de custo continuarem funcionando.
+     */
+    private function prepararNotasFiscais(?array $notas): array
+    {
+        $limpas = collect($notas ?? [])
+            ->map(fn ($n) => [
+                'numero' => trim((string) ($n['numero'] ?? '')) ?: null,
+                'data'   => $n['data'] ?? null,
+                'valor'  => isset($n['valor']) && $n['valor'] !== '' ? (float) $n['valor'] : null,
+            ])
+            ->filter(fn ($n) => $n['numero'] !== null || $n['valor'] !== null)
+            ->values()
+            ->all();
+        $total = array_sum(array_column($limpas, 'valor'));
+        return [$limpas, $total];
+    }
+
     public function storeManutencao(Request $request, Veiculo $veiculo): RedirectResponse
     {
         $data = $this->validarManutencao($request);
+        [$data['notas_fiscais'], $data['valor_do_servico']] = $this->prepararNotasFiscais($data['notas_fiscais'] ?? []);
         $data['veiculo_id']  = $veiculo->id;
         $data['user_create'] = Auth::user()?->email;
         $registro = VeiculoManutencao::create($data + ['arquivo' => null]);
@@ -784,6 +805,7 @@ class VeiculoController extends Controller
     public function updateManutencao(Request $request, VeiculoManutencao $manutencao): RedirectResponse
     {
         $data = $this->validarManutencao($request);
+        [$data['notas_fiscais'], $data['valor_do_servico']] = $this->prepararNotasFiscais($data['notas_fiscais'] ?? []);
         $data['user_edit'] = Auth::user()?->email;
         $manutencao->update($data);
         if ($request->hasFile('arquivo')) {
@@ -940,10 +962,12 @@ class VeiculoController extends Controller
             'id_obra'               => 'nullable|exists:obras,id',
             'id_usuario'            => 'nullable|exists:funcionarios,id',   // responsável
             'tipo'                  => 'nullable|string|max:50',
-            'valor_do_servico'      => 'nullable|numeric|min:0',            // peças/serviço
-            'valor_da_mao_obra'     => 'nullable|numeric|min:0',
-            'nf_pecas'              => 'nullable|string|max:60',
-            'nf_mao_obra'           => 'nullable|string|max:60',
+            // Notas fiscais (lista repetível: número, data, valor). O total é
+            // gravado em valor_do_servico (calculado no store/update).
+            'notas_fiscais'             => 'nullable|array|max:50',
+            'notas_fiscais.*.numero'    => 'nullable|string|max:60',
+            'notas_fiscais.*.data'      => 'nullable|date',
+            'notas_fiscais.*.valor'     => 'nullable|numeric|min:0|max:99999999.99',
             'quilometragem_atual'   => 'nullable|integer|min:0',
             'quilometragem_nova'    => 'nullable|integer|min:0',
             'horimetro_atual'       => 'nullable|integer|min:0',
@@ -1072,20 +1096,28 @@ class VeiculoController extends Controller
         $pagina = $query->orderByDesc('data_de_execucao')->orderByDesc('id')
             ->paginate(10)->withQueryString();
 
+        // Devolve o conjunto completo de campos editáveis — a mesma linha é
+        // usada para popular o formulário de edição.
         $pagina->getCollection()->transform(fn ($m) => [
-            'id'                 => $m->id,
-            'situacao'           => (int) $m->situacao,
-            'quilometragem_atual'=> $m->quilometragem_atual,
-            'horimetro_atual'    => $m->horimetro_atual,
-            'fornecedor'         => $m->fornecedor
-                ? ['nome_fantasia' => $m->fornecedor->nome_fantasia]
-                : null,
-            'tipo'               => $m->tipo,
-            'data_de_execucao'   => optional($m->data_de_execucao)->toDateString(),
-            'data_conclusao'     => optional($m->data_conclusao)->toDateString(),
-            'data_de_vencimento' => optional($m->data_de_vencimento)->toDateString(),
-            'valor_do_servico'   => $m->valor_do_servico,
-            'tem_arquivo'        => !empty($m->arquivo),
+            'id'                    => $m->id,
+            'situacao'              => (int) $m->situacao,
+            'tipo'                  => $m->tipo,
+            'fornecedor_id'         => $m->fornecedor_id,
+            'fornecedor'            => $m->fornecedor ? ['nome_fantasia' => $m->fornecedor->nome_fantasia] : null,
+            'id_obra'               => $m->id_obra,
+            'id_usuario'            => $m->id_usuario,
+            'quilometragem_atual'   => $m->quilometragem_atual,
+            'quilometragem_nova'    => $m->quilometragem_nova,
+            'horimetro_atual'       => $m->horimetro_atual,
+            'horimetro_proximo'     => $m->horimetro_proximo,
+            'data_de_execucao'      => optional($m->data_de_execucao)->toDateString(),
+            'data_previsao_termino' => optional($m->data_previsao_termino)->toDateString(),
+            'data_conclusao'        => optional($m->data_conclusao)->toDateString(),
+            'data_de_vencimento'    => optional($m->data_de_vencimento)->toDateString(),
+            'valor_do_servico'      => $m->valor_do_servico,
+            'notas_fiscais'         => $m->notas_fiscais ?? [],
+            'descricao'             => $m->descricao,
+            'tem_arquivo'           => !empty($m->arquivo),
         ]);
 
         return response()->json([
