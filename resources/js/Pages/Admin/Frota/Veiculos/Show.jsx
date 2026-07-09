@@ -1142,6 +1142,75 @@ function ModalDoc({ veiculo, doc, tipo, onClose, onSaved }) {
 
 /* Campo de upload restrito a PDF, com zona de ARRASTAR-E-SOLTAR + clique.
    Valida PDF no cliente (tipo/extensão) e mostra o arquivo escolhido. */
+/* Campo de upload com ARRASTAR-E-SOLTAR reutilizável (todas as abas).
+ * onFile(file|null) é o callback; pdfOnly restringe a PDF (senão PDF+imagem);
+ * compact = versão enxuta (ex.: linhas de NF); viewHref = link "Ver" (abre
+ * inline em nova aba, sem download). */
+function DropFileField({ label, hint, onFile, pdfOnly = false, viewHref = null, error = null, compact = false, className = '' }) {
+  const inputRef = useRef(null);
+  const [erro, setErro] = useState(null);
+  const [nome, setNome] = useState(null);
+  const [dragging, setDragging] = useState(false);
+
+  const accept = pdfOnly ? 'application/pdf,.pdf' : 'application/pdf,image/*';
+  const valido = (f) => pdfOnly
+    ? (f.type === 'application/pdf' || /\.pdf$/i.test(f.name))
+    : (f.type === 'application/pdf' || f.type.startsWith('image/') || /\.(pdf|jpe?g|png|webp)$/i.test(f.name));
+
+  const aplicar = (f) => {
+    setErro(null);
+    if (!f) return;
+    if (!valido(f)) {
+      setErro(pdfOnly ? 'Apenas PDF.' : 'Apenas PDF ou imagem.');
+      setNome(null); onFile(null);
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
+    setNome(f.name); onFile(f);
+  };
+  const limpar = (e) => { e.stopPropagation(); setNome(null); setErro(null); onFile(null); if (inputRef.current) inputRef.current.value = ''; };
+
+  return (
+    <div className={className}>
+      {label && <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">{label}</label>}
+      <div
+        role="button" tabIndex={0}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && inputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); aplicar(e.dataTransfer.files?.[0] ?? null); }}
+        className={`flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed cursor-pointer transition text-center ${compact ? 'px-2 py-2' : 'px-4 py-6'} ${
+          dragging ? 'border-rise-500 bg-rise-50' : nome ? 'border-green-300 bg-green-50' : 'border-gray-300 bg-gray-50 hover:border-rise-400 hover:bg-rise-50/40'
+        }`}
+      >
+        {nome ? (
+          <>
+            <span className={compact ? 'text-sm' : 'text-2xl'}>📄</span>
+            <span className={`${compact ? 'text-[11px]' : 'text-sm'} font-medium text-gray-800 break-all`}>{nome}</span>
+            <button type="button" onClick={limpar} className="text-[11px] text-red-600 hover:underline">Remover</button>
+          </>
+        ) : (
+          <>
+            {!compact && <span className="text-2xl">⬆️</span>}
+            <span className={`${compact ? 'text-[11px]' : 'text-sm'} text-gray-700`}>
+              <span className="font-semibold text-rise-700">{compact ? 'Arraste/clique' : 'Arraste aqui'}</span>{!compact && ' ou clique para escolher'}
+            </span>
+            {hint && !compact && <span className="text-xs text-gray-400">{hint}</span>}
+          </>
+        )}
+      </div>
+      <input ref={inputRef} type="file" accept={accept} onChange={(e) => aplicar(e.target.files?.[0] ?? null)} className="hidden" />
+      {viewHref && !nome && (
+        <a href={viewHref} target="_blank" rel="noreferrer" className="inline-block mt-1 text-[11px] text-purple-700 hover:underline">
+          <i className="fa-solid fa-up-right-from-square mr-1" />Ver arquivo atual
+        </a>
+      )}
+      {(erro || error) && <p className="text-red-600 text-xs mt-1">{erro || error}</p>}
+    </div>
+  );
+}
+
 function FilePdfField({ label, subfolder, setData, errors, veiculo, className = '' }) {
   const inputRef = useRef(null);
   const [erroLocal, setErroLocal] = useState(null);
@@ -1257,14 +1326,18 @@ function ModalFooter({ onClose, processing, editando }) {
   );
 }
 
+// Mantém a assinatura antiga (manutenção usa 'arquivo', IPVA usa 'anexo'),
+// mas agora com arrastar-e-soltar via DropFileField.
 function FileFieldOneDrive({ label, subfolder, setData, errors, veiculo, className = '' }) {
   return (
-    <div className={className}>
-      <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">{label}</label>
-      <input type="file" onChange={(e) => setData('arquivo', e.target.files[0] ?? null) || setData('anexo', e.target.files[0] ?? null)} className="text-sm" accept="image/*,.pdf" />
-      <p className="text-xs text-gray-500 mt-1">Vai para o OneDrive em veiculos/{veiculo.id}/{subfolder}/</p>
-      {(errors?.arquivo || errors?.anexo) && <p className="text-red-600 text-xs mt-1">{errors.arquivo || errors.anexo}</p>}
-    </div>
+    <DropFileField
+      label={label}
+      hint={`PDF ou imagem — vai para veiculos/${veiculo.id}/${subfolder}/`}
+      pdfOnly={false}
+      onFile={(f) => { setData('arquivo', f); setData('anexo', f); }}
+      error={errors?.arquivo || errors?.anexo}
+      className={className}
+    />
   );
 }
 
@@ -1486,10 +1559,11 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
     data_previsao_termino: manutencao?.data_previsao_termino?.substring(0, 10) ?? '',
     data_conclusao:        manutencao?.data_conclusao?.substring(0, 10) ?? '',
     data_de_vencimento:    manutencao?.data_de_vencimento?.substring(0, 10) ?? '',
-    // Lista de notas fiscais (número, data, valor). Começa com 1 linha vazia.
+    // Lista de NFs. Cada linha: número, data, valor, arquivo (PDF já enviado)
+    // e arquivo_novo (PDF sendo anexado agora — viaja junto da linha).
     notas_fiscais: (manutencao?.notas_fiscais?.length
-      ? manutencao.notas_fiscais.map((n) => ({ numero: n.numero ?? '', data: (n.data ?? '').substring(0, 10), valor: n.valor ?? '' }))
-      : [{ numero: '', data: '', valor: '' }]),
+      ? manutencao.notas_fiscais.map((n) => ({ numero: n.numero ?? '', data: (n.data ?? '').substring(0, 10), valor: n.valor ?? '', arquivo: n.arquivo ?? null, arquivo_novo: null }))
+      : [{ numero: '', data: '', valor: '', arquivo: null, arquivo_novo: null }]),
     descricao:             manutencao?.descricao ?? '',
     arquivo:               null,
     _method:               editando ? 'put' : 'post',
@@ -1497,7 +1571,8 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
 
   const totalNotas = (data.notas_fiscais || []).reduce((acc, n) => acc + (Number(n.valor) || 0), 0);
 
-  const addNota = () => setData('notas_fiscais', [...data.notas_fiscais, { numero: '', data: '', valor: '' }]);
+  const linhaVazia = { numero: '', data: '', valor: '', arquivo: null, arquivo_novo: null };
+  const addNota = () => setData('notas_fiscais', [...data.notas_fiscais, { ...linhaVazia }]);
   const removeNota = (idx) => setData('notas_fiscais',
     data.notas_fiscais.length > 1 ? data.notas_fiscais.filter((_, i) => i !== idx) : data.notas_fiscais);
   const setNota = (idx, campo, valor) => setData('notas_fiscais',
@@ -1581,7 +1656,7 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
 
           <div className="space-y-2">
             {data.notas_fiscais.map((n, idx) => (
-              <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+              <div key={idx} className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr_0.9fr_1.3fr_auto] gap-2 items-end">
                 <div>
                   {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Núm. NF / NFSE</label>}
                   <input value={n.numero} onChange={(e) => setNota(idx, 'numero', e.target.value)} className={inputCls} />
@@ -1593,6 +1668,12 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
                 <div>
                   {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Valor (R$)</label>}
                   <input type="number" step="0.01" min="0" value={n.valor} onChange={(e) => setNota(idx, 'valor', e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Arquivo PDF</label>}
+                  <DropFileField compact pdfOnly
+                    onFile={(f) => setNota(idx, 'arquivo_novo', f)}
+                    viewHref={editando && n.arquivo ? route('admin.frota.manutencoes.nota-arquivo', [manutencao.id, idx]) : null} />
                 </div>
                 <button type="button" onClick={() => removeNota(idx)} disabled={data.notas_fiscais.length <= 1}
                   title="Remover esta NF"

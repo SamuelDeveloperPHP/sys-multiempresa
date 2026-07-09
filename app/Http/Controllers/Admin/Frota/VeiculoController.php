@@ -769,21 +769,37 @@ class VeiculoController extends Controller
      * ========================================================= */
 
     /**
-     * Limpa as notas fiscais (descarta linhas totalmente vazias) e devolve
-     * [notas_limpas, total]. O total é gravado em valor_do_servico para os
-     * gráficos de custo continuarem funcionando.
+     * Processa as notas fiscais: faz upload do PDF novo de cada linha (que
+     * viaja em notas_fiscais.{i}.arquivo_novo — correlação por posição, imune
+     * a reordenar/remover linhas), preserva o PDF já existente, descarta
+     * linhas vazias e devolve [notas_limpas, total]. O total vai para
+     * valor_do_servico (mantém os gráficos de custo).
      */
-    private function prepararNotasFiscais(?array $notas): array
+    private function prepararNotasFiscais(Request $request, int $veiculoId): array
     {
-        $limpas = collect($notas ?? [])
-            ->map(fn ($n) => [
-                'numero' => trim((string) ($n['numero'] ?? '')) ?: null,
-                'data'   => $n['data'] ?? null,
-                'valor'  => isset($n['valor']) && $n['valor'] !== '' ? (float) $n['valor'] : null,
-            ])
-            ->filter(fn ($n) => $n['numero'] !== null || $n['valor'] !== null)
-            ->values()
-            ->all();
+        $entrada = (array) $request->input('notas_fiscais', []);
+        $limpas = [];
+        foreach ($entrada as $idx => $n) {
+            $numero = trim((string) ($n['numero'] ?? '')) ?: null;
+            $valor  = isset($n['valor']) && $n['valor'] !== '' ? (float) $n['valor'] : null;
+            $arquivo = trim((string) ($n['arquivo'] ?? '')) ?: null; // PDF já enviado
+
+            $novo = $request->file("notas_fiscais.$idx.arquivo_novo");
+            if ($novo) {
+                $arquivo = $this->uploadOneDrive($novo, $veiculoId, 'manutencoes/notas');
+            }
+
+            // Linha vazia (sem número, valor nem arquivo) é descartada
+            if ($numero === null && $valor === null && $arquivo === null) {
+                continue;
+            }
+            $limpas[] = [
+                'numero'  => $numero,
+                'data'    => $n['data'] ?? null,
+                'valor'   => $valor,
+                'arquivo' => $arquivo,
+            ];
+        }
         $total = array_sum(array_column($limpas, 'valor'));
         return [$limpas, $total];
     }
@@ -791,7 +807,7 @@ class VeiculoController extends Controller
     public function storeManutencao(Request $request, Veiculo $veiculo): RedirectResponse
     {
         $data = $this->validarManutencao($request);
-        [$data['notas_fiscais'], $data['valor_do_servico']] = $this->prepararNotasFiscais($data['notas_fiscais'] ?? []);
+        [$data['notas_fiscais'], $data['valor_do_servico']] = $this->prepararNotasFiscais($request, $veiculo->id);
         $data['veiculo_id']  = $veiculo->id;
         $data['user_create'] = Auth::user()?->email;
         $registro = VeiculoManutencao::create($data + ['arquivo' => null]);
@@ -805,7 +821,7 @@ class VeiculoController extends Controller
     public function updateManutencao(Request $request, VeiculoManutencao $manutencao): RedirectResponse
     {
         $data = $this->validarManutencao($request);
-        [$data['notas_fiscais'], $data['valor_do_servico']] = $this->prepararNotasFiscais($data['notas_fiscais'] ?? []);
+        [$data['notas_fiscais'], $data['valor_do_servico']] = $this->prepararNotasFiscais($request, $manutencao->veiculo_id);
         $data['user_edit'] = Auth::user()?->email;
         $manutencao->update($data);
         if ($request->hasFile('arquivo')) {
@@ -813,6 +829,15 @@ class VeiculoController extends Controller
             $manutencao->update(['arquivo' => $path]);
         }
         return back()->with('success', 'Manutenção atualizada.');
+    }
+
+    /** Stream do PDF de uma nota fiscal específica da manutenção.
+     *  A manutenção já vem company-scoped pelo Tenantable (route binding). */
+    public function viewNotaArquivo(VeiculoManutencao $manutencao, int $idx)
+    {
+        $nota = ($manutencao->notas_fiscais ?? [])[$idx] ?? null;
+        abort_if(empty($nota['arquivo']), 404, 'Nota fiscal sem arquivo.');
+        return $this->streamArquivoOneDrive($nota['arquivo']);
     }
 
     public function destroyManutencao(VeiculoManutencao $manutencao): RedirectResponse
@@ -968,6 +993,8 @@ class VeiculoController extends Controller
             'notas_fiscais.*.numero'    => 'nullable|string|max:60',
             'notas_fiscais.*.data'      => 'nullable|date',
             'notas_fiscais.*.valor'     => 'nullable|numeric|min:0|max:99999999.99',
+            'notas_fiscais.*.arquivo'   => 'nullable|string|max:255',       // path do PDF já enviado
+            'notas_fiscais.*.arquivo_novo' => 'nullable|file|mimetypes:application/pdf|mimes:pdf|max:10240',
             'quilometragem_atual'   => 'nullable|integer|min:0',
             'quilometragem_nova'    => 'nullable|integer|min:0',
             'horimetro_atual'       => 'nullable|integer|min:0',
@@ -1318,6 +1345,8 @@ class VeiculoController extends Controller
             }
         }, 200, [
             'Content-Type'  => $mime,
+            // inline: abre no navegador (nova aba), NUNCA força download
+            'Content-Disposition' => 'inline; filename="' . basename($relPath) . '"',
             'Cache-Control' => 'private, max-age=300',
         ]);
     }

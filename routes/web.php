@@ -596,6 +596,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('manutencoes.update');
                 Route::delete('manutencoes/{manutencao}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyManutencao'])
                     ->name('manutencoes.destroy');
+                Route::get('manutencoes/{manutencao}/notas/{idx}/arquivo', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewNotaArquivo'])
+                    ->whereNumber('idx')->name('manutencoes.nota-arquivo');
 
                 // Listagens paginadas (GET JSON, busca as-you-type) das abas do veículo
                 Route::get('veiculos/{veiculo}/seguros/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listSeguros'])
