@@ -1230,10 +1230,11 @@ function FilePdfField({ label, subfolder, setData, errors, veiculo, className = 
 }
 
 /* ============ Helpers de Modal ============ */
-function ModalShell({ title, onClose, children, large = false }) {
+function ModalShell({ title, onClose, children, large = false, wide = false }) {
+  const largura = wide ? 'max-w-6xl' : large ? 'max-w-4xl' : 'max-w-2xl';
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-10 px-4 overflow-y-auto" onClick={onClose}>
-      <div className={`bg-white rounded-lg shadow-xl w-full ${large ? 'max-w-4xl' : 'max-w-2xl'} my-4`} onClick={(e) => e.stopPropagation()}>
+      <div className={`bg-white rounded-lg shadow-xl w-full ${largura} my-4`} onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between border-b px-6 py-4">
           <h2 className="text-lg font-bold">{title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl">✕</button>
@@ -1516,7 +1517,7 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
   };
 
   return (
-    <ModalShell title={editando ? `Editar manutenção #${manutencao.id}` : 'Nova manutenção corretiva'} onClose={onClose} large>
+    <ModalShell title={editando ? `Editar manutenção #${manutencao.id}` : 'Nova manutenção corretiva'} onClose={onClose} wide>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4" encType="multipart/form-data">
 
         <SecaoForm titulo="Identificação">
