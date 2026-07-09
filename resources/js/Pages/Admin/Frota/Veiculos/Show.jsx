@@ -124,6 +124,7 @@ export default function VeiculoShow({
   fornecedores = [],
   obras = [],
   funcionarios = [],
+  combustiveis = [],
   // Porting de `detalhes.blade.php`
   maior_valor: maiorValor = null,
   meses_formatados: mesesFormatados = [],
@@ -218,7 +219,7 @@ export default function VeiculoShow({
           {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} veiculo={veiculo} fornecedores={fornecedores} obras={obras} funcionarios={funcionarios} />}
           {tab === 'seguros'        && <TabSeguros veiculo={veiculo} />}
           {tab === 'ipvas'          && <TabIpvas veiculo={veiculo} />}
-          {tab === 'abastecimentos' && <TabAbastecimentos veiculo={veiculo} obras={obras} funcionarios={funcionarios} />}
+          {tab === 'abastecimentos' && <TabAbastecimentos veiculo={veiculo} obras={obras} funcionarios={funcionarios} combustiveis={combustiveis} />}
           {tab === 'medicoes'       && <TabMedicoes veiculo={veiculo} obras={obras} funcionarios={funcionarios} />}
         </div>
       </div>
@@ -2370,7 +2371,7 @@ function ModalIpva({ veiculo, ipva, onClose, onSaved }) {
 }
 
 /* ============ TAB: Abastecimentos ============ */
-function TabAbastecimentos({ veiculo, obras = [], funcionarios = [] }) {
+function TabAbastecimentos({ veiculo, obras = [], funcionarios = [], combustiveis = [] }) {
   const { rows, meta, resumo, loading, busca, setBusca, buscaDebounced, setPage, reload } =
     useServerList('admin.frota.veiculos.abastecimentos.list', veiculo.id);
   const unidade = veiculo.tipo_hr ? 'hr' : 'km';
@@ -2400,7 +2401,11 @@ function TabAbastecimentos({ veiculo, obras = [], funcionarios = [] }) {
         <Kpi label="Total de litros" value={fmtNum(resumo?.total_litros ?? 0, 2)} />
         <Kpi label="Total gasto" value={fmtMoney(resumo?.total_gasto ?? 0)} />
         <Kpi label="# Abastecimentos" value={resumo?.total ?? 0} />
-        <Kpi label="Total CO₂ emitido" value={`${fmtNum(resumo?.total_co2 ?? 0, 2)} kg`} />
+        <div className="bg-white rounded-lg border p-4">
+          <p className="text-xs uppercase text-gray-500">CO₂ fóssil emitido</p>
+          <p className="text-2xl font-bold text-rise-700">{fmtNum(resumo?.total_co2_fossil ?? 0, 2)} kg</p>
+          <p className="text-xs text-gray-400 mt-0.5">+ {fmtNum(resumo?.total_co2_biogenico ?? 0, 2)} kg biogênico</p>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -2453,28 +2458,30 @@ function TabAbastecimentos({ veiculo, obras = [], funcionarios = [] }) {
       <Paginacao meta={meta} loading={loading} onPage={setPage} />
 
       {showForm && (
-        <ModalAbastecimento veiculo={veiculo} abastecimento={editando} obras={obras} funcionarios={funcionarios} onClose={() => setShowForm(false)} onSaved={onSaved} />
+        <ModalAbastecimento veiculo={veiculo} abastecimento={editando} obras={obras} funcionarios={funcionarios} combustiveis={combustiveis} onClose={() => setShowForm(false)} onSaved={onSaved} />
       )}
     </div>
   );
 }
 
-/* Fatores de emissão (kg CO₂/L) — espelham calcularEmissaoCO2 no back p/ preview. */
-const CO2_FATORES = [{ re: /diesel|s10|s500/i, f: 2.384 }, { re: /gasolina/i, f: 2.212 }];
-function co2Front(combustivel, litros) {
-  const fator = CO2_FATORES.find((x) => x.re.test(String(combustivel || '')))?.f ?? 0;
-  return (Number(litros) || 0) * fator;
+/* CO₂ por litro de bomba a partir dos fatores da lista (mesma fórmula do back). */
+function co2DoCombustivel(comb, litros) {
+  const q = Number(litros) || 0;
+  const perc = Number(comb?.perc_biogenico) || 0;
+  const fossil = (1 - perc) * (Number(comb?.fator_fossil) || 0) * q;
+  const bio = perc * (Number(comb?.fator_biogenico) || 0) * q;
+  return { fossil, bio };
 }
 
-const COMBUSTIVEIS = ['S10', 'DIESEL S10', 'S500', 'GASOLINA', 'GASOLINA ADITIVADA', 'ETANOL', 'ARLA 32'];
-
-function ModalAbastecimento({ veiculo, abastecimento, obras = [], funcionarios = [], onClose, onSaved }) {
+function ModalAbastecimento({ veiculo, abastecimento, obras = [], funcionarios = [], combustiveis = [], onClose, onSaved }) {
   const editando = !!abastecimento?.id;
   const tipoHr = !!veiculo.tipo_hr;
   const unidade = tipoHr ? 'hr' : 'km';
 
   const { data, setData, post, processing, errors } = useForm({
     data_abastecimento: abastecimento?.data_abastecimento?.substring(0, 10) ?? new Date().toISOString().substring(0, 10),
+    // Novo: combustível vem da lista. Novo abastecimento herda o padrão do veículo.
+    id_combustivel: abastecimento?.id_combustivel ?? (editando ? '' : (veiculo.id_combustivel_padrao ?? '')),
     combustivel:  abastecimento?.combustivel ?? '',
     fornecedor:   abastecimento?.fornecedor ?? '',
     km_anterior:  tipoHr ? '' : (abastecimento?.medicao_inicial ?? ''),
@@ -2499,7 +2506,12 @@ function ModalAbastecimento({ veiculo, abastecimento, obras = [], funcionarios =
   const onQtd = (v) => setData((d) => ({ ...d, quantidade: v, valor_total: (Number(v) > 0 && Number(d.valor_do_litro) > 0) ? (Number(v) * Number(d.valor_do_litro)).toFixed(2) : d.valor_total }));
   const onLitro = (v) => setData((d) => ({ ...d, valor_do_litro: v, valor_total: (Number(v) > 0 && Number(d.quantidade) > 0) ? (Number(v) * Number(d.quantidade)).toFixed(2) : d.valor_total }));
 
-  const co2 = co2Front(data.combustivel, data.quantidade);
+  const combSel = combustiveis.find((c) => String(c.id) === String(data.id_combustivel));
+  const onCombustivel = (id) => {
+    const c = combustiveis.find((x) => String(x.id) === String(id));
+    setData((d) => ({ ...d, id_combustivel: id, combustivel: c?.nome ?? d.combustivel }));
+  };
+  const co2 = co2DoCombustivel(combSel, data.quantidade);
 
   const submit = (e) => {
     e.preventDefault();
@@ -2513,9 +2525,12 @@ function ModalAbastecimento({ veiculo, abastecimento, obras = [], funcionarios =
     <ModalShell title={editando ? `Editar abastecimento #${abastecimento.id}` : 'Novo abastecimento'} onClose={onClose} large>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <F label="Data *" name="data_abastecimento" type="date" data={data} setData={setData} errors={errors} />
-        <F label="Combustível" name="combustivel" errors={errors}>
-          <input list="combustiveis-list" value={data.combustivel} onChange={(e) => setData('combustivel', e.target.value.toUpperCase())} className={inputCls} placeholder="Ex.: S10" />
-          <datalist id="combustiveis-list">{COMBUSTIVEIS.map((c) => <option key={c} value={c} />)}</datalist>
+        <F label="Combustível" name="id_combustivel" errors={errors}>
+          <select value={data.id_combustivel} onChange={(e) => onCombustivel(e.target.value)} className={inputCls}>
+            <option value="">— selecione —</option>
+            {combustiveis.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+          {!editando && veiculo.id_combustivel_padrao && <p className="text-[11px] text-gray-400 mt-0.5">padrão do veículo pré-selecionado</p>}
         </F>
         <F label="Fornecedor" name="fornecedor" data={data} setData={setData} errors={errors} placeholder="Ex.: posto interno" />
 
@@ -2539,7 +2554,10 @@ function ModalAbastecimento({ veiculo, abastecimento, obras = [], funcionarios =
         </F>
         <div className="flex flex-col justify-end">
           <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">CO₂ estimado</label>
-          <p className="border border-gray-200 rounded px-3 py-2 bg-emerald-50 text-emerald-800 font-bold">{fmtNum(co2, 2)} kg</p>
+          <p className="border border-gray-200 rounded px-3 py-2 bg-emerald-50 text-emerald-800 font-bold">
+            {fmtNum(co2.fossil, 2)} kg <span className="text-xs font-normal text-emerald-600">fóssil</span>
+          </p>
+          {co2.bio > 0 && <p className="text-[11px] text-gray-400 mt-0.5">+ {fmtNum(co2.bio, 2)} kg biogênico</p>}
         </div>
 
         <ModalFooter onClose={onClose} processing={processing} editando={editando} />

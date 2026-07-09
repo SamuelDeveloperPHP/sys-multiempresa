@@ -20,7 +20,7 @@ class VeiculoAbastecimento extends Model
         'company_id', 'id_local', 'veiculo_id', 'id_obra', 'id_funcionario',
         'user_create', 'user_edit', 'data_abastecimento',
         'km_anterior', 'km_atual', 'hr_anterior', 'hr_atual',
-        'fornecedor', 'combustivel', 'tipo',
+        'fornecedor', 'combustivel', 'id_combustivel', 'tipo',
         'quantidade', 'valor_do_litro', 'valor_total',
         'arquivo_app', 'arquivo_servidor',
         'sync_status', 'data_sincronizacao', 'sync_error', 'sync_attempts', 'synced_at',
@@ -39,4 +39,5 @@ class VeiculoAbastecimento extends Model
     public function veiculo() { return $this->belongsTo(Veiculo::class, 'veiculo_id'); }
     public function obra() { return $this->belongsTo(Obra::class, 'id_obra'); }
     public function funcionario() { return $this->belongsTo(Funcionario::class, 'id_funcionario'); }
+    public function combustivelRef() { return $this->belongsTo(Combustivel::class, 'id_combustivel'); }
 }

@@ -210,6 +210,9 @@ class VeiculoController extends Controller
             'fornecedores'             => $fornecedores,
             'obras'                    => $obras,
             'funcionarios'             => $funcionarios,
+            'combustiveis'             => \App\Models\Frota\Combustivel::where('ativo', true)
+                ->orderBy('ordem')->orderBy('nome')
+                ->get(['id', 'nome', 'fator_fossil', 'fator_biogenico', 'perc_biogenico']),
             // Porting `detalhes.blade.php`
             'maior_valor'              => $maiorValor,
             'meses_formatados'         => $mesesFormatados,
@@ -331,6 +334,23 @@ class VeiculoController extends Controller
             default => 0.0,
         };
         return round($quantidade * $fator, 2);
+    }
+
+    /**
+     * CO₂ [fóssil, biogênico] de um abastecimento. Usa o combustível vinculado
+     * (fatores fóssil/biogênico + mistura da tabela combustiveis); sem vínculo
+     * (registros legados em texto livre), cai no fator antigo por string e
+     * reporta o biogênico como 0 (desconhecido).
+     *
+     * @param  \Illuminate\Support\Collection  $combById  combustiveis keyBy('id')
+     * @return array{0: float, 1: float}
+     */
+    protected function emissaoCO2Ab(?int $idCombustivel, ?string $nome, float $qtd, $combById): array
+    {
+        if ($idCombustivel && ($c = $combById->get($idCombustivel))) {
+            return [round($c->co2FossilPorLitro() * $qtd, 2), round($c->co2BiogenicoPorLitro() * $qtd, 2)];
+        }
+        return [$this->calcularEmissaoCO2($nome ?? '', $qtd), 0.0];
     }
 
     public function edit(Veiculo $veiculo): InertiaResponse
@@ -1542,30 +1562,39 @@ class VeiculoController extends Controller
             $base->where(fn ($q) => $q->where('fornecedor', 'like', $like)->orWhere('combustivel', 'like', $like));
         }
 
-        // CO₂ total sobre o conjunto filtrado: fator depende do combustível de
-        // cada linha, então some via calcularEmissaoCO2 (não é coluna do banco).
-        $totalCo2 = (clone $base)->get(['combustivel', 'quantidade'])
-            ->sum(fn ($a) => $this->calcularEmissaoCO2($a->combustivel ?? '', (float) $a->quantidade));
+        // Combustíveis (com fatores) indexados por id para o cálculo de CO₂.
+        $combById = \App\Models\Frota\Combustivel::all()->keyBy('id');
+
+        // CO₂ total (fóssil + biogênico) sobre o conjunto filtrado. Usa o fator
+        // do combustível vinculado; sem vínculo, cai no fator antigo por string.
+        $totalFossil = 0.0; $totalBio = 0.0;
+        foreach ((clone $base)->get(['id_combustivel', 'combustivel', 'quantidade']) as $a) {
+            [$f, $b] = $this->emissaoCO2Ab($a->id_combustivel, $a->combustivel, (float) $a->quantidade, $combById);
+            $totalFossil += $f; $totalBio += $b;
+        }
 
         // Resumo (KPIs) sobre TODO o conjunto filtrado — não só a página
         $resumo = [
-            'total_litros' => (float) (clone $base)->sum('quantidade'),
-            'total_gasto'  => (float) (clone $base)->sum('valor_total'),
-            'total'        => (clone $base)->count(),
-            'total_co2'    => round($totalCo2, 2),
+            'total_litros'        => (float) (clone $base)->sum('quantidade'),
+            'total_gasto'         => (float) (clone $base)->sum('valor_total'),
+            'total'               => (clone $base)->count(),
+            'total_co2_fossil'    => round($totalFossil, 2),
+            'total_co2_biogenico' => round($totalBio, 2),
         ];
 
         $pagina = $base->orderByDesc('data_abastecimento')->orderByDesc('id')->paginate(10)->withQueryString();
         $tipoHr = (bool) $veiculo->tipo_hr;
-        $pagina->getCollection()->transform(function ($a) use ($tipoHr) {
+        $pagina->getCollection()->transform(function ($a) use ($tipoHr, $combById) {
             $inicial = $tipoHr ? ($a->hr_anterior ?? 0) : ($a->km_anterior ?? 0);
             $final   = $tipoHr ? ($a->hr_atual ?? 0)    : ($a->km_atual ?? 0);
             $percorrido = max(0, $final - $inicial);
             $qtd = (float) $a->quantidade;
+            [$co2Fossil, $co2Bio] = $this->emissaoCO2Ab($a->id_combustivel, $a->combustivel, $qtd, $combById);
             return [
                 'id'              => $a->id,
                 'data_abastecimento' => optional($a->data_abastecimento)->toDateString(),
                 'combustivel'     => $a->combustivel,
+                'id_combustivel'  => $a->id_combustivel,
                 'fornecedor'      => $a->fornecedor,
                 'medicao_inicial' => $inicial,
                 'medicao_final'   => $final,
@@ -1574,7 +1603,9 @@ class VeiculoController extends Controller
                 'valor_total'     => (float) $a->valor_total,
                 'custo_por_litro' => $qtd > 0 ? ((float) $a->valor_total) / $qtd : 0,
                 'custo_por_km'    => $percorrido > 0 ? ((float) $a->valor_total) / $percorrido : 0,
-                'emissao_carbono' => $this->calcularEmissaoCO2($a->combustivel ?? '', $qtd),
+                'co2_fossil'      => $co2Fossil,
+                'co2_biogenico'   => $co2Bio,
+                'emissao_carbono' => $co2Fossil, // compat: coluna CO₂ mostra o fóssil
                 // Campos crus p/ o formulário de edição
                 'valor_do_litro'  => (float) $a->valor_do_litro,
                 'id_obra'         => $a->id_obra,
@@ -1616,6 +1647,7 @@ class VeiculoController extends Controller
     public function storeAbastecimento(Request $request, Veiculo $veiculo): RedirectResponse
     {
         $data = $this->validarAbastecimento($request);
+        $data = $this->snapshotCombustivel($data);
         $data['veiculo_id']  = $veiculo->id;
         $data['user_create'] = Auth::user()?->email;
         $data['id_local']    = (string) Str::uuid();
@@ -1627,6 +1659,7 @@ class VeiculoController extends Controller
     {
         abort_unless($abastecimento->veiculo_id === $veiculo->id, 404);
         $data = $this->validarAbastecimento($request);
+        $data = $this->snapshotCombustivel($data);
         $data['user_edit'] = Auth::user()?->email;
         $abastecimento->update($data);
         return back()->with('success', 'Abastecimento atualizado.');
@@ -1644,6 +1677,7 @@ class VeiculoController extends Controller
         return $request->validate([
             'data_abastecimento' => 'required|date',
             'combustivel'        => 'nullable|string|max:60',
+            'id_combustivel'     => 'nullable|exists:combustiveis,id',
             'fornecedor'         => 'nullable|string|max:191',
             'tipo'               => 'nullable|string|max:30',
             'km_anterior'        => 'nullable|integer|min:0',
@@ -1656,6 +1690,16 @@ class VeiculoController extends Controller
             'id_obra'            => 'nullable|exists:obras,id',
             'id_funcionario'     => 'nullable|exists:funcionarios,id',
         ]);
+    }
+
+    /** Quando um combustível da lista é escolhido, grava o nome como snapshot. */
+    protected function snapshotCombustivel(array $data): array
+    {
+        if (! empty($data['id_combustivel'])) {
+            $data['combustivel'] = \App\Models\Frota\Combustivel::find($data['id_combustivel'])?->nome
+                ?? ($data['combustivel'] ?? null);
+        }
+        return $data;
     }
 
     /* =========================================================
