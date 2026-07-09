@@ -626,6 +626,21 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('veiculos.abastecimentos.list');
                 Route::get('veiculos/{veiculo}/medicoes/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listMedicoes'])
                     ->name('veiculos.medicoes.list');
+                // Abastecimentos: CRUD a partir da aba (modal), redireciona back().
+                // Aninhado sob veiculos p/ não colidir com o resource legado.
+                Route::post('veiculos/{veiculo}/abastecimentos', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeAbastecimento'])
+                    ->name('veiculos.abastecimentos.store');
+                Route::put('veiculos/{veiculo}/abastecimentos/{abastecimento}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateAbastecimento'])
+                    ->name('veiculos.abastecimentos.update');
+                Route::delete('veiculos/{veiculo}/abastecimentos/{abastecimento}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyAbastecimento'])
+                    ->name('veiculos.abastecimentos.destroy');
+                // Medições (hodômetro/horímetro): CRUD via id cru (2 tabelas por tipo_hr)
+                Route::post('veiculos/{veiculo}/medicoes', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeMedicao'])
+                    ->name('veiculos.medicoes.store');
+                Route::put('veiculos/{veiculo}/medicoes/{id}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateMedicao'])
+                    ->whereNumber('id')->name('veiculos.medicoes.update');
+                Route::delete('veiculos/{veiculo}/medicoes/{id}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyMedicao'])
+                    ->whereNumber('id')->name('veiculos.medicoes.destroy');
                 Route::get('veiculos/{veiculo}/servicos-preventiva/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listServicosPreventiva'])
                     ->name('veiculos.servicos-preventiva.list');
 

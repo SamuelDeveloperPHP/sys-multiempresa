@@ -11,9 +11,11 @@ use App\Models\Frota\MarcaMaquina;
 use App\Models\Frota\ModeloMaquina;
 use App\Models\Frota\TiposVeiculo;
 use App\Models\Frota\Veiculo;
+use App\Models\Frota\VeiculoAbastecimento;
 use App\Models\Frota\VeiculoCategoria;
 use App\Models\Frota\VeiculoDocLegal;
 use App\Models\Frota\VeiculoDocTecnico;
+use App\Models\Frota\VeiculoHorimetro;
 use App\Models\Frota\VeiculoImagem;
 use App\Models\Frota\VeiculoIpva;
 use App\Models\Frota\VeiculoManutencao;
@@ -21,6 +23,7 @@ use App\Models\Frota\VeiculoPreventiva;
 use App\Models\Frota\VeiculoPreventivaItem;
 use App\Models\Frota\VeiculoPreventivaItemRealizada;
 use App\Models\Frota\VeiculoPreventivaItemServico;
+use App\Models\Frota\VeiculoQuilometragem;
 use App\Models\Frota\VeiculoSeguro;
 use App\Models\Frota\VeiculoSubCategoria;
 use App\Models\Obra;
@@ -1538,11 +1541,17 @@ class VeiculoController extends Controller
             $base->where(fn ($q) => $q->where('fornecedor', 'like', $like)->orWhere('combustivel', 'like', $like));
         }
 
+        // CO₂ total sobre o conjunto filtrado: fator depende do combustível de
+        // cada linha, então some via calcularEmissaoCO2 (não é coluna do banco).
+        $totalCo2 = (clone $base)->get(['combustivel', 'quantidade'])
+            ->sum(fn ($a) => $this->calcularEmissaoCO2($a->combustivel ?? '', (float) $a->quantidade));
+
         // Resumo (KPIs) sobre TODO o conjunto filtrado — não só a página
         $resumo = [
             'total_litros' => (float) (clone $base)->sum('quantidade'),
             'total_gasto'  => (float) (clone $base)->sum('valor_total'),
             'total'        => (clone $base)->count(),
+            'total_co2'    => round($totalCo2, 2),
         ];
 
         $pagina = $base->orderByDesc('data_abastecimento')->orderByDesc('id')->paginate(10)->withQueryString();
@@ -1565,6 +1574,11 @@ class VeiculoController extends Controller
                 'custo_por_litro' => $qtd > 0 ? ((float) $a->valor_total) / $qtd : 0,
                 'custo_por_km'    => $percorrido > 0 ? ((float) $a->valor_total) / $percorrido : 0,
                 'emissao_carbono' => $this->calcularEmissaoCO2($a->combustivel ?? '', $qtd),
+                // Campos crus p/ o formulário de edição
+                'valor_do_litro'  => (float) $a->valor_do_litro,
+                'id_obra'         => $a->id_obra,
+                'id_funcionario'  => $a->id_funcionario,
+                'tipo'            => $a->tipo,
             ];
         });
         return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina), 'resumo' => $resumo]);
@@ -1587,9 +1601,132 @@ class VeiculoController extends Controller
             'data'        => optional($tipoHr ? $m->data_horimetro : $m->data_quilometragem)->toDateString(),
             'anterior'    => $tipoHr ? $m->horimetro_atual : $m->quilometragem_atual,
             'novo'        => $tipoHr ? $m->horimetro_novo  : $m->quilometragem_nova,
+            'id_obra'         => $m->id_obra,
+            'id_funcionario'  => $m->id_funcionario,
             'user_create' => $m->user_create,
         ]);
         return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
+    }
+
+    /* =========================================================
+     * CRUD de Abastecimentos (a partir da aba Abastecimentos do veículo)
+     * ========================================================= */
+
+    public function storeAbastecimento(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $this->validarAbastecimento($request);
+        $data['veiculo_id']  = $veiculo->id;
+        $data['user_create'] = Auth::user()?->email;
+        $data['id_local']    = (string) Str::uuid();
+        VeiculoAbastecimento::create($data);
+        return back()->with('success', 'Abastecimento registrado.');
+    }
+
+    public function updateAbastecimento(Request $request, Veiculo $veiculo, VeiculoAbastecimento $abastecimento): RedirectResponse
+    {
+        abort_unless($abastecimento->veiculo_id === $veiculo->id, 404);
+        $data = $this->validarAbastecimento($request);
+        $data['user_edit'] = Auth::user()?->email;
+        $abastecimento->update($data);
+        return back()->with('success', 'Abastecimento atualizado.');
+    }
+
+    public function destroyAbastecimento(Veiculo $veiculo, VeiculoAbastecimento $abastecimento): RedirectResponse
+    {
+        abort_unless($abastecimento->veiculo_id === $veiculo->id, 404);
+        $abastecimento->delete();
+        return back()->with('success', 'Abastecimento removido.');
+    }
+
+    protected function validarAbastecimento(Request $request): array
+    {
+        return $request->validate([
+            'data_abastecimento' => 'required|date',
+            'combustivel'        => 'nullable|string|max:60',
+            'fornecedor'         => 'nullable|string|max:191',
+            'tipo'               => 'nullable|string|max:30',
+            'km_anterior'        => 'nullable|integer|min:0',
+            'km_atual'           => 'nullable|integer|min:0',
+            'hr_anterior'        => 'nullable|integer|min:0',
+            'hr_atual'           => 'nullable|integer|min:0',
+            'quantidade'         => 'required|numeric|min:0',
+            'valor_do_litro'     => 'nullable|numeric|min:0',
+            'valor_total'        => 'required|numeric|min:0',
+            'id_obra'            => 'nullable|exists:obras,id',
+            'id_funcionario'     => 'nullable|exists:funcionarios,id',
+        ]);
+    }
+
+    /* =========================================================
+     * CRUD de Medições (hodômetro/horímetro) — despacha pela flag tipo_hr
+     * ========================================================= */
+
+    public function storeMedicao(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $this->validarMedicao($request);
+        $comum = [
+            'veiculo_id'     => $veiculo->id,
+            'id_obra'        => $data['id_obra'] ?? null,
+            'id_funcionario' => $data['id_funcionario'] ?? null,
+            'user_create'    => Auth::user()?->email,
+        ];
+        if ((bool) $veiculo->tipo_hr) {
+            VeiculoHorimetro::create($comum + [
+                'horimetro_atual' => $data['anterior'] ?? null,
+                'horimetro_novo'  => $data['novo'],
+                'data_horimetro'  => $data['data'],
+            ]);
+        } else {
+            VeiculoQuilometragem::create($comum + [
+                'quilometragem_atual' => $data['anterior'] ?? null,
+                'quilometragem_nova'  => $data['novo'],
+                'data_quilometragem'  => $data['data'],
+            ]);
+        }
+        return back()->with('success', 'Medição registrada.');
+    }
+
+    public function updateMedicao(Request $request, Veiculo $veiculo, int $id): RedirectResponse
+    {
+        $data = $this->validarMedicao($request);
+        if ((bool) $veiculo->tipo_hr) {
+            $veiculo->horimetros()->findOrFail($id)->update([
+                'horimetro_atual' => $data['anterior'] ?? null,
+                'horimetro_novo'  => $data['novo'],
+                'data_horimetro'  => $data['data'],
+                'id_obra'         => $data['id_obra'] ?? null,
+                'id_funcionario'  => $data['id_funcionario'] ?? null,
+                'user_edit'       => Auth::user()?->email,
+            ]);
+        } else {
+            $veiculo->quilometragens()->findOrFail($id)->update([
+                'quilometragem_atual' => $data['anterior'] ?? null,
+                'quilometragem_nova'  => $data['novo'],
+                'data_quilometragem'  => $data['data'],
+                'id_obra'             => $data['id_obra'] ?? null,
+                'id_funcionario'      => $data['id_funcionario'] ?? null,
+                'user_edit'           => Auth::user()?->email,
+            ]);
+        }
+        return back()->with('success', 'Medição atualizada.');
+    }
+
+    public function destroyMedicao(Veiculo $veiculo, int $id): RedirectResponse
+    {
+        $reg = ((bool) $veiculo->tipo_hr ? $veiculo->horimetros() : $veiculo->quilometragens())->findOrFail($id);
+        $reg->delete();
+        return back()->with('success', 'Medição removida.');
+    }
+
+    protected function validarMedicao(Request $request): array
+    {
+        return $request->validate([
+            'data'           => 'required|date',
+            'anterior'       => 'nullable|numeric|min:0',
+            'novo'           => 'required|numeric|min:0',
+            'id_obra'        => 'nullable|exists:obras,id',
+            'id_funcionario' => 'nullable|exists:funcionarios,id',
+        ]);
     }
 
     /** Histórico paginado de OS preventivas executadas (busca por responsável,

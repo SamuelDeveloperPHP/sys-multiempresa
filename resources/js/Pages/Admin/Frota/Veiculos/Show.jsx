@@ -218,8 +218,8 @@ export default function VeiculoShow({
           {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} veiculo={veiculo} fornecedores={fornecedores} obras={obras} funcionarios={funcionarios} />}
           {tab === 'seguros'        && <TabSeguros veiculo={veiculo} />}
           {tab === 'ipvas'          && <TabIpvas veiculo={veiculo} />}
-          {tab === 'abastecimentos' && <TabAbastecimentos veiculo={veiculo} />}
-          {tab === 'medicoes'       && <TabMedicoes veiculo={veiculo} />}
+          {tab === 'abastecimentos' && <TabAbastecimentos veiculo={veiculo} obras={obras} funcionarios={funcionarios} />}
+          {tab === 'medicoes'       && <TabMedicoes veiculo={veiculo} obras={obras} funcionarios={funcionarios} />}
         </div>
       </div>
     </AuthenticatedLayout>
@@ -2370,23 +2370,37 @@ function ModalIpva({ veiculo, ipva, onClose, onSaved }) {
 }
 
 /* ============ TAB: Abastecimentos ============ */
-function TabAbastecimentos({ veiculo }) {
-  const { rows, meta, resumo, loading, busca, setBusca, buscaDebounced, setPage } =
+function TabAbastecimentos({ veiculo, obras = [], funcionarios = [] }) {
+  const { rows, meta, resumo, loading, busca, setBusca, buscaDebounced, setPage, reload } =
     useServerList('admin.frota.veiculos.abastecimentos.list', veiculo.id);
   const unidade = veiculo.tipo_hr ? 'hr' : 'km';
+  const [editando, setEditando] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const abrirNovo = () => { setEditando(null); setShowForm(true); };
+  const abrirEdit = (a) => { setEditando(a); setShowForm(true); };
+  const onSaved = () => { setShowForm(false); reload(); };
+  const excluir = (a) => {
+    if (!confirm('Remover este abastecimento?')) return;
+    router.delete(route('admin.frota.veiculos.abastecimentos.destroy', [veiculo.id, a.id]), { preserveScroll: true, onSuccess: reload });
+  };
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">Histórico de abastecimentos</h2>
-        <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar fornecedor / combustível…" />
+        <div className="flex items-center gap-2">
+          <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar fornecedor / combustível…" />
+          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700 whitespace-nowrap">+ Novo abastecimento</button>
+        </div>
       </div>
 
       {/* KPIs sobre TODO o histórico (não só a página atual) */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <Kpi label="Total de litros" value={fmtNum(resumo?.total_litros ?? 0, 2)} />
         <Kpi label="Total gasto" value={fmtMoney(resumo?.total_gasto ?? 0)} />
         <Kpi label="# Abastecimentos" value={resumo?.total ?? 0} />
+        <Kpi label="Total CO₂ emitido" value={`${fmtNum(resumo?.total_co2 ?? 0, 2)} kg`} />
       </div>
 
       <div className="overflow-x-auto">
@@ -2405,13 +2419,14 @@ function TabAbastecimentos({ veiculo }) {
               <th className="px-3 py-2 text-right">{veiculo.tipo_hr ? 'R$/hr' : 'R$/km'}</th>
               <th className="px-3 py-2 text-right">Total</th>
               <th className="px-3 py-2 text-right text-rise-700">CO₂</th>
+              <th className="px-3 py-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={12} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+              <tr><td colSpan={13} className="text-center text-gray-400 py-8">Carregando…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={12} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhum abastecimento.'}</td></tr>
+              <tr><td colSpan={13} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhum abastecimento.'}</td></tr>
             ) : rows.map((a) => (
               <tr key={a.id} className="hover:bg-gray-50">
                 <td className="px-3 py-2 text-gray-500">#{a.id}</td>
@@ -2426,26 +2441,137 @@ function TabAbastecimentos({ veiculo }) {
                 <td className="px-3 py-2 text-right">{fmtMoney(a.custo_por_km)}</td>
                 <td className="px-3 py-2 text-right font-semibold">{fmtMoney(a.valor_total)}</td>
                 <td className="px-3 py-2 text-right text-rise-700">{fmtNum(a.emissao_carbono, 2)} kg</td>
+                <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
+                  <button onClick={() => abrirEdit(a)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
+                  <button onClick={() => excluir(a)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       <Paginacao meta={meta} loading={loading} onPage={setPage} />
+
+      {showForm && (
+        <ModalAbastecimento veiculo={veiculo} abastecimento={editando} obras={obras} funcionarios={funcionarios} onClose={() => setShowForm(false)} onSaved={onSaved} />
+      )}
     </div>
   );
 }
 
+/* Fatores de emissão (kg CO₂/L) — espelham calcularEmissaoCO2 no back p/ preview. */
+const CO2_FATORES = [{ re: /diesel|s10|s500/i, f: 2.384 }, { re: /gasolina/i, f: 2.212 }];
+function co2Front(combustivel, litros) {
+  const fator = CO2_FATORES.find((x) => x.re.test(String(combustivel || '')))?.f ?? 0;
+  return (Number(litros) || 0) * fator;
+}
+
+const COMBUSTIVEIS = ['S10', 'DIESEL S10', 'S500', 'GASOLINA', 'GASOLINA ADITIVADA', 'ETANOL', 'ARLA 32'];
+
+function ModalAbastecimento({ veiculo, abastecimento, obras = [], funcionarios = [], onClose, onSaved }) {
+  const editando = !!abastecimento?.id;
+  const tipoHr = !!veiculo.tipo_hr;
+  const unidade = tipoHr ? 'hr' : 'km';
+
+  const { data, setData, post, processing, errors } = useForm({
+    data_abastecimento: abastecimento?.data_abastecimento?.substring(0, 10) ?? new Date().toISOString().substring(0, 10),
+    combustivel:  abastecimento?.combustivel ?? '',
+    fornecedor:   abastecimento?.fornecedor ?? '',
+    km_anterior:  tipoHr ? '' : (abastecimento?.medicao_inicial ?? ''),
+    km_atual:     tipoHr ? '' : (abastecimento?.medicao_final ?? ''),
+    hr_anterior:  tipoHr ? (abastecimento?.medicao_inicial ?? '') : '',
+    hr_atual:     tipoHr ? (abastecimento?.medicao_final ?? '') : '',
+    quantidade:   abastecimento?.quantidade ?? '',
+    valor_do_litro: abastecimento?.valor_do_litro ?? '',
+    valor_total:  abastecimento?.valor_total ?? '',
+    id_obra:      abastecimento?.id_obra ?? '',
+    id_funcionario: abastecimento?.id_funcionario ?? '',
+    _method: editando ? 'put' : 'post',
+  });
+
+  const optObras = useMemo(() => obras.map((o) => ({ id: o.id, label: `${o.code ? o.code + ' — ' : ''}${o.nome_fantasia}` })), [obras]);
+  const optFuncionarios = useMemo(() => funcionarios.map((u) => ({ id: u.id, label: u.nome })), [funcionarios]);
+
+  const antField = tipoHr ? 'hr_anterior' : 'km_anterior';
+  const atualField = tipoHr ? 'hr_atual' : 'km_atual';
+
+  // Total = quantidade × R$/L (auto ao preencher os dois; ainda editável à mão).
+  const onQtd = (v) => setData((d) => ({ ...d, quantidade: v, valor_total: (Number(v) > 0 && Number(d.valor_do_litro) > 0) ? (Number(v) * Number(d.valor_do_litro)).toFixed(2) : d.valor_total }));
+  const onLitro = (v) => setData((d) => ({ ...d, valor_do_litro: v, valor_total: (Number(v) > 0 && Number(d.quantidade) > 0) ? (Number(v) * Number(d.quantidade)).toFixed(2) : d.valor_total }));
+
+  const co2 = co2Front(data.combustivel, data.quantidade);
+
+  const submit = (e) => {
+    e.preventDefault();
+    const url = editando
+      ? route('admin.frota.veiculos.abastecimentos.update', [veiculo.id, abastecimento.id])
+      : route('admin.frota.veiculos.abastecimentos.store', veiculo.id);
+    post(url, { preserveScroll: true, onSuccess: () => (onSaved ? onSaved() : onClose()) });
+  };
+
+  return (
+    <ModalShell title={editando ? `Editar abastecimento #${abastecimento.id}` : 'Novo abastecimento'} onClose={onClose} large>
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <F label="Data *" name="data_abastecimento" type="date" data={data} setData={setData} errors={errors} />
+        <F label="Combustível" name="combustivel" errors={errors}>
+          <input list="combustiveis-list" value={data.combustivel} onChange={(e) => setData('combustivel', e.target.value.toUpperCase())} className={inputCls} placeholder="Ex.: S10" />
+          <datalist id="combustiveis-list">{COMBUSTIVEIS.map((c) => <option key={c} value={c} />)}</datalist>
+        </F>
+        <F label="Fornecedor" name="fornecedor" data={data} setData={setData} errors={errors} placeholder="Ex.: posto interno" />
+
+        <F label={`${tipoHr ? 'Hr' : 'Km'} anterior`} name={antField} type="number" data={data} setData={setData} errors={errors} />
+        <F label={`${tipoHr ? 'Hr' : 'Km'} atual`} name={atualField} type="number" data={data} setData={setData} errors={errors} />
+        <div />
+
+        <F label="Quantidade (L) *" name="quantidade" errors={errors}>
+          <input type="number" step="0.01" min="0" value={data.quantidade} onChange={(e) => onQtd(e.target.value)} className={inputCls} />
+        </F>
+        <F label="Valor do litro (R$/L)" name="valor_do_litro" errors={errors}>
+          <input type="number" step="0.001" min="0" value={data.valor_do_litro} onChange={(e) => onLitro(e.target.value)} className={inputCls} />
+        </F>
+        <F label="Valor total (R$) *" name="valor_total" type="number" step="0.01" data={data} setData={setData} errors={errors} />
+
+        <F label="Obra" name="id_obra" errors={errors}>
+          <AutocompleteSelect value={data.id_obra} onChange={(v) => setData('id_obra', v)} options={optObras} placeholder="Buscar obra…" />
+        </F>
+        <F label="Responsável" name="id_funcionario" errors={errors}>
+          <AutocompleteSelect value={data.id_funcionario} onChange={(v) => setData('id_funcionario', v)} options={optFuncionarios} placeholder="Buscar responsável…" />
+        </F>
+        <div className="flex flex-col justify-end">
+          <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">CO₂ estimado</label>
+          <p className="border border-gray-200 rounded px-3 py-2 bg-emerald-50 text-emerald-800 font-bold">{fmtNum(co2, 2)} kg</p>
+        </div>
+
+        <ModalFooter onClose={onClose} processing={processing} editando={editando} />
+      </form>
+    </ModalShell>
+  );
+}
+
 /* ============ TAB: Medições (hodômetro/horímetro) ============ */
-function TabMedicoes({ veiculo }) {
-  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage } =
+function TabMedicoes({ veiculo, obras = [], funcionarios = [] }) {
+  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage, reload } =
     useServerList('admin.frota.veiculos.medicoes.list', veiculo.id);
   const unidade = veiculo.tipo_hr ? 'hr' : 'km';
+  const [editando, setEditando] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const abrirNovo = () => { setEditando(null); setShowForm(true); };
+  const abrirEdit = (m) => { setEditando(m); setShowForm(true); };
+  const onSaved = () => { setShowForm(false); reload(); };
+  const excluir = (m) => {
+    if (!confirm('Remover esta medição?')) return;
+    router.delete(route('admin.frota.veiculos.medicoes.destroy', [veiculo.id, m.id]), { preserveScroll: true, onSuccess: reload });
+  };
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">{veiculo.tipo_hr ? 'Horímetros' : 'Hodômetros'}</h2>
-        <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar data / responsável…" />
+        <div className="flex items-center gap-2">
+          <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar data / responsável…" />
+          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700 whitespace-nowrap">+ Nova medição</button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -2457,13 +2583,14 @@ function TabMedicoes({ veiculo }) {
               <th className="px-3 py-2 text-right">Novo</th>
               <th className="px-3 py-2 text-right">Δ</th>
               <th className="px-3 py-2">Cadastrado por</th>
+              <th className="px-3 py-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={6} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+              <tr><td colSpan={7} className="text-center text-gray-400 py-8">Carregando…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={6} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Sem medições.'}</td></tr>
+              <tr><td colSpan={7} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Sem medições.'}</td></tr>
             ) : rows.map((m) => {
               const delta = (m.anterior != null && m.novo != null) ? (m.novo - m.anterior) : null;
               return (
@@ -2474,6 +2601,10 @@ function TabMedicoes({ veiculo }) {
                   <td className="px-3 py-2 text-right font-semibold">{fmtNum(m.novo)} {unidade}</td>
                   <td className="px-3 py-2 text-right text-rise-700">{delta != null ? `+${fmtNum(delta)} ${unidade}` : '—'}</td>
                   <td className="px-3 py-2 text-xs text-gray-500">{m.user_create || '—'}</td>
+                  <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
+                    <button onClick={() => abrirEdit(m)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
+                    <button onClick={() => excluir(m)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
+                  </td>
                 </tr>
               );
             })}
@@ -2481,7 +2612,61 @@ function TabMedicoes({ veiculo }) {
         </table>
       </div>
       <Paginacao meta={meta} loading={loading} onPage={setPage} />
+
+      {showForm && (
+        <ModalMedicao veiculo={veiculo} medicao={editando} ultimoNovo={rows[0]?.novo ?? ''} obras={obras} funcionarios={funcionarios} onClose={() => setShowForm(false)} onSaved={onSaved} />
+      )}
     </div>
+  );
+}
+
+function ModalMedicao({ veiculo, medicao, ultimoNovo = '', obras = [], funcionarios = [], onClose, onSaved }) {
+  const editando = !!medicao?.id;
+  const unidade = veiculo.tipo_hr ? 'hr' : 'km';
+
+  const { data, setData, post, processing, errors } = useForm({
+    data: medicao?.data?.substring(0, 10) ?? new Date().toISOString().substring(0, 10),
+    anterior: medicao?.anterior ?? (editando ? '' : ultimoNovo),
+    novo: medicao?.novo ?? '',
+    id_obra: medicao?.id_obra ?? '',
+    id_funcionario: medicao?.id_funcionario ?? '',
+    _method: editando ? 'put' : 'post',
+  });
+
+  const optObras = useMemo(() => obras.map((o) => ({ id: o.id, label: `${o.code ? o.code + ' — ' : ''}${o.nome_fantasia}` })), [obras]);
+  const optFuncionarios = useMemo(() => funcionarios.map((u) => ({ id: u.id, label: u.nome })), [funcionarios]);
+
+  const delta = (Number(data.novo) || 0) - (Number(data.anterior) || 0);
+
+  const submit = (e) => {
+    e.preventDefault();
+    const url = editando
+      ? route('admin.frota.veiculos.medicoes.update', [veiculo.id, medicao.id])
+      : route('admin.frota.veiculos.medicoes.store', veiculo.id);
+    post(url, { preserveScroll: true, onSuccess: () => (onSaved ? onSaved() : onClose()) });
+  };
+
+  return (
+    <ModalShell title={editando ? `Editar medição #${medicao.id}` : `Nova medição (${unidade})`} onClose={onClose}>
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <F label="Data *" name="data" type="date" data={data} setData={setData} errors={errors} />
+        <F label={`${unidade} anterior`} name="anterior" type="number" data={data} setData={setData} errors={errors} />
+        <F label={`${unidade} novo *`} name="novo" type="number" data={data} setData={setData} errors={errors} />
+
+        <F label="Obra" name="id_obra" errors={errors}>
+          <AutocompleteSelect value={data.id_obra} onChange={(v) => setData('id_obra', v)} options={optObras} placeholder="Buscar obra…" />
+        </F>
+        <F label="Responsável" name="id_funcionario" errors={errors}>
+          <AutocompleteSelect value={data.id_funcionario} onChange={(v) => setData('id_funcionario', v)} options={optFuncionarios} placeholder="Buscar responsável…" />
+        </F>
+        <div className="flex flex-col justify-end">
+          <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Percorrido (Δ)</label>
+          <p className={`border rounded px-3 py-2 font-bold ${delta < 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 border-gray-200'}`}>{delta >= 0 ? '+' : ''}{fmtNum(delta)} {unidade}</p>
+        </div>
+
+        <ModalFooter onClose={onClose} processing={processing} editando={editando} />
+      </form>
+    </ModalShell>
   );
 }
 
