@@ -652,7 +652,9 @@ class VeiculoController extends Controller
             'valor_da_mao_obra'   => 'nullable|numeric|min:0',
             'tipo'                => 'nullable|string|max:30',
             'descricao'           => 'nullable|string',
-            'anexo'               => 'nullable|file|max:10240',
+            // Anexo (NF/comprovante): PDF ou imagem — nunca tipo arbitrário
+            // (upload irrestrito -> XSS armazenado ao servir inline via viewAnexo).
+            'anexo'               => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
 
         $tipoHr = (bool) $veiculo->tipo_hr;
@@ -989,7 +991,8 @@ class VeiculoController extends Controller
             'data_de_vencimento'    => 'nullable|date',
             'descricao'             => 'nullable|string',
             'situacao'              => 'required|integer|in:1,2,3,4',
-            'arquivo'               => 'nullable|file|max:10240',
+            // NF/comprovante: PDF ou imagem (ver nota em storeOsPreventiva)
+            'arquivo'               => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
     }
 
@@ -1000,7 +1003,8 @@ class VeiculoController extends Controller
             'valor'              => 'nullable|numeric|min:0',
             'data_de_pagamento'  => 'nullable|date',
             'data_de_vencimento' => 'nullable|date',
-            'anexo'              => 'nullable|file|max:10240',
+            // Comprovante do IPVA: PDF ou imagem
+            'anexo'              => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
     }
 

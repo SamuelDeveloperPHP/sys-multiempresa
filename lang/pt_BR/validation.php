@@ -164,11 +164,10 @@ return [
             'required' => 'Informe seu e-mail.',
             'email'    => 'Informe um e-mail válido.',
         ],
-        'arquivo' => [
-            'mimetypes' => 'O documento deve ser um arquivo PDF.',
-            'mimes'     => 'O documento deve ser um arquivo PDF.',
-            'max'       => 'O PDF não pode ultrapassar 10 MB.',
-        ],
+        // OBS: a validação de doc PDF-only tem mensagens inline no
+        // VeiculoController::validarDoc. Aqui NÃO fixamos "arquivo" como PDF
+        // porque outros anexos (NF/comprovante) aceitam PDF OU imagem — a
+        // mensagem genérica de :values já informa os tipos aceitos.
     ],
 
     /*

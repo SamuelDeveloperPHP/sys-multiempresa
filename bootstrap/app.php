@@ -45,6 +45,8 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\HandleInertiaRequests::class,
             // Redireciona motoristas que tentam acessar URLs desktop para /mobile/veiculos
             \App\Http\Middleware\RedirectMotoristaToMobile::class,
+            // Headers de segurança (clickjacking, MIME sniffing, HSTS)
+            \App\Http\Middleware\SecurityHeaders::class,
         ]);
 
         // 🔹 aliases de middlewares de rota
