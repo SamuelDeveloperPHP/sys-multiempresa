@@ -215,7 +215,7 @@ export default function VeiculoShow({
           {tab === 'docs_tecnicos'  && <TabDocs tipo="técnicos" veiculo={veiculo} />}
           {tab === 'docs_legais'    && <TabDocs tipo="legais" veiculo={veiculo} />}
           {tab === 'corretivas'     && <TabCorretivas veiculo={veiculo} fornecedores={fornecedores} obras={obras} funcionarios={funcionarios} />}
-          {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} veiculo={veiculo} fornecedores={fornecedores} />}
+          {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} veiculo={veiculo} fornecedores={fornecedores} obras={obras} funcionarios={funcionarios} />}
           {tab === 'seguros'        && <TabSeguros veiculo={veiculo} />}
           {tab === 'ipvas'          && <TabIpvas veiculo={veiculo} />}
           {tab === 'abastecimentos' && <TabAbastecimentos veiculo={veiculo} />}
@@ -1705,8 +1705,28 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
 }
 
 /* ============ TAB: Preventivas (Dashboard de Ciclos + Histórico) ============ */
-function TabPreventivas({ dashboard, veiculo, registros, fornecedores = [] }) {
-  const [cicloParaOs, setCicloParaOs] = useState(null);
+function TabPreventivas({ dashboard, veiculo, registros, fornecedores = [], obras = [], funcionarios = [] }) {
+  const [cicloParaOs, setCicloParaOs] = useState(null); // create
+  const [osEditar, setOsEditar] = useState(null);        // edit (id)
+  const [osVer, setOsVer] = useState(null);              // view (id)
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Após criar/editar/excluir/mudar status: recarrega histórico + pendências
+  // (self-fetch) e o dashboard de ciclos (prop do servidor, via partial reload).
+  const aoSalvar = () => {
+    setRefreshKey((k) => k + 1);
+    router.reload({ only: ['dashboard_ciclos'], preserveScroll: true });
+  };
+
+  const excluirOs = (id) => {
+    if (!confirm('Remover esta OS preventiva? O checklist dela também será removido.')) return;
+    router.delete(route('admin.frota.os-preventiva.destroy', id), { preserveScroll: true, onSuccess: aoSalvar });
+  };
+  const mudarStatus = (id, situacao) => {
+    window.axios.patch(route('admin.frota.os-preventiva.status', id), { situacao })
+      .then(aoSalvar)
+      .catch((e) => console.error('[status OS]', e));
+  };
 
   if (!dashboard || dashboard.ciclos.length === 0) {
     return (
@@ -1740,7 +1760,7 @@ function TabPreventivas({ dashboard, veiculo, registros, fornecedores = [] }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
         {ciclos.map((c) => (
           <CicloCard
             key={c.periodo}
@@ -1754,25 +1774,59 @@ function TabPreventivas({ dashboard, veiculo, registros, fornecedores = [] }) {
 
       {cicloParaOs && (
         <ModalOsPreventiva
+          mode="create"
           veiculo={veiculo}
           ciclo={cicloParaOs}
           medicaoAtual={medicao_atual}
           unidade={unidade}
           fornecedores={fornecedores}
+          obras={obras}
+          funcionarios={funcionarios}
           onClose={() => setCicloParaOs(null)}
+          onSaved={aoSalvar}
         />
       )}
 
-      <HistoricoPreventivas veiculo={veiculo} unidade={unidade} />
+      {osEditar && (
+        <ModalOsPreventiva
+          mode="edit"
+          veiculo={veiculo}
+          osId={osEditar}
+          medicaoAtual={medicao_atual}
+          unidade={unidade}
+          fornecedores={fornecedores}
+          obras={obras}
+          funcionarios={funcionarios}
+          onClose={() => setOsEditar(null)}
+          onSaved={aoSalvar}
+        />
+      )}
+
+      {osVer && <ModalVerOs osId={osVer} unidade={unidade} tipoHr={veiculo.tipo_hr} onClose={() => setOsVer(null)} />}
+
+      <PendenciasPreventivas veiculo={veiculo} unidade={unidade} refreshKey={refreshKey} />
+
+      <HistoricoPreventivas
+        veiculo={veiculo}
+        unidade={unidade}
+        refreshKey={refreshKey}
+        onVer={setOsVer}
+        onEditar={setOsEditar}
+        onExcluir={excluirOs}
+        onStatus={mudarStatus}
+      />
     </div>
   );
 }
 
 /* Histórico de OS preventivas — self-fetch paginado + busca (padrão das
    demais abas). O dashboard de ciclos acima continua vindo do show(). */
-function HistoricoPreventivas({ veiculo, unidade }) {
-  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage } =
+function HistoricoPreventivas({ veiculo, unidade, refreshKey, onVer, onEditar, onExcluir, onStatus }) {
+  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage, reload } =
     useServerList('admin.frota.veiculos.servicos-preventiva.list', veiculo.id);
+
+  // Recarrega quando uma OS é criada/editada/excluída/muda status na aba.
+  useEffect(() => { if (refreshKey) reload(); }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="bg-white border rounded-lg mt-6">
@@ -1794,18 +1848,18 @@ function HistoricoPreventivas({ veiculo, unidade }) {
               <th className="px-3 py-2">Vencimento</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2 text-right">Total</th>
+              <th className="px-3 py-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={10} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+              <tr><td colSpan={11} className="text-center text-gray-400 py-8">Carregando…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={10} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhuma OS preventiva executada.'}</td></tr>
+              <tr><td colSpan={11} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhuma OS preventiva executada.'}</td></tr>
             ) : rows.map((h) => {
               const cicloLabel = veiculo.tipo_hr ? h.campo_cal_hr : h.campo_calc_km;
               const atual = veiculo.tipo_hr ? h.horimetro_atual : h.quilometragem_atual;
               const prox  = veiculo.tipo_hr ? h.horimetro_proximo : h.quilometragem_nova;
-              const sit = situacaoCorretiva[h.status_realizado] ?? { label: h.status_realizado || '—', cor: 'bg-gray-200 text-gray-700' };
               return (
                 <tr key={h.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 text-gray-500">#{h.id}</td>
@@ -1816,8 +1870,24 @@ function HistoricoPreventivas({ veiculo, unidade }) {
                   <td className="px-3 py-2">{fmtData(h.data_de_execucao)}</td>
                   <td className="px-3 py-2">{fmtData(h.data_conclusao)}</td>
                   <td className="px-3 py-2">{fmtData(h.data_de_vencimento)}</td>
-                  <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${sit.cor}`}>{sit.label}</span></td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={Number(h.status_realizado) || ''}
+                      onChange={(e) => onStatus(h.id, Number(e.target.value))}
+                      className="text-xs border border-gray-300 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-rise-500"
+                    >
+                      <option value={1}>Pendente</option>
+                      <option value={2}>Em Execução</option>
+                      <option value={3}>Concluído</option>
+                      <option value={4}>Cancelado</option>
+                    </select>
+                  </td>
                   <td className="px-3 py-2 text-right font-semibold">{fmtMoney(h.total_valor_servico)}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap space-x-1">
+                    <button onClick={() => onVer(h.id)} title="Ver" className="px-2 py-1 text-xs border rounded hover:bg-gray-50">👁</button>
+                    <button onClick={() => onEditar(h.id)} title="Editar" className="px-2 py-1 text-xs border rounded text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100">✎</button>
+                    <button onClick={() => onExcluir(h.id)} title="Excluir" className="px-2 py-1 text-xs border rounded text-red-700 border-red-200 bg-red-50 hover:bg-red-100">🗑</button>
+                  </td>
                 </tr>
               );
             })}
@@ -1831,8 +1901,61 @@ function HistoricoPreventivas({ veiculo, unidade }) {
   );
 }
 
+/* Backlog de manutenção diferida: itens cujo último checklist ficou "Não". */
+function PendenciasPreventivas({ veiculo, unidade, refreshKey }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await window.axios.get(route('admin.frota.veiculos.pendencias-preventiva.list', veiculo.id));
+      setRows(data.data || []);
+    } catch (e) { console.error('[pendencias]', e); setRows([]); }
+    finally { setLoading(false); }
+  }, [veiculo.id]);
+
+  useEffect(() => { carregar(); }, [carregar, refreshKey]);
+
+  if (loading && rows.length === 0) return null;
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg mt-6">
+      <div className="border-b border-amber-200 px-4 py-3 flex items-center gap-2">
+        <h3 className="font-semibold text-amber-800">⚠ Manutenção diferida (pendências)</h3>
+        <span className="text-xs bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-semibold">{rows.length}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-amber-100/60 text-left text-amber-900">
+            <tr>
+              <th className="px-3 py-2">Serviço</th>
+              <th className="px-3 py-2">Ciclo</th>
+              <th className="px-3 py-2">Pendente desde</th>
+              <th className="px-3 py-2">OS origem</th>
+              <th className="px-3 py-2">Justificativa</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-amber-200">
+            {rows.map((p) => (
+              <tr key={p.id}>
+                <td className="px-3 py-2 font-medium text-gray-800">{p.nome_servico || '—'}</td>
+                <td className="px-3 py-2">{p.periodo ? `${fmtNum(p.periodo)} ${unidade}` : '—'}</td>
+                <td className="px-3 py-2">{fmtData(p.data)}</td>
+                <td className="px-3 py-2 text-gray-500">#{p.os_id}</td>
+                <td className="px-3 py-2 text-gray-700">{p.observacao || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function CicloCard({ ciclo, unidade, medicaoAtual, onCadastrar }) {
-  const { periodo, alvo, distancia, progresso, data_ultima, data_vencimento, estado, bloqueio, qtd_itens } = ciclo;
+  const { periodo, alvo, distancia, progresso, data_ultima, data_vencimento, estado, bloqueio, qtd_itens, vencido } = ciclo;
 
   const palette = {
     mestre:              { borda: 'border-rise-500 ring-2 ring-rise-300', barra: 'bg-rise-500', titulo: 'text-rise-700', icone: '✅' },
@@ -1843,13 +1966,13 @@ function CicloCard({ ciclo, unidade, medicaoAtual, onCadastrar }) {
   const p = palette[estado] ?? palette.aguardando;
 
   return (
-    <div className={`bg-white border-t-4 ${p.borda} rounded-lg shadow-sm border-x border-b p-4 flex flex-col`}>
-      <div className="flex items-start justify-between mb-2">
+    <div className={`bg-white border-t-[3px] ${p.borda} rounded-lg shadow-sm border-x border-b p-2.5 flex flex-col`}>
+      <div className="flex items-start justify-between mb-1">
         <div>
           <p className="text-xs text-gray-500 uppercase font-bold">Ciclo {fmtNum(periodo)} {unidade}</p>
-          <p className={`text-lg font-bold ${p.titulo}`}>
+          <p className={`text-sm font-bold ${p.titulo}`}>
             {estado === 'vencido' && 'Vencido'}
-            {estado === 'mestre' && 'Próximo!'}
+            {estado === 'mestre' && (vencido ? 'Executar agora' : 'Próximo!')}
             {estado === 'bloqueado_por_maior' && 'Aguarda OS maior'}
             {estado === 'aguardando' && (
               <>
@@ -1857,21 +1980,24 @@ function CicloCard({ ciclo, unidade, medicaoAtual, onCadastrar }) {
               </>
             )}
           </p>
+          {vencido && estado !== 'vencido' && (
+            <span className="inline-block mt-0.5 text-xs font-semibold text-red-600">⚠ vencido</span>
+          )}
         </div>
-        <span className={`w-9 h-9 rounded-full flex items-center justify-center text-lg ${p.barra} bg-opacity-20`}>{p.icone}</span>
+        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-sm ${vencido ? 'bg-red-500' : p.barra} bg-opacity-20`}>{vencido ? '⚠' : p.icone}</span>
       </div>
 
-      <div className="my-2">
-        <div className="h-2 bg-gray-100 rounded">
-          <div className={`h-2 ${p.barra} rounded ${estado === 'mestre' ? 'animate-pulse' : ''}`} style={{ width: `${progresso}%` }} />
+      <div className="my-1">
+        <div className="h-1.5 bg-gray-100 rounded">
+          <div className={`h-1.5 ${p.barra} rounded ${estado === 'mestre' ? 'animate-pulse' : ''}`} style={{ width: `${progresso}%` }} />
         </div>
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
+        <div className="flex justify-between text-xs text-gray-500 mt-0.5">
           <span>Atual: {fmtNum(medicaoAtual)}</span>
           <span>Target: {fmtNum(alvo)}</span>
         </div>
       </div>
 
-      <div className="border-t pt-2 text-xs space-y-1">
+      <div className="border-t pt-1 text-xs space-y-0.5">
         <div className="flex justify-between">
           <span className="text-gray-500">Última Exec:</span>
           <span className="font-medium">{data_ultima ? fmtData(data_ultima) : '—'}</span>
@@ -1886,18 +2012,30 @@ function CicloCard({ ciclo, unidade, medicaoAtual, onCadastrar }) {
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-2">
         {estado === 'mestre' ? (
           <button
             onClick={onCadastrar}
-            className="w-full bg-rise-600 text-white py-2 rounded font-semibold hover:bg-rise-700 animate-pulse"
+            className="w-full bg-rise-600 text-white py-1.5 rounded text-sm font-semibold hover:bg-rise-700 animate-pulse"
           >
             🔧 Cadastrar OS
           </button>
         ) : (
-          <button disabled className="w-full bg-gray-100 text-gray-500 py-2 rounded text-xs border cursor-not-allowed">
-            🔒 {bloqueio}
-          </button>
+          <div className="space-y-1">
+            {bloqueio && <p className="text-xs text-gray-500 text-center leading-tight">{bloqueio}</p>}
+            <button
+              onClick={() => {
+                if (estado === 'aguardando' &&
+                    !confirm(`Este ciclo ainda não venceu (${(bloqueio || 'em dia').toLowerCase()}). Deseja antecipar a OS assim mesmo?`)) return;
+                onCadastrar();
+              }}
+              className="w-full border border-rise-300 text-rise-700 py-1.5 rounded text-xs font-medium hover:bg-rise-50"
+            >
+              {estado === 'aguardando' ? '⏱ Antecipar OS'
+                : estado === 'bloqueado_por_maior' ? 'Cadastrar só este'
+                : 'Cadastrar OS'}
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -2237,97 +2375,426 @@ function TabMedicoes({ veiculo }) {
   );
 }
 
-/* ============ Modal: Cadastrar OS Preventiva ============ */
-function ModalOsPreventiva({ veiculo, ciclo, medicaoAtual, unidade, fornecedores, onClose }) {
-  const proxAutoTarget = ciclo.alvo + ciclo.periodo; // sugere prox alvo = atual+periodo
-  const hoje = new Date().toISOString().substring(0, 10);
+/* ============ Modal: Cadastrar / Editar OS Preventiva ============ */
+const osInp = 'w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500';
+const osLbl = 'block text-[11px] font-semibold text-gray-600 mb-0.5 uppercase';
 
-  const { data, setData, post, processing, errors, reset } = useForm({
-    periodo:            ciclo.periodo,
-    medicao_proxima:    proxAutoTarget,
-    data_de_execucao:   hoje,
-    data_conclusao:     '',
+function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null, medicaoAtual = 0, unidade = 'km', fornecedores = [], obras = [], funcionarios = [], onClose, onSaved }) {
+  const hoje = new Date().toISOString().substring(0, 10);
+  const [carregando, setCarregando] = useState(true);
+  const [grupos, setGrupos] = useState([]);          // [{periodo, itens:[{key, id_servico_preventiva, nome_servico, periodo, pendencia}]}]
+  const [abertos, setAbertos] = useState({});        // {periodo: bool}
+  const [itensState, setItensState] = useState({});  // {key: {status, observacao}}
+  const [medAtual, setMedAtual] = useState(medicaoAtual);
+
+  const { data, setData, post, transform, processing, errors } = useForm({
+    periodo: ciclo?.periodo ?? '',
+    medicao_proxima: '',
+    id_obra: veiculo.obra_id ?? '',
+    fornecedor_id: '',
+    id_motorista: '',
+    situacao: 2,
+    tipo: '',
+    campo_cal_mes: '',
+    data_de_execucao: hoje,
+    data_conclusao: '',
     data_de_vencimento: '',
-    fornecedor_id:      '',
-    nf_pecas:           '',
-    nf_mao_obra:        '',
-    valor_do_servico:   '',
-    valor_da_mao_obra:  '',
-    tipo:               '',
-    descricao:          '',
-    anexo:              null,
+    nf_pecas: '',
+    nf_mao_obra: '',
+    valor_do_servico: '',
+    valor_da_mao_obra: '',
+    descricao: '',
+    anexo: null,
   });
+
+  // ---- Carrega checklist (create) ou a OS existente (edit) ----
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setCarregando(true);
+      try {
+        if (mode === 'create') {
+          const { data: r } = await window.axios.get(route('admin.frota.veiculos.os-preventiva.itens', { veiculo: veiculo.id, periodo: ciclo.periodo }));
+          if (!alive) return;
+          const gs = (r.grupos || []).map((g) => ({ periodo: g.periodo, itens: g.itens.map((it) => ({ ...it, key: it.id_servico_preventiva })) }));
+          setGrupos(gs);
+          const init = {};
+          gs.forEach((g) => g.itens.forEach((it) => { init[it.key] = { status: 'sim', observacao: '' }; }));
+          setItensState(init);
+          setAbertos(Object.fromEntries(gs.map((g, i) => [g.periodo, i === 0])));
+          setMedAtual(r.medicao_atual ?? medicaoAtual);
+          setData((d) => ({ ...d, periodo: r.periodo, medicao_proxima: r.medicao_proxima_sugerida ?? '', campo_cal_mes: r.periodo_mes || '' }));
+        } else {
+          const { data: os } = await window.axios.get(route('admin.frota.os-preventiva.show', osId));
+          if (!alive) return;
+          const porCiclo = {};
+          (os.servicos || []).forEach((s) => {
+            const per = s.periodo ?? 0;
+            (porCiclo[per] ||= []).push({ key: s.id, id_servico_preventiva: s.id_servico_preventiva, nome_servico: s.nome_servico, periodo: per, pendencia: null });
+          });
+          const gs = Object.keys(porCiclo).map(Number).sort((a, b) => b - a).map((per) => ({ periodo: per, itens: porCiclo[per] }));
+          setGrupos(gs);
+          setItensState((os.servicos || []).reduce((acc, s) => { acc[s.id] = { status: s.status || 'sim', observacao: s.observacao || '' }; return acc; }, {}));
+          setAbertos(Object.fromEntries(gs.map((g, i) => [g.periodo, i === 0])));
+          setMedAtual((veiculo.tipo_hr ? os.horimetro_atual : os.quilometragem_atual) ?? medicaoAtual);
+          setData((d) => ({
+            ...d,
+            periodo: os.campo_cal_hr ?? os.campo_calc_km ?? '',
+            medicao_proxima: (veiculo.tipo_hr ? os.horimetro_proximo : os.quilometragem_nova) ?? '',
+            id_obra: os.id_obra ?? '',
+            fornecedor_id: os.fornecedor_id ?? '',
+            id_motorista: os.id_motorista ?? '',
+            situacao: Number(os.status_realizado) || 2,
+            tipo: os.tipo ?? '',
+            campo_cal_mes: os.campo_cal_mes ?? '',
+            data_de_execucao: os.data_de_execucao ?? hoje,
+            data_conclusao: os.data_conclusao ?? '',
+            data_de_vencimento: os.data_de_vencimento ?? '',
+            nf_pecas: os.nf_pecas ?? '',
+            nf_mao_obra: os.nf_mao_obra ?? '',
+            valor_do_servico: os.valor_do_servico ?? '',
+            valor_da_mao_obra: os.valor_da_mao_obra ?? '',
+            descricao: os.descricao ?? '',
+          }));
+        }
+      } catch (e) { console.error('[OS preventiva load]', e); }
+      finally { if (alive) setCarregando(false); }
+    })();
+    return () => { alive = false; };
+  }, [mode, osId, ciclo?.periodo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Data da próxima revisão = (conclusão || execução) + campo_cal_mes meses.
+  useEffect(() => {
+    const base = data.data_conclusao || data.data_de_execucao;
+    const meses = parseInt(data.campo_cal_mes, 10);
+    if (base && meses > 0) {
+      const dt = new Date(base + 'T00:00:00');
+      dt.setMonth(dt.getMonth() + meses);
+      setData('data_de_vencimento', dt.toISOString().substring(0, 10));
+    }
+  }, [data.data_conclusao, data.data_de_execucao, data.campo_cal_mes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const linhas = useMemo(() => grupos.flatMap((g) => g.itens), [grupos]);
+  const idxDe = useMemo(() => {
+    const m = {}; let i = 0;
+    grupos.forEach((g) => g.itens.forEach((it) => { m[it.key] = i++; }));
+    return m;
+  }, [grupos]);
+
+  const setItem = (key, patch) =>
+    setItensState((s) => ({ ...s, [key]: { ...(s[key] || { status: 'sim', observacao: '' }), ...patch } }));
+
+  const total = (Number(data.valor_do_servico || 0) + Number(data.valor_da_mao_obra || 0))
+    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const submit = (e) => {
     e.preventDefault();
-    post(route('admin.frota.veiculos.os-preventiva.store', veiculo.id), {
-      forceFormData: true,
-      preserveScroll: true,
-      onSuccess: () => { reset(); onClose(); },
-    });
+    transform((d) => ({
+      ...d,
+      itens: linhas.map((l) => {
+        const st = itensState[l.key] || { status: 'sim', observacao: '' };
+        return mode === 'edit'
+          ? { id: l.key, status: st.status, observacao: st.observacao }
+          : { id_servico_preventiva: l.id_servico_preventiva, periodo: l.periodo, status: st.status, observacao: st.observacao };
+      }),
+      ...(mode === 'edit' ? { _method: 'put' } : {}),
+    }));
+    const url = mode === 'edit'
+      ? route('admin.frota.os-preventiva.update', osId)
+      : route('admin.frota.veiculos.os-preventiva.store', veiculo.id);
+    post(url, { forceFormData: true, preserveScroll: true, onSuccess: () => { onSaved?.(); onClose(); } });
   };
 
-  const totalCalc = (Number(data.valor_do_servico || 0) + Number(data.valor_da_mao_obra || 0))
-    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const optObra = (o) => `${o.code ? o.code + '- ' : ''}${o.nome_fantasia}`;
+  const titulo = mode === 'edit'
+    ? `Editar OS Preventiva #${osId}`
+    : `Cadastrar OS Preventiva — Ciclo ${Number(ciclo?.periodo ?? 0).toLocaleString('pt-BR')} ${unidade}`;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-10 px-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-4" onClick={(e) => e.stopPropagation()}>
-        <header className="flex items-center justify-between border-b px-6 py-4">
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-6 px-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl my-4" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center justify-between border-b px-6 py-3">
           <div>
-            <h2 className="text-lg font-bold">Cadastrar OS Preventiva — Ciclo {ciclo.periodo.toLocaleString('pt-BR')} {unidade}</h2>
-            <p className="text-sm text-gray-500">{veiculo.prefixo} · medição atual: <strong>{medicaoAtual.toLocaleString('pt-BR')} {unidade}</strong></p>
+            <h2 className="text-base font-bold flex items-center gap-2">🛠 {titulo}</h2>
+            <p className="text-xs text-gray-500">{veiculo.prefixo} · medição atual: <strong>{Number(medAtual).toLocaleString('pt-BR')} {unidade}</strong></p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700">✕</button>
         </header>
 
-        <form onSubmit={submit} className="p-6 grid grid-cols-1 md:grid-cols-3 gap-3" encType="multipart/form-data">
-          <F label={`Próxima medição alvo (${unidade}) *`} name="medicao_proxima" type="number" data={data} setData={setData} errors={errors} />
-          <F label="Data de execução *" name="data_de_execucao" type="date" data={data} setData={setData} errors={errors} />
-          <F label="Data de conclusão" name="data_conclusao" type="date" data={data} setData={setData} errors={errors} />
+        {carregando ? (
+          <div className="p-10 text-center text-gray-400">Carregando…</div>
+        ) : (
+          <form onSubmit={submit} className="grid grid-cols-1 lg:grid-cols-5 gap-0" encType="multipart/form-data">
+            {/* ===== Esquerda: dados da OS ===== */}
+            <div className="lg:col-span-2 p-5 border-r space-y-3 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className={osLbl}>Obra *</label>
+                  <select value={data.id_obra} onChange={(e) => setData('id_obra', e.target.value)} className={osInp}>
+                    <option value="">— selecione —</option>
+                    {obras.map((o) => <option key={o.id} value={o.id}>{optObra(o)}</option>)}
+                  </select>
+                  {errors.id_obra && <p className="text-red-600 text-xs mt-0.5">{errors.id_obra}</p>}
+                </div>
+                <div className="col-span-2">
+                  <label className={osLbl}>Fornecedor</label>
+                  <select value={data.fornecedor_id} onChange={(e) => setData('fornecedor_id', e.target.value)} className={osInp}>
+                    <option value="">— selecione —</option>
+                    {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome_fantasia}</option>)}
+                  </select>
+                  {errors.fornecedor_id && <p className="text-red-600 text-xs mt-0.5">{errors.fornecedor_id}</p>}
+                </div>
+                <div className="col-span-2">
+                  <label className={osLbl}>Motorista do veículo</label>
+                  <select value={data.id_motorista} onChange={(e) => setData('id_motorista', e.target.value)} className={osInp}>
+                    <option value="">— selecione —</option>
+                    {funcionarios.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-2 bg-rise-50/60 border border-rise-200 rounded p-2">
+                  <label className={osLbl}>Situação da Manutenção *</label>
+                  <select value={data.situacao} onChange={(e) => setData('situacao', Number(e.target.value))} className={osInp}>
+                    <option value={1}>Pendente</option>
+                    <option value={2}>Em Execução</option>
+                    <option value={3}>Concluído</option>
+                    <option value={4}>Cancelado</option>
+                  </select>
+                </div>
 
-          <F label="Fornecedor" name="fornecedor_id" errors={errors}>
-            <select value={data.fornecedor_id} onChange={(e) => setData('fornecedor_id', e.target.value)} className={inputCls}>
-              <option value="">— selecione —</option>
-              {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome_fantasia}</option>)}
-            </select>
-          </F>
+                <div>
+                  <label className={osLbl}>{unidade} atual</label>
+                  <input type="text" value={Number(medAtual).toLocaleString('pt-BR')} readOnly className={`${osInp} bg-gray-50`} />
+                </div>
+                <div>
+                  <label className={osLbl}>Próx. {unidade}</label>
+                  <input type="number" value={data.medicao_proxima} onChange={(e) => setData('medicao_proxima', e.target.value)} className={osInp} />
+                </div>
 
-          <F label="Tipo de serviço" name="tipo" data={data} setData={setData} errors={errors} placeholder="Ex: Troca de óleo" />
-          <F label="Vencimento (próxima)" name="data_de_vencimento" type="date" data={data} setData={setData} errors={errors} />
+                <div>
+                  <label className={osLbl}>Início *</label>
+                  <input type="date" value={data.data_de_execucao} onChange={(e) => setData('data_de_execucao', e.target.value)} className={osInp} />
+                  {errors.data_de_execucao && <p className="text-red-600 text-xs mt-0.5">{errors.data_de_execucao}</p>}
+                </div>
+                <div>
+                  <label className={osLbl}>Término</label>
+                  <input type="date" value={data.data_conclusao} onChange={(e) => setData('data_conclusao', e.target.value)} className={osInp} />
+                </div>
 
-          <F label="NF Peças" name="nf_pecas" data={data} setData={setData} errors={errors} />
-          <F label="NF Mão de obra" name="nf_mao_obra" data={data} setData={setData} errors={errors} />
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Total calculado</label>
-            <p className="border border-gray-200 rounded px-3 py-2 bg-gray-50 font-bold">{totalCalc}</p>
+                <div>
+                  <label className={osLbl}>Próx. rev./ meses</label>
+                  <input type="number" value={data.campo_cal_mes} onChange={(e) => setData('campo_cal_mes', e.target.value)} className={`${osInp} bg-gray-50`} />
+                </div>
+                <div>
+                  <label className={osLbl}>Data próx. revisão</label>
+                  <input type="date" value={data.data_de_vencimento} onChange={(e) => setData('data_de_vencimento', e.target.value)} className={osInp} />
+                </div>
+
+                <div>
+                  <label className={osLbl}>NF peças</label>
+                  <input type="text" value={data.nf_pecas} onChange={(e) => setData('nf_pecas', e.target.value)} className={osInp} />
+                </div>
+                <div>
+                  <label className={osLbl}>Valor das peças</label>
+                  <input type="number" step="0.01" value={data.valor_do_servico} onChange={(e) => setData('valor_do_servico', e.target.value)} className={osInp} />
+                </div>
+                <div>
+                  <label className={osLbl}>NF mão de obra</label>
+                  <input type="text" value={data.nf_mao_obra} onChange={(e) => setData('nf_mao_obra', e.target.value)} className={osInp} />
+                </div>
+                <div>
+                  <label className={osLbl}>Valor da mão de obra</label>
+                  <input type="number" step="0.01" value={data.valor_da_mao_obra} onChange={(e) => setData('valor_da_mao_obra', e.target.value)} className={osInp} />
+                </div>
+                <div className="col-span-2">
+                  <label className={osLbl}>Valor total Serviços/ peças</label>
+                  <p className="border border-gray-200 rounded px-2 py-1.5 bg-gray-50 font-bold text-sm">{total}</p>
+                </div>
+
+                <div className="col-span-2">
+                  <label className={osLbl}>Observações</label>
+                  <textarea rows={2} value={data.descricao} onChange={(e) => setData('descricao', e.target.value)} className={osInp} />
+                </div>
+                <div className="col-span-2">
+                  <label className={osLbl}>Anexo (NF, comprovante)</label>
+                  <input type="file" onChange={(e) => setData('anexo', e.target.files[0] ?? null)} className="text-xs" accept="image/*,.pdf" />
+                  {errors.anexo && <p className="text-red-600 text-xs mt-0.5">{errors.anexo}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* ===== Direita: checklist de serviços por ciclo ===== */}
+            <div className="lg:col-span-3 p-5 max-h-[75vh] overflow-y-auto">
+              <div className="border border-rise-200 bg-rise-50/40 rounded px-3 py-2 text-sm text-rise-800 mb-3">
+                Serviços a serem executados {data.campo_cal_mes ? `a cada ${fmtNum(data.periodo)} ${unidade} ou ${data.campo_cal_mes} meses` : `a cada ${fmtNum(data.periodo)} ${unidade}`}
+              </div>
+
+              {linhas.length === 0 && (
+                <p className="text-sm text-gray-500 bg-gray-50 border rounded p-3">Este ciclo não tem itens de serviço cadastrados no plano.</p>
+              )}
+
+              {grupos.map((g) => (
+                <div key={g.periodo} className="border rounded-lg mb-2 overflow-hidden">
+                  <button type="button" onClick={() => setAbertos((a) => ({ ...a, [g.periodo]: !a[g.periodo] }))}
+                    className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100">
+                    <span className="font-semibold text-sm text-gray-700">🔧 Serviços do Ciclo {fmtNum(g.periodo)} {unidade}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs bg-rise-600 text-white px-2 py-0.5 rounded">{g.itens.length} {g.itens.length === 1 ? 'item' : 'itens'}</span>
+                      <span className="text-gray-400 text-xs">{abertos[g.periodo] ? '▲' : '▼'}</span>
+                    </span>
+                  </button>
+
+                  {abertos[g.periodo] && (
+                    <table className="w-full text-sm">
+                      <thead className="bg-white text-left text-xs text-gray-500 border-b">
+                        <tr>
+                          <th className="px-3 py-1.5">Nome do Serviço</th>
+                          <th className="px-3 py-1.5 w-32">Realizado?</th>
+                          <th className="px-3 py-1.5">Observações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {g.itens.map((it) => {
+                          const st = itensState[it.key] || { status: 'sim', observacao: '' };
+                          const errObs = errors[`itens.${idxDe[it.key]}.observacao`];
+                          return (
+                            <tr key={it.key} className="align-top">
+                              <td className="px-3 py-2">
+                                <div className="font-medium text-gray-800">{it.nome_servico || '—'}</div>
+                                {it.pendencia && (
+                                  <div className="mt-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                    ⚠ Não realizado em {fmtData(it.pendencia.data)} (OS #{it.pendencia.os_id}): {it.pendencia.observacao || 'sem justificativa'}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap">
+                                <label className="inline-flex items-center gap-1 mr-3 cursor-pointer">
+                                  <input type="radio" name={`st-${it.key}`} checked={st.status === 'sim'} onChange={() => setItem(it.key, { status: 'sim' })} />
+                                  <span className="text-green-700">Sim</span>
+                                </label>
+                                <label className="inline-flex items-center gap-1 cursor-pointer">
+                                  <input type="radio" name={`st-${it.key}`} checked={st.status === 'nao'} onChange={() => setItem(it.key, { status: 'nao' })} />
+                                  <span className="text-red-700">Não</span>
+                                </label>
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={st.observacao}
+                                  onChange={(e) => setItem(it.key, { observacao: e.target.value })}
+                                  placeholder={st.status === 'nao' ? 'Justificativa obrigatória' : 'Opcional'}
+                                  className={`w-full border rounded px-2 py-1 text-sm ${st.status === 'nao' && (!st.observacao || errObs) ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                />
+                                {errObs && <p className="text-red-600 text-xs mt-0.5">{errObs}</p>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* ===== Rodapé ===== */}
+            <div className="lg:col-span-5 flex justify-end gap-2 border-t px-6 py-3">
+              <button type="button" onClick={onClose} className="px-4 py-2 border rounded hover:bg-gray-50 text-sm">Cancelar</button>
+              <button type="submit" disabled={processing} className="px-6 py-2 bg-rise-600 text-white rounded hover:bg-rise-700 disabled:opacity-50 text-sm font-semibold">
+                {processing ? 'Salvando…' : (mode === 'edit' ? 'Salvar alterações' : 'Salvar')}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============ Modal: Ver OS Preventiva (somente leitura) ============ */
+function ModalVerOs({ osId, unidade = 'km', tipoHr = false, onClose }) {
+  const [os, setOs] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    window.axios.get(route('admin.frota.os-preventiva.show', osId))
+      .then(({ data }) => { if (alive) setOs(data); })
+      .catch((e) => console.error('[ver OS]', e));
+    return () => { alive = false; };
+  }, [osId]);
+
+  const sit = os ? (situacaoCorretiva[os.status_realizado] ?? { label: os.status_realizado, cor: 'bg-gray-200 text-gray-700' }) : null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-8 px-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-4" onClick={(e) => e.stopPropagation()}>
+        <header className="flex items-center justify-between border-b px-6 py-3">
+          <h2 className="text-base font-bold">OS Preventiva #{osId}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">✕</button>
+        </header>
+        {!os ? (
+          <div className="p-10 text-center text-gray-400">Carregando…</div>
+        ) : (
+          <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+              <Info label="Situação" value={<span className={`px-2 py-0.5 rounded text-xs ${sit.cor}`}>{sit.label}</span>} />
+              <Info label="Obra" value={os.obra?.nome_fantasia ?? '—'} />
+              <Info label="Fornecedor" value={os.fornecedor?.nome_fantasia ?? '—'} />
+              <Info label="Motorista" value={os.motorista?.nome ?? '—'} />
+              <Info label="Plano" value={os.preventiva?.nome_preventiva ?? '—'} />
+              <Info label="Ciclo" value={`${fmtNum(tipoHr ? os.campo_cal_hr : os.campo_calc_km)} ${unidade}`} />
+              <Info label={`${unidade} atual`} value={fmtNum(tipoHr ? os.horimetro_atual : os.quilometragem_atual)} />
+              <Info label={`Próx. ${unidade}`} value={fmtNum(tipoHr ? os.horimetro_proximo : os.quilometragem_nova)} />
+              <Info label="Execução" value={fmtData(os.data_de_execucao)} />
+              <Info label="Conclusão" value={fmtData(os.data_conclusao)} />
+              <Info label="Próx. revisão" value={fmtData(os.data_de_vencimento)} />
+              <Info label="NF peças" value={os.nf_pecas ?? '—'} />
+              <Info label="NF mão de obra" value={os.nf_mao_obra ?? '—'} />
+              <Info label="Valor peças" value={fmtMoney(os.valor_do_servico)} />
+              <Info label="Valor mão de obra" value={fmtMoney(os.valor_da_mao_obra)} />
+              <Info label="Total" value={fmtMoney(os.total_valor_servico)} />
+            </div>
+
+            {os.descricao && (
+              <div>
+                <p className="text-xs uppercase text-gray-500 mb-1">Observações</p>
+                <p className="text-sm bg-gray-50 border rounded p-2 whitespace-pre-wrap">{os.descricao}</p>
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs uppercase text-gray-500 mb-1">Checklist de serviços</p>
+              <div className="border rounded overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-xs text-gray-500">
+                    <tr><th className="px-3 py-1.5">Serviço</th><th className="px-3 py-1.5 w-24">Ciclo</th><th className="px-3 py-1.5 w-28">Realizado?</th><th className="px-3 py-1.5">Observação</th></tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {(os.servicos || []).length === 0 ? (
+                      <tr><td colSpan={4} className="text-center text-gray-400 py-4">Sem checklist.</td></tr>
+                    ) : os.servicos.map((s) => (
+                      <tr key={s.id}>
+                        <td className="px-3 py-2 font-medium text-gray-800">{s.nome_servico || '—'}</td>
+                        <td className="px-3 py-2">{s.periodo ? `${fmtNum(s.periodo)} ${unidade}` : '—'}</td>
+                        <td className="px-3 py-2">
+                          <span className={`px-2 py-0.5 rounded text-xs ${s.status === 'sim' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {s.status === 'sim' ? 'Realizado' : 'Não realizado'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">{s.observacao || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {os.tem_arquivo && (
+              <a href={route('admin.frota.anexos.view', ['os-preventiva', os.id])} target="_blank" rel="noreferrer"
+                 className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100">
+                📎 Ver anexo
+              </a>
+            )}
           </div>
-
-          <F label="Valor do serviço (R$)" name="valor_do_servico" type="number" step="0.01" data={data} setData={setData} errors={errors} />
-          <F label="Valor da mão de obra (R$)" name="valor_da_mao_obra" type="number" step="0.01" data={data} setData={setData} errors={errors} />
-          <div></div>
-
-          <div className="md:col-span-3">
-            <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Descrição</label>
-            <textarea rows={3} value={data.descricao} onChange={(e) => setData('descricao', e.target.value)} className={inputCls} />
-            {errors.descricao && <p className="text-red-600 text-xs mt-1">{errors.descricao}</p>}
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Anexo (NF, comprovante)</label>
-            <input type="file" onChange={(e) => setData('anexo', e.target.files[0] ?? null)} className="text-sm" accept="image/*,.pdf" />
-            <p className="text-xs text-gray-500 mt-1">Arquivo vai pro OneDrive em veiculos/{veiculo.id}/preventivas/</p>
-            {errors.anexo && <p className="text-red-600 text-xs mt-1">{errors.anexo}</p>}
-          </div>
-
-          <div className="md:col-span-3 flex justify-end gap-2 border-t pt-4 mt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 border rounded hover:bg-gray-50">Cancelar</button>
-            <button type="submit" disabled={processing}
-                    className="px-6 py-2 bg-rise-600 text-white rounded hover:bg-rise-700 disabled:opacity-50">
-              {processing ? 'Salvando...' : 'Cadastrar OS'}
-            </button>
-          </div>
-        </form>
+        )}
       </div>
     </div>
   );

@@ -586,6 +586,21 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 // OS preventiva: cadastro a partir do Dashboard de Ciclos
                 Route::post('veiculos/{veiculo}/os-preventiva', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeOsPreventiva'])
                     ->name('veiculos.os-preventiva.store');
+                // Checklist de itens do ciclo (+ pendências herdadas) para o modal de OS
+                Route::get('veiculos/{veiculo}/os-preventiva/itens', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'osPreventivaItens'])
+                    ->name('veiculos.os-preventiva.itens');
+                // Backlog de pendências (manutenção diferida) do veículo
+                Route::get('veiculos/{veiculo}/pendencias-preventiva/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'pendenciasPreventiva'])
+                    ->name('veiculos.pendencias-preventiva.list');
+                // OS preventiva: ver / editar / status / excluir (bind {osPreventiva})
+                Route::get('os-preventiva/{osPreventiva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'showOsPreventiva'])
+                    ->name('os-preventiva.show');
+                Route::put('os-preventiva/{osPreventiva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateOsPreventiva'])
+                    ->name('os-preventiva.update');
+                Route::patch('os-preventiva/{osPreventiva}/status', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateStatusOsPreventiva'])
+                    ->name('os-preventiva.status');
+                Route::delete('os-preventiva/{osPreventiva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyOsPreventiva'])
+                    ->name('os-preventiva.destroy');
 
                 // CRUDs aninhados das abas Show
                 Route::get('veiculos/{veiculo}/manutencoes/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listManutencoes'])
@@ -650,7 +665,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
 
                 // Stream proxy de anexos das abas (PDF/imagem direto do OneDrive)
                 Route::get('anexos/{tipo}/{id}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewAnexo'])
-                    ->where('tipo', 'manutencao|ipva|seguro|doc-legal|doc-tecnico')
+                    ->where('tipo', 'manutencao|os-preventiva|ipva|seguro|doc-legal|doc-tecnico')
                     ->name('anexos.view');
 
                 // Caderno Histórico de Manutenção (timeline read-only)

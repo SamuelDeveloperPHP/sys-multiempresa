@@ -23,7 +23,7 @@ class VeiculoPreventivaItemRealizada extends Model
         'quilometragem_atual', 'quilometragem_nova', 'campo_calc_km',
         'horimetro_atual', 'horimetro_proximo', 'campo_cal_hr',
         'data_de_execucao', 'data_previsao_termino', 'data_conclusao', 'campo_cal_mes',
-        'data_de_vencimento', 'descricao', 'status_realizado',
+        'data_de_vencimento', 'descricao', 'arquivo', 'status_realizado',
         'user_create', 'user_edit',
         'sync_status', 'data_sincronizacao',
     ];
@@ -40,4 +40,6 @@ class VeiculoPreventivaItemRealizada extends Model
     public function obra() { return $this->belongsTo(Obra::class, 'id_obra'); }
     public function preventiva() { return $this->belongsTo(VeiculoPreventiva::class, 'id_preventiva'); }
     public function motorista() { return $this->belongsTo(Funcionario::class, 'id_motorista'); }
+    public function servicos() { return $this->hasMany(VeiculoPreventivaItemServico::class, 'id_manutencao'); }
+    public function fornecedor() { return $this->belongsTo(\App\Models\Fornecedor::class, 'fornecedor_id'); }
 }

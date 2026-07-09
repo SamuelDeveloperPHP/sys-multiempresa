@@ -18,6 +18,9 @@ use App\Models\Frota\VeiculoImagem;
 use App\Models\Frota\VeiculoIpva;
 use App\Models\Frota\VeiculoManutencao;
 use App\Models\Frota\VeiculoPreventiva;
+use App\Models\Frota\VeiculoPreventivaItem;
+use App\Models\Frota\VeiculoPreventivaItemRealizada;
+use App\Models\Frota\VeiculoPreventivaItemServico;
 use App\Models\Frota\VeiculoSeguro;
 use App\Models\Frota\VeiculoSubCategoria;
 use App\Models\Obra;
@@ -587,78 +590,376 @@ class VeiculoController extends Controller
     }
 
     /**
-     * Cria uma OS preventiva (registro em veiculo_preventivas_itens_realizadas)
-     * a partir do card "Cadastrar OS" do Dashboard de Ciclos.
+     * Itens do plano para montar o checklist de uma OS de um ciclo, agrupados
+     * por ciclo (englobamento: todos os itens com periodo_maq_vei <= periodo).
+     * Cada item traz a "pendência herdada": se a última vez que o item foi
+     * tratado ele ficou 'nao', devolve a justificativa/data para o front alertar.
      */
-    public function storeOsPreventiva(Request $request, Veiculo $veiculo): RedirectResponse
+    public function osPreventivaItens(Veiculo $veiculo, Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'periodo'             => 'required|integer|min:0',
-            'medicao_proxima'     => 'required|integer|min:0',
-            'data_de_execucao'    => 'required|date',
-            'data_conclusao'      => 'nullable|date|after_or_equal:data_de_execucao',
-            'data_de_vencimento'  => 'nullable|date',
-            'fornecedor_id'       => 'nullable|exists:fornecedores,id',
-            'id_motorista'        => 'nullable|exists:funcionarios,id',
-            'nf_pecas'            => 'nullable|string|max:60',
-            'nf_mao_obra'         => 'nullable|string|max:60',
-            'valor_do_servico'    => 'nullable|numeric|min:0',
-            'valor_da_mao_obra'   => 'nullable|numeric|min:0',
-            'tipo'                => 'nullable|string|max:30',
-            'descricao'           => 'nullable|string',
-            // Anexo (NF/comprovante): PDF ou imagem — nunca tipo arbitrário
-            // (upload irrestrito -> XSS armazenado ao servir inline via viewAnexo).
-            'anexo'               => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
-        ]);
+        $periodo = (int) $request->query('periodo', 0);
+        $tipoHr  = (bool) $veiculo->tipo_hr;
 
-        $tipoHr = (bool) $veiculo->tipo_hr;
+        $itens = $veiculo->preventivasItens()
+            ->where('periodo_maq_vei', '<=', $periodo)
+            ->orderByDesc('periodo_maq_vei')
+            ->orderBy('nome_servico')
+            ->get();
 
-        // Medicao atual = ultimo registro de horimetro ou km
+        $pend = $this->pendenciasAbertas($veiculo, $itens->pluck('id')->all());
+
+        $grupos = $itens->groupBy('periodo_maq_vei')->sortKeysDesc()->map(function ($grupo, $per) use ($pend) {
+            return [
+                'periodo' => (int) $per,
+                'itens'   => $grupo->map(function ($it) use ($pend) {
+                    $p = $pend->get($it->id);
+                    return [
+                        'id_servico_preventiva' => $it->id,
+                        'nome_servico'          => $it->nome_servico,
+                        'periodo'               => (int) $it->periodo_maq_vei,
+                        'pendencia'             => $p ? [
+                            'observacao' => $p->observacao,
+                            'data'       => optional($p->created_at)->format('Y-m-d'),
+                            'os_id'      => $p->id_manutencao,
+                        ] : null,
+                    ];
+                })->values(),
+            ];
+        })->values();
+
         $medicaoAtual = $tipoHr
             ? (int) ($veiculo->horimetros()->orderByDesc('id')->value('horimetro_novo') ?? 0)
             : (int) ($veiculo->quilometragens()->orderByDesc('id')->value('quilometragem_nova') ?? 0);
 
-        // Resolve id_preventiva: usa o primeiro plano que tem item com esse periodo
+        $periodoMes = (int) ($itens->where('periodo_maq_vei', $periodo)->max('periodo_mes') ?? 0);
+
+        return response()->json([
+            'periodo'                  => $periodo,
+            'unidade'                  => $tipoHr ? 'hr' : 'km',
+            'medicao_atual'            => $medicaoAtual,
+            'medicao_proxima_sugerida' => $medicaoAtual + $periodo,
+            'periodo_mes'              => $periodoMes,
+            'grupos'                   => $grupos,
+        ]);
+    }
+
+    /**
+     * Cria uma OS preventiva (veiculo_preventivas_itens_realizadas) + o
+     * checklist de serviços executados. Uma única OS grava o ciclo mestre;
+     * o englobamento dos ciclos menores é derivado pelo CalculadorCiclos
+     * (nada de "OS fantasma"). Total recalculado no servidor.
+     */
+    public function storeOsPreventiva(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $this->validarOsPreventiva($request, false);
+
+        $tipoHr = (bool) $veiculo->tipo_hr;
+        $medicaoAtual = $tipoHr
+            ? (int) ($veiculo->horimetros()->orderByDesc('id')->value('horimetro_novo') ?? 0)
+            : (int) ($veiculo->quilometragens()->orderByDesc('id')->value('quilometragem_nova') ?? 0);
+
+        $periodo = (int) $data['periodo'];
         $idPreventiva = $veiculo->preventivasItens()
-            ->where('periodo_maq_vei', $data['periodo'])
+            ->where('periodo_maq_vei', $periodo)
             ->value('id_preventiva');
 
-        $valorTotal = (float) ($data['valor_do_servico'] ?? 0) + (float) ($data['valor_da_mao_obra'] ?? 0);
+        $valorPecas = (float) ($data['valor_do_servico'] ?? 0);
+        $valorMO    = (float) ($data['valor_da_mao_obra'] ?? 0);
+        $situacao   = (string) $data['situacao'];
+        $dataConclusao = $data['data_conclusao'] ?? null;
+        if ($situacao === '3' && ! $dataConclusao) {
+            $dataConclusao = now()->toDateString();
+        }
 
-        $registro = \App\Models\Frota\VeiculoPreventivaItemRealizada::create([
-            'id_veiculo'            => $veiculo->id,
-            'id_preventiva'         => $idPreventiva,
-            'fornecedor_id'         => $data['fornecedor_id'] ?? null,
-            'id_motorista'          => $data['id_motorista'] ?? null,
-            'tipo'                  => $data['tipo'] ?? null,
-            'nf_pecas'              => $data['nf_pecas'] ?? null,
-            'nf_mao_obra'           => $data['nf_mao_obra'] ?? null,
-            'valor_do_servico'      => $data['valor_do_servico'] ?? 0,
-            'valor_da_mao_obra'     => $data['valor_da_mao_obra'] ?? 0,
-            'total_valor_servico'   => $valorTotal,
-            'quilometragem_atual'   => $tipoHr ? null : $medicaoAtual,
-            'quilometragem_nova'    => $tipoHr ? null : $data['medicao_proxima'],
-            'campo_calc_km'         => $tipoHr ? null : $data['periodo'],
-            'horimetro_atual'       => $tipoHr ? $medicaoAtual : null,
-            'horimetro_proximo'     => $tipoHr ? $data['medicao_proxima'] : null,
-            'campo_cal_hr'          => $tipoHr ? $data['periodo'] : null,
-            'data_de_execucao'      => $data['data_de_execucao'],
-            'data_conclusao'        => $data['data_conclusao'] ?? null,
-            'data_de_vencimento'    => $data['data_de_vencimento'] ?? null,
-            'descricao'             => $data['descricao'] ?? null,
-            'status_realizado'      => $data['data_conclusao'] ? '3' : '2', // 3=Concluido, 2=Em Execucao
-            'user_create'           => Auth::user()?->email,
-        ]);
+        $registro = \Illuminate\Support\Facades\DB::transaction(function () use (
+            $veiculo, $data, $tipoHr, $medicaoAtual, $periodo, $idPreventiva,
+            $valorPecas, $valorMO, $situacao, $dataConclusao
+        ) {
+            $os = VeiculoPreventivaItemRealizada::create([
+                'id_veiculo'          => $veiculo->id,
+                'id_preventiva'       => $idPreventiva,
+                'id_obra'             => $data['id_obra'] ?? null,
+                'fornecedor_id'       => $data['fornecedor_id'] ?? null,
+                'id_motorista'        => $data['id_motorista'] ?? null,
+                'tipo'                => $data['tipo'] ?? null,
+                'nf_pecas'            => $data['nf_pecas'] ?? null,
+                'nf_mao_obra'         => $data['nf_mao_obra'] ?? null,
+                'valor_do_servico'    => $valorPecas,
+                'valor_da_mao_obra'   => $valorMO,
+                'total_valor_servico' => $valorPecas + $valorMO,
+                'quilometragem_atual' => $tipoHr ? null : $medicaoAtual,
+                'quilometragem_nova'  => $tipoHr ? null : ($data['medicao_proxima'] ?? null),
+                'campo_calc_km'       => $tipoHr ? null : $periodo,
+                'horimetro_atual'     => $tipoHr ? $medicaoAtual : null,
+                'horimetro_proximo'   => $tipoHr ? ($data['medicao_proxima'] ?? null) : null,
+                'campo_cal_hr'        => $tipoHr ? $periodo : null,
+                'campo_cal_mes'       => $data['campo_cal_mes'] ?? null,
+                'data_de_execucao'    => $data['data_de_execucao'],
+                'data_conclusao'      => $dataConclusao,
+                'data_de_vencimento'  => $data['data_de_vencimento'] ?? null,
+                'descricao'           => $data['descricao'] ?? null,
+                'status_realizado'    => $situacao,
+                'user_create'         => Auth::user()?->email,
+            ]);
+
+            $planItens = $veiculo->preventivasItens()
+                ->whereIn('id', collect($data['itens'])->pluck('id_servico_preventiva'))
+                ->get()->keyBy('id');
+
+            foreach ($data['itens'] as $it) {
+                $plano = $planItens->get($it['id_servico_preventiva']);
+                VeiculoPreventivaItemServico::create([
+                    'id_manutencao'         => $os->id,
+                    'id_servico_preventiva' => $it['id_servico_preventiva'],
+                    'id_veiculo'            => $veiculo->id,
+                    'id_preventiva'         => $plano?->id_preventiva ?? $idPreventiva,
+                    'nome_servico'          => $plano?->nome_servico,
+                    'periodo'               => $it['periodo'] ?? $plano?->periodo_maq_vei,
+                    'status'                => $it['status'],
+                    'observacao'            => $it['observacao'] ?? null,
+                    'user_create'           => Auth::user()?->email,
+                ]);
+            }
+
+            return $os;
+        });
 
         if ($request->hasFile('anexo')) {
             $path = $this->uploadOneDrive($request->file('anexo'), $veiculo->id, "preventivas/{$registro->id}");
-            // grava o path no campo descricao se nao houver outro lugar; reservado para futura coluna 'arquivo'
-            if ($path) {
-                $registro->update(['descricao' => trim(($registro->descricao ?? '') . "\n[anexo] {$path}")]);
-            }
+            if ($path) $registro->update(['arquivo' => $path]);
         }
 
         return back()->with('success', 'OS preventiva cadastrada.');
+    }
+
+    /** Detalhe (JSON) de uma OS preventiva — alimenta os modais Ver e Editar. */
+    public function showOsPreventiva(VeiculoPreventivaItemRealizada $osPreventiva): JsonResponse
+    {
+        $osPreventiva->load([
+            'obra:id,nome_fantasia,code',
+            'fornecedor:id,nome_fantasia,razao_social',
+            'motorista:id,nome',
+            'preventiva:id,nome_preventiva',
+            'servicos' => fn ($q) => $q->orderByDesc('periodo')->orderBy('nome_servico'),
+        ]);
+
+        return response()->json([
+            'id'                  => $osPreventiva->id,
+            'id_obra'             => $osPreventiva->id_obra,
+            'fornecedor_id'       => $osPreventiva->fornecedor_id,
+            'id_motorista'        => $osPreventiva->id_motorista,
+            'tipo'                => $osPreventiva->tipo,
+            'status_realizado'    => $osPreventiva->status_realizado,
+            'nf_pecas'            => $osPreventiva->nf_pecas,
+            'nf_mao_obra'         => $osPreventiva->nf_mao_obra,
+            'valor_do_servico'    => $osPreventiva->valor_do_servico,
+            'valor_da_mao_obra'   => $osPreventiva->valor_da_mao_obra,
+            'total_valor_servico' => $osPreventiva->total_valor_servico,
+            'quilometragem_atual' => $osPreventiva->quilometragem_atual,
+            'quilometragem_nova'  => $osPreventiva->quilometragem_nova,
+            'horimetro_atual'     => $osPreventiva->horimetro_atual,
+            'horimetro_proximo'   => $osPreventiva->horimetro_proximo,
+            'campo_calc_km'       => $osPreventiva->campo_calc_km,
+            'campo_cal_hr'        => $osPreventiva->campo_cal_hr,
+            'campo_cal_mes'       => $osPreventiva->campo_cal_mes,
+            'data_de_execucao'    => optional($osPreventiva->data_de_execucao)->toDateString(),
+            'data_conclusao'      => optional($osPreventiva->data_conclusao)->toDateString(),
+            'data_de_vencimento'  => optional($osPreventiva->data_de_vencimento)->toDateString(),
+            'descricao'           => $osPreventiva->descricao,
+            'tem_arquivo'         => ! empty($osPreventiva->arquivo),
+            'obra'                => $osPreventiva->obra ? ['nome_fantasia' => $osPreventiva->obra->nome_fantasia] : null,
+            'fornecedor'          => $osPreventiva->fornecedor ? ['nome_fantasia' => $osPreventiva->fornecedor->nome_fantasia ?? $osPreventiva->fornecedor->razao_social] : null,
+            'motorista'           => $osPreventiva->motorista ? ['nome' => $osPreventiva->motorista->nome] : null,
+            'preventiva'          => $osPreventiva->preventiva ? ['nome_preventiva' => $osPreventiva->preventiva->nome_preventiva] : null,
+            'servicos'            => $osPreventiva->servicos->map(fn ($s) => [
+                'id'                    => $s->id,
+                'id_servico_preventiva' => $s->id_servico_preventiva,
+                'nome_servico'          => $s->nome_servico,
+                'periodo'               => $s->periodo,
+                'status'                => $s->status,
+                'observacao'            => $s->observacao,
+            ])->values(),
+        ]);
+    }
+
+    /** Atualiza cabeçalho + situação + status/observação das linhas do checklist. */
+    public function updateOsPreventiva(Request $request, VeiculoPreventivaItemRealizada $osPreventiva): RedirectResponse
+    {
+        $data = $this->validarOsPreventiva($request, true);
+
+        $valorPecas = (float) ($data['valor_do_servico'] ?? 0);
+        $valorMO    = (float) ($data['valor_da_mao_obra'] ?? 0);
+        $situacao   = (string) $data['situacao'];
+        $dataConclusao = $data['data_conclusao'] ?? null;
+        if ($situacao === '3' && ! $dataConclusao) {
+            $dataConclusao = now()->toDateString();
+        }
+
+        // Próxima medição do ciclo (campo editável no form). Só grava quando veio
+        // no payload, no eixo certo (hr x km); o ciclo em si (campo_cal_*) não muda.
+        $tipoHr = (bool) optional($osPreventiva->veiculo)->tipo_hr;
+        $medProx = array_key_exists('medicao_proxima', $data) && $data['medicao_proxima'] !== null
+            ? (int) $data['medicao_proxima'] : null;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $osPreventiva, $data, $valorPecas, $valorMO, $situacao, $dataConclusao, $tipoHr, $medProx) {
+            $osPreventiva->update([
+                'id_obra'             => $data['id_obra'] ?? null,
+                'fornecedor_id'       => $data['fornecedor_id'] ?? null,
+                'id_motorista'        => $data['id_motorista'] ?? null,
+                'tipo'                => $data['tipo'] ?? null,
+                'nf_pecas'            => $data['nf_pecas'] ?? null,
+                'nf_mao_obra'         => $data['nf_mao_obra'] ?? null,
+                'valor_do_servico'    => $valorPecas,
+                'valor_da_mao_obra'   => $valorMO,
+                'total_valor_servico' => $valorPecas + $valorMO,
+                'horimetro_proximo'   => $tipoHr && $medProx !== null ? $medProx : $osPreventiva->horimetro_proximo,
+                'quilometragem_nova'  => ! $tipoHr && $medProx !== null ? $medProx : $osPreventiva->quilometragem_nova,
+                'campo_cal_mes'       => $data['campo_cal_mes'] ?? null,
+                'data_de_execucao'    => $data['data_de_execucao'],
+                'data_conclusao'      => $dataConclusao,
+                'data_de_vencimento'  => $data['data_de_vencimento'] ?? null,
+                'descricao'           => $data['descricao'] ?? null,
+                'status_realizado'    => $situacao,
+                'user_edit'           => Auth::user()?->email,
+            ]);
+
+            foreach (($data['itens'] ?? []) as $it) {
+                if (empty($it['id'])) continue;
+                $linha = $osPreventiva->servicos()->whereKey($it['id'])->first();
+                if (! $linha) continue;
+                $linha->update([
+                    'status'     => $it['status'],
+                    'observacao' => $it['observacao'] ?? null,
+                    'user_edit'  => Auth::user()?->email,
+                ]);
+            }
+        });
+
+        if ($request->hasFile('anexo')) {
+            $path = $this->uploadOneDrive($request->file('anexo'), $osPreventiva->id_veiculo, "preventivas/{$osPreventiva->id}");
+            if ($path) $osPreventiva->update(['arquivo' => $path]);
+        }
+
+        return back()->with('success', 'OS preventiva atualizada.');
+    }
+
+    /** Altera apenas a situação (1-4) de uma OS. Concluído sem data → hoje. */
+    public function updateStatusOsPreventiva(Request $request, VeiculoPreventivaItemRealizada $osPreventiva): JsonResponse
+    {
+        $request->validate(['situacao' => 'required|integer|in:1,2,3,4']);
+
+        $osPreventiva->status_realizado = (string) $request->integer('situacao');
+        if ($request->integer('situacao') === 3 && empty($osPreventiva->data_conclusao)) {
+            $osPreventiva->data_conclusao = now()->toDateString();
+        }
+        $osPreventiva->user_edit = Auth::user()?->email;
+        $osPreventiva->save();
+
+        return response()->json(['ok' => true, 'situacao' => $osPreventiva->status_realizado]);
+    }
+
+    public function destroyOsPreventiva(VeiculoPreventivaItemRealizada $osPreventiva): RedirectResponse
+    {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($osPreventiva) {
+            $osPreventiva->servicos()->delete();
+            $osPreventiva->delete();
+        });
+
+        return back()->with('success', 'OS preventiva removida.');
+    }
+
+    /**
+     * Backlog de pendências: itens cuja ÚLTIMA linha de checklist ficou 'nao'
+     * (não sanados por uma OS posterior). Alimenta a lista de manutenção
+     * diferida na aba Preventivas.
+     */
+    public function pendenciasPreventiva(Veiculo $veiculo): JsonResponse
+    {
+        $pend = $this->pendenciasAbertas($veiculo);
+
+        $data = $pend->values()->map(fn ($s) => [
+            'id'                    => $s->id,
+            'id_servico_preventiva' => $s->id_servico_preventiva,
+            'nome_servico'          => $s->nome_servico,
+            'periodo'               => $s->periodo,
+            'observacao'            => $s->observacao,
+            'data'                  => optional($s->created_at)->toDateString(),
+            'os_id'                 => $s->id_manutencao,
+        ])->sortByDesc('data')->values();
+
+        return response()->json(['data' => $data, 'total' => $data->count()]);
+    }
+
+    /**
+     * Última linha de checklist por item (do veículo) cujo status é 'nao' —
+     * ou seja, pendências abertas. Retorna coleção keyed por id_servico_preventiva.
+     */
+    private function pendenciasAbertas(Veiculo $veiculo, ?array $itemIds = null): \Illuminate\Support\Collection
+    {
+        $q = VeiculoPreventivaItemServico::where('id_veiculo', $veiculo->id)
+            ->whereNotNull('id_servico_preventiva');
+        if ($itemIds !== null) {
+            if (empty($itemIds)) return collect();
+            $q->whereIn('id_servico_preventiva', $itemIds);
+        }
+
+        // mais recente primeiro: a primeira linha de cada item é a "última vez"
+        $linhas = $q->orderByDesc('id')->get();
+
+        $abertas = collect();
+        foreach ($linhas->groupBy('id_servico_preventiva') as $itemId => $grupo) {
+            $ultima = $grupo->first();
+            if ($ultima && $ultima->status === 'nao') {
+                $abertas->put((int) $itemId, $ultima);
+            }
+        }
+        return $abertas;
+    }
+
+    /** Validação compartilhada de OS preventiva (store e update). */
+    protected function validarOsPreventiva(Request $request, bool $update): array
+    {
+        $regras = [
+            'periodo'            => ($update ? 'nullable' : 'required') . '|integer|min:0',
+            'medicao_atual'      => 'nullable|integer|min:0', // medição na data do serviço (permite lançamento retroativo)
+            'medicao_proxima'    => 'nullable|integer|min:0',
+            'id_obra'            => 'nullable|exists:obras,id',
+            'fornecedor_id'      => 'nullable|exists:fornecedores,id',
+            'id_motorista'       => 'nullable|exists:funcionarios,id',
+            'situacao'           => 'required|integer|in:1,2,3,4',
+            'tipo'               => 'nullable|string|max:30',
+            'campo_cal_mes'      => 'nullable|integer|min:0',
+            'data_de_execucao'   => 'required|date',
+            'data_conclusao'     => 'nullable|date',
+            'data_de_vencimento' => 'nullable|date',
+            'nf_pecas'           => 'nullable|string|max:60',
+            'nf_mao_obra'        => 'nullable|string|max:60',
+            'valor_do_servico'   => 'nullable|numeric|min:0',
+            'valor_da_mao_obra'  => 'nullable|numeric|min:0',
+            'descricao'          => 'nullable|string',
+            // Anexo (NF/comprovante): PDF ou imagem — nunca tipo arbitrário
+            // (upload irrestrito -> XSS armazenado ao servir inline via viewAnexo).
+            'anexo'              => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'itens'                          => ($update ? 'nullable' : 'required') . '|array' . ($update ? '' : '|min:1'),
+            'itens.*.status'                 => 'required|in:sim,nao',
+            'itens.*.observacao'             => 'nullable|string|max:1000',
+        ];
+        // no store a chave do item é o id do plano; no update é o id da linha
+        $regras[$update ? 'itens.*.id' : 'itens.*.id_servico_preventiva'] = 'required|integer';
+        $regras['itens.*.periodo'] = 'nullable|integer';
+
+        $data = $request->validate($regras);
+
+        // Justificativa obrigatória quando o item é marcado como não realizado.
+        foreach (($data['itens'] ?? []) as $i => $it) {
+            if (($it['status'] ?? null) === 'nao' && trim((string) ($it['observacao'] ?? '')) === '') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    "itens.$i.observacao" => 'Justificativa obrigatória para item não realizado.',
+                ]);
+            }
+        }
+
+        return $data;
     }
 
     /**
@@ -970,6 +1271,7 @@ class VeiculoController extends Controller
     {
         $registro = match ($tipo) {
             'manutencao'    => VeiculoManutencao::findOrFail($id),
+            'os-preventiva' => VeiculoPreventivaItemRealizada::findOrFail($id),
             'ipva'          => VeiculoIpva::findOrFail($id),
             'seguro'        => VeiculoSeguro::findOrFail($id),
             'doc-legal'     => VeiculoDocLegal::findOrFail($id),
