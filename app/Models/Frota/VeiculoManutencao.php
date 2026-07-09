@@ -15,7 +15,7 @@ class VeiculoManutencao extends Model
 
     protected $fillable = [
         'company_id', 'veiculo_id', 'fornecedor_id', 'servico_id', 'id_obra', 'id_usuario',
-        'tipo', 'valor_do_servico',
+        'tipo', 'valor_do_servico', 'valor_da_mao_obra', 'nf_pecas', 'nf_mao_obra',
         'quilometragem_atual', 'quilometragem_nova', 'horimetro_atual', 'horimetro_proximo',
         'data_de_execucao', 'data_previsao_termino', 'data_conclusao', 'data_de_vencimento',
         'descricao', 'situacao', 'status', 'arquivo',
@@ -24,6 +24,7 @@ class VeiculoManutencao extends Model
 
     protected $casts = [
         'valor_do_servico'      => 'decimal:2',
+        'valor_da_mao_obra'     => 'decimal:2',
         'data_de_execucao'      => 'date',
         'data_previsao_termino' => 'date',
         'data_conclusao'        => 'date',
@@ -33,4 +34,6 @@ class VeiculoManutencao extends Model
 
     public function veiculo() { return $this->belongsTo(Veiculo::class, 'veiculo_id'); }
     public function fornecedor() { return $this->belongsTo(\App\Models\Fornecedor::class, 'fornecedor_id'); }
+    public function obra() { return $this->belongsTo(\App\Models\Obra::class, 'id_obra'); }
+    public function responsavel() { return $this->belongsTo(\App\Models\Funcionario::class, 'id_usuario'); }
 }

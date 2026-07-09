@@ -125,10 +125,16 @@ class VeiculoController extends Controller
         // Aba: Preventivas (catalogo do veiculo)
         $preventivas = $veiculo->preventivas()->orderBy('nome_preventiva')->get();
 
-        // Lookups para o modal de cadastrar OS preventiva
+        // Lookups para os modais (OS preventiva + manutenção corretiva)
         $fornecedores = \App\Models\Fornecedor::where('status', 'Ativo')
             ->orderBy('nome_fantasia')
             ->get(['id', 'nome_fantasia']);
+
+        // Obra (id_obra) e Responsável (id_usuario → funcionário) da corretiva
+        $obras = Obra::orderBy('nome_fantasia')->get(['id', 'nome_fantasia', 'code']);
+        $funcionarios = \App\Models\Funcionario::where('status', 'Ativo')
+            ->orderBy('nome')
+            ->get(['id', 'nome']);
 
         // ---- DASHBOARD DE CICLOS ----
         $dashboardCiclos = app(CalculadorCiclosPreventiva::class)->montar($veiculo);
@@ -201,6 +207,8 @@ class VeiculoController extends Controller
             'dashboard_ciclos'         => $dashboardCiclos,
             'servicos_preventiva'      => $servicosPreventiva,
             'fornecedores'             => $fornecedores,
+            'obras'                    => $obras,
+            'funcionarios'             => $funcionarios,
             // Porting `detalhes.blade.php`
             'maior_valor'              => $maiorValor,
             'meses_formatados'         => $mesesFormatados,
@@ -930,8 +938,12 @@ class VeiculoController extends Controller
         return $request->validate([
             'fornecedor_id'         => 'nullable|exists:fornecedores,id',
             'id_obra'               => 'nullable|exists:obras,id',
+            'id_usuario'            => 'nullable|exists:funcionarios,id',   // responsável
             'tipo'                  => 'nullable|string|max:50',
-            'valor_do_servico'      => 'nullable|numeric|min:0',
+            'valor_do_servico'      => 'nullable|numeric|min:0',            // peças/serviço
+            'valor_da_mao_obra'     => 'nullable|numeric|min:0',
+            'nf_pecas'              => 'nullable|string|max:60',
+            'nf_mao_obra'           => 'nullable|string|max:60',
             'quilometragem_atual'   => 'nullable|integer|min:0',
             'quilometragem_nova'    => 'nullable|integer|min:0',
             'horimetro_atual'       => 'nullable|integer|min:0',

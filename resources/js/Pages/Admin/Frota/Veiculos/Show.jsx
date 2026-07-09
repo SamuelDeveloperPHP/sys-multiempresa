@@ -123,6 +123,8 @@ export default function VeiculoShow({
   dashboard_ciclos: dashboardCiclos = null,
   servicos_preventiva: servicosPreventiva = [],
   fornecedores = [],
+  obras = [],
+  funcionarios = [],
   // Porting de `detalhes.blade.php`
   maior_valor: maiorValor = null,
   meses_formatados: mesesFormatados = [],
@@ -213,7 +215,7 @@ export default function VeiculoShow({
           {tab === 'galeria'        && <TabGaleria veiculo={veiculo} />}
           {tab === 'docs_tecnicos'  && <TabDocs tipo="técnicos" veiculo={veiculo} />}
           {tab === 'docs_legais'    && <TabDocs tipo="legais" veiculo={veiculo} />}
-          {tab === 'corretivas'     && <TabCorretivas veiculo={veiculo} fornecedores={fornecedores} />}
+          {tab === 'corretivas'     && <TabCorretivas veiculo={veiculo} fornecedores={fornecedores} obras={obras} funcionarios={funcionarios} />}
           {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} historico={servicosPreventiva} veiculo={veiculo} fornecedores={fornecedores} />}
           {tab === 'seguros'        && <TabSeguros veiculo={veiculo} />}
           {tab === 'ipvas'          && <TabIpvas veiculo={veiculo} />}
@@ -1268,7 +1270,7 @@ function FileFieldOneDrive({ label, subfolder, setData, errors, veiculo, classNa
 /* ============ TAB: Corretivas ============
  * Auto-suficiente (mesmo padrão dos docs): busca a listagem via GET paginado
  * com pesquisa as-you-type por fornecedor / tipo / descrição. */
-function TabCorretivas({ veiculo, fornecedores = [] }) {
+function TabCorretivas({ veiculo, fornecedores = [], obras = [], funcionarios = [] }) {
   const [editando, setEditando] = useState(null);
   const [showForm, setShowForm] = useState(false);
 
@@ -1333,7 +1335,7 @@ function TabCorretivas({ veiculo, fornecedores = [] }) {
       </div>
 
       {showForm && (
-        <ModalCorretiva veiculo={veiculo} manutencao={editando} fornecedores={fornecedores} onClose={() => setShowForm(false)} onSaved={onSaved} />
+        <ModalCorretiva veiculo={veiculo} manutencao={editando} fornecedores={fornecedores} obras={obras} funcionarios={funcionarios} onClose={() => setShowForm(false)} onSaved={onSaved} />
       )}
 
       <div className="overflow-x-auto">
@@ -1399,13 +1401,23 @@ function TabCorretivas({ veiculo, fornecedores = [] }) {
   );
 }
 
-function ModalCorretiva({ veiculo, manutencao, fornecedores, onClose, onSaved }) {
+function SecaoForm({ titulo, children }) {
+  return (
+    <div className="md:col-span-3">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-rise-700 border-b border-gray-200 pb-1 mb-3">{titulo}</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">{children}</div>
+    </div>
+  );
+}
+
+function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcionarios = [], onClose, onSaved }) {
   const editando = !!manutencao?.id;
   const { data, setData, post, processing, errors } = useForm({
-    fornecedor_id:         manutencao?.fornecedor_id ?? '',
-    tipo:                  manutencao?.tipo ?? '',
     situacao:              manutencao?.situacao ?? 1,
-    valor_do_servico:      manutencao?.valor_do_servico ?? '',
+    tipo:                  manutencao?.tipo ?? '',
+    fornecedor_id:         manutencao?.fornecedor_id ?? '',
+    id_obra:               manutencao?.id_obra ?? '',
+    id_usuario:            manutencao?.id_usuario ?? '',
     quilometragem_atual:   manutencao?.quilometragem_atual ?? '',
     quilometragem_nova:    manutencao?.quilometragem_nova ?? '',
     horimetro_atual:       manutencao?.horimetro_atual ?? '',
@@ -1414,10 +1426,16 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, onClose, onSaved })
     data_previsao_termino: manutencao?.data_previsao_termino?.substring(0, 10) ?? '',
     data_conclusao:        manutencao?.data_conclusao?.substring(0, 10) ?? '',
     data_de_vencimento:    manutencao?.data_de_vencimento?.substring(0, 10) ?? '',
+    valor_do_servico:      manutencao?.valor_do_servico ?? '',
+    valor_da_mao_obra:     manutencao?.valor_da_mao_obra ?? '',
+    nf_pecas:              manutencao?.nf_pecas ?? '',
+    nf_mao_obra:           manutencao?.nf_mao_obra ?? '',
     descricao:             manutencao?.descricao ?? '',
     arquivo:               null,
     _method:               editando ? 'put' : 'post',
   });
+
+  const total = (Number(data.valor_do_servico) || 0) + (Number(data.valor_da_mao_obra) || 0);
 
   const submit = (e) => {
     e.preventDefault();
@@ -1429,44 +1447,70 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, onClose, onSaved })
 
   return (
     <ModalShell title={editando ? `Editar manutenção #${manutencao.id}` : 'Nova manutenção corretiva'} onClose={onClose} large>
-      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-3" encType="multipart/form-data">
-        <F label="Situação *" name="situacao" errors={errors}>
-          <select value={data.situacao} onChange={(e) => setData('situacao', e.target.value)} className={inputCls}>
-            <option value="1">Pendente</option>
-            <option value="2">Em Execução</option>
-            <option value="3">Concluído</option>
-            <option value="4">Cancelado</option>
-          </select>
-        </F>
-        <F label="Fornecedor" name="fornecedor_id" errors={errors}>
-          <select value={data.fornecedor_id} onChange={(e) => setData('fornecedor_id', e.target.value)} className={inputCls}>
-            <option value="">— selecione —</option>
-            {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome_fantasia}</option>)}
-          </select>
-        </F>
-        <F label="Tipo de serviço" name="tipo" data={data} setData={setData} errors={errors} />
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-3 gap-4" encType="multipart/form-data">
 
-        {veiculo.tipo_hr ? (
-          <>
-            <F label="Horímetro atual" name="horimetro_atual" type="number" data={data} setData={setData} errors={errors} />
-            <F label="Horímetro próximo" name="horimetro_proximo" type="number" data={data} setData={setData} errors={errors} />
-            <div></div>
-          </>
-        ) : (
-          <>
-            <F label="Km atual" name="quilometragem_atual" type="number" data={data} setData={setData} errors={errors} />
-            <F label="Km próximo" name="quilometragem_nova" type="number" data={data} setData={setData} errors={errors} />
-            <div></div>
-          </>
-        )}
+        <SecaoForm titulo="Identificação">
+          <F label="Situação *" name="situacao" errors={errors}>
+            <select value={data.situacao} onChange={(e) => setData('situacao', e.target.value)} className={inputCls}>
+              <option value="1">Pendente</option>
+              <option value="2">Em Execução</option>
+              <option value="3">Concluído</option>
+              <option value="4">Cancelado</option>
+            </select>
+          </F>
+          <F label="Tipo de serviço" name="tipo" data={data} setData={setData} errors={errors} />
+          <F label="Fornecedor" name="fornecedor_id" errors={errors}>
+            <select value={data.fornecedor_id} onChange={(e) => setData('fornecedor_id', e.target.value)} className={inputCls}>
+              <option value="">— selecione —</option>
+              {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome_fantasia}</option>)}
+            </select>
+          </F>
+          <F label="Obra" name="id_obra" errors={errors}>
+            <select value={data.id_obra} onChange={(e) => setData('id_obra', e.target.value)} className={inputCls}>
+              <option value="">— selecione —</option>
+              {obras.map((o) => <option key={o.id} value={o.id}>{o.code ? `${o.code} — ` : ''}{o.nome_fantasia}</option>)}
+            </select>
+          </F>
+          <F label="Responsável" name="id_usuario" errors={errors}>
+            <select value={data.id_usuario} onChange={(e) => setData('id_usuario', e.target.value)} className={inputCls}>
+              <option value="">— selecione —</option>
+              {funcionarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+          </F>
+        </SecaoForm>
 
-        <F label="Data de execução" name="data_de_execucao" type="date" data={data} setData={setData} errors={errors} />
-        <F label="Previsão de término" name="data_previsao_termino" type="date" data={data} setData={setData} errors={errors} />
-        <F label="Data de conclusão" name="data_conclusao" type="date" data={data} setData={setData} errors={errors} />
+        <SecaoForm titulo={veiculo.tipo_hr ? 'Horímetro' : 'Quilometragem'}>
+          {veiculo.tipo_hr ? (
+            <>
+              <F label="Horímetro atual" name="horimetro_atual" type="number" data={data} setData={setData} errors={errors} />
+              <F label="Horímetro próximo" name="horimetro_proximo" type="number" data={data} setData={setData} errors={errors} />
+            </>
+          ) : (
+            <>
+              <F label="Km atual" name="quilometragem_atual" type="number" data={data} setData={setData} errors={errors} />
+              <F label="Km próximo" name="quilometragem_nova" type="number" data={data} setData={setData} errors={errors} />
+            </>
+          )}
+        </SecaoForm>
 
-        <F label="Garantia (vencimento)" name="data_de_vencimento" type="date" data={data} setData={setData} errors={errors} />
-        <F label="Valor do serviço (R$)" name="valor_do_servico" type="number" step="0.01" data={data} setData={setData} errors={errors} />
-        <div></div>
+        <SecaoForm titulo="Datas">
+          <F label="Data de execução" name="data_de_execucao" type="date" data={data} setData={setData} errors={errors} />
+          <F label="Previsão de término" name="data_previsao_termino" type="date" data={data} setData={setData} errors={errors} />
+          <F label="Data de conclusão" name="data_conclusao" type="date" data={data} setData={setData} errors={errors} />
+          <F label="Garantia (vencimento)" name="data_de_vencimento" type="date" data={data} setData={setData} errors={errors} />
+        </SecaoForm>
+
+        <SecaoForm titulo="Custo">
+          <F label="Valor peças/serviço (R$)" name="valor_do_servico" type="number" step="0.01" data={data} setData={setData} errors={errors} />
+          <F label="NF peças" name="nf_pecas" data={data} setData={setData} errors={errors} />
+          <div></div>
+          <F label="Valor mão de obra (R$)" name="valor_da_mao_obra" type="number" step="0.01" data={data} setData={setData} errors={errors} />
+          <F label="NF mão de obra" name="nf_mao_obra" data={data} setData={setData} errors={errors} />
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Total</label>
+            <div className="px-3 py-2 rounded border border-gray-200 bg-gray-50 text-gray-800 font-semibold text-sm">{fmtMoney(total)}</div>
+          </div>
+        </SecaoForm>
 
         <div className="md:col-span-3">
           <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Descrição</label>
