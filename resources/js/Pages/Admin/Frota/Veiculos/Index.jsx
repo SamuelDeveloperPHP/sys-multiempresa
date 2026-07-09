@@ -49,12 +49,20 @@ export default function VeiculosIndex({ veiculos, obras, categorias, filtros }) 
             <h1 className="text-2xl font-bold">Veículos</h1>
             <p className="text-sm text-gray-500">Cadastro completo da frota (veículos, máquinas e equipamentos)</p>
           </div>
-          <Link
-            href={route('admin.frota.veiculos.create')}
-            className="bg-rise-600 text-white px-4 py-2 rounded-lg hover:bg-rise-700"
-          >
-            + Novo veículo
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={route('admin.frota.combustiveis.index')}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Combustíveis / CO₂
+            </Link>
+            <Link
+              href={route('admin.frota.veiculos.create')}
+              className="bg-rise-600 text-white px-4 py-2 rounded-lg hover:bg-rise-700"
+            >
+              + Novo veículo
+            </Link>
+          </div>
         </header>
 
         {flash?.success && (

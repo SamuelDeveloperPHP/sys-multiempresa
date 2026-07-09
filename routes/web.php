@@ -651,6 +651,12 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::get('fipe/anos', [\App\Http\Controllers\Admin\Frota\FipeController::class, 'anos'])->name('fipe.anos');
                 Route::get('fipe/valor', [\App\Http\Controllers\Admin\Frota\FipeController::class, 'valor'])->name('fipe.valor');
 
+                // Combustíveis + fatores de emissão (tela de referência do admin)
+                Route::get('combustiveis', [\App\Http\Controllers\Admin\Frota\CombustivelController::class, 'index'])->name('combustiveis.index');
+                Route::post('combustiveis', [\App\Http\Controllers\Admin\Frota\CombustivelController::class, 'store'])->name('combustiveis.store');
+                Route::put('combustiveis/{combustivel}', [\App\Http\Controllers\Admin\Frota\CombustivelController::class, 'update'])->name('combustiveis.update');
+                Route::delete('combustiveis/{combustivel}', [\App\Http\Controllers\Admin\Frota\CombustivelController::class, 'destroy'])->name('combustiveis.destroy');
+
                 Route::post('veiculos/{veiculo}/ipvas', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeIpva'])
                     ->name('veiculos.ipvas.store');
                 Route::put('ipvas/{ipva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateIpva'])
