@@ -1942,7 +1942,10 @@ function TabSeguros({ veiculo }) {
                 <td className="px-3 py-2 text-right">{fmtMoney(s.valor)}</td>
                 <td className="px-3 py-2">{fmtData(s.carencia_inicial)}</td>
                 <td className="px-3 py-2">{fmtData(s.carencia_final)}</td>
-                <td className="px-3 py-2 text-right space-x-2">
+                <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
+                  {s.tem_arquivo && (
+                    <a href={route('admin.frota.anexos.view', ['seguro', s.id])} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">Apólice</a>
+                  )}
                   <button onClick={() => abrirEdit(s)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
                   <button onClick={() => excluir(s)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                 </td>
@@ -1958,28 +1961,39 @@ function TabSeguros({ veiculo }) {
 
 function ModalSeguro({ veiculo, seguro, onClose, onSaved }) {
   const editando = !!seguro?.id;
-  const { data, setData, post, put, processing, errors } = useForm({
+  const { data, setData, post, processing, errors } = useForm({
     nome_seguradora:  seguro?.nome_seguradora ?? '',
     valor:            seguro?.valor ?? '',
     carencia_inicial: seguro?.carencia_inicial?.substring(0, 10) ?? '',
     carencia_final:   seguro?.carencia_final?.substring(0, 10) ?? '',
+    arquivo:          null,
+    _method:          editando ? 'put' : 'post',
   });
 
-  const done = () => (onSaved ? onSaved() : onClose());
   const submit = (e) => {
     e.preventDefault();
-    if (editando) put(route('admin.frota.seguros.update', seguro.id), { preserveScroll: true, onSuccess: done });
-    else post(route('admin.frota.veiculos.seguros.store', veiculo.id), { preserveScroll: true, onSuccess: done });
+    const url = editando
+      ? route('admin.frota.seguros.update', seguro.id)
+      : route('admin.frota.veiculos.seguros.store', veiculo.id);
+    post(url, { forceFormData: true, preserveScroll: true, onSuccess: () => (onSaved ? onSaved() : onClose()) });
   };
 
   return (
     <ModalShell title={editando ? `Editar seguro #${seguro.id}` : 'Novo seguro'} onClose={onClose}>
-      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-3" encType="multipart/form-data">
         <F label="Seguradora *" name="nome_seguradora" data={data} setData={setData} errors={errors} className="md:col-span-2" />
         <F label="Valor (R$)" name="valor" type="number" step="0.01" data={data} setData={setData} errors={errors} />
         <div></div>
         <F label="Carência inicial" name="carencia_inicial" type="date" data={data} setData={setData} errors={errors} />
         <F label="Carência final" name="carencia_final" type="date" data={data} setData={setData} errors={errors} />
+        <DropFileField
+          label={`Apólice (PDF ou imagem)${editando ? ' — deixe vazio para manter' : ''}`}
+          hint={`Vai para veiculos/${veiculo.id}/seguros/`}
+          onFile={(f) => setData('arquivo', f)}
+          viewHref={editando && seguro.tem_arquivo ? route('admin.frota.anexos.view', ['seguro', seguro.id]) : null}
+          error={errors.arquivo}
+          className="md:col-span-2"
+        />
         <ModalFooter onClose={onClose} processing={processing} editando={editando} />
       </form>
     </ModalShell>

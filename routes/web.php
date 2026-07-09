@@ -648,7 +648,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
 
                 // Stream proxy de anexos das abas (PDF/imagem direto do OneDrive)
                 Route::get('anexos/{tipo}/{id}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewAnexo'])
-                    ->where('tipo', 'manutencao|ipva|doc-legal|doc-tecnico')
+                    ->where('tipo', 'manutencao|ipva|seguro|doc-legal|doc-tecnico')
                     ->name('anexos.view');
 
                 // Caderno Histórico de Manutenção (timeline read-only)

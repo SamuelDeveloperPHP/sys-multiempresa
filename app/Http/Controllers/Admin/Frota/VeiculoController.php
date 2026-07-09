@@ -880,17 +880,25 @@ class VeiculoController extends Controller
     public function storeSeguro(Request $request, Veiculo $veiculo): RedirectResponse
     {
         $data = $this->validarSeguro($request);
+        unset($data['arquivo']); // o arquivo é tratado à parte (upload OneDrive)
         $data['veiculo_id']  = $veiculo->id;
         $data['user_create'] = Auth::user()?->email;
-        VeiculoSeguro::create($data);
+        $seguro = VeiculoSeguro::create($data);
+        if ($request->hasFile('arquivo')) {
+            $seguro->update(['arquivo' => $this->uploadOneDrive($request->file('arquivo'), $veiculo->id, "seguros/{$seguro->id}")]);
+        }
         return back()->with('success', 'Seguro cadastrado.');
     }
 
     public function updateSeguro(Request $request, VeiculoSeguro $seguro): RedirectResponse
     {
         $data = $this->validarSeguro($request);
+        unset($data['arquivo']);
         $data['user_edit'] = Auth::user()?->email;
         $seguro->update($data);
+        if ($request->hasFile('arquivo')) {
+            $seguro->update(['arquivo' => $this->uploadOneDrive($request->file('arquivo'), $seguro->veiculo_id, "seguros/{$seguro->id}")]);
+        }
         return back()->with('success', 'Seguro atualizado.');
     }
 
@@ -968,6 +976,7 @@ class VeiculoController extends Controller
         $registro = match ($tipo) {
             'manutencao'    => VeiculoManutencao::findOrFail($id),
             'ipva'          => VeiculoIpva::findOrFail($id),
+            'seguro'        => VeiculoSeguro::findOrFail($id),
             'doc-legal'     => VeiculoDocLegal::findOrFail($id),
             'doc-tecnico'   => VeiculoDocTecnico::findOrFail($id),
             default         => abort(404),
@@ -1029,6 +1038,8 @@ class VeiculoController extends Controller
             'carencia_inicial' => 'nullable|date',
             'carencia_final'   => 'nullable|date|after_or_equal:carencia_inicial',
             'valor'            => 'nullable|numeric|min:0',
+            // Apólice: PDF ou imagem
+            'arquivo'          => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
     }
 
@@ -1185,6 +1196,7 @@ class VeiculoController extends Controller
             'valor'            => $s->valor,
             'carencia_inicial' => optional($s->carencia_inicial)->toDateString(),
             'carencia_final'   => optional($s->carencia_final)->toDateString(),
+            'tem_arquivo'      => !empty($s->arquivo),
         ]);
         return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
     }

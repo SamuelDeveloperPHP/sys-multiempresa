@@ -15,7 +15,7 @@ class VeiculoSeguro extends Model
 
     protected $fillable = [
         'company_id', 'veiculo_id',
-        'nome_seguradora', 'carencia_inicial', 'carencia_final', 'valor',
+        'nome_seguradora', 'carencia_inicial', 'carencia_final', 'valor', 'arquivo',
         'user_create', 'user_edit',
     ];
 
