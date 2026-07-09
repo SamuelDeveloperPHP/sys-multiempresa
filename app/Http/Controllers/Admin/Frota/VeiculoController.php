@@ -118,49 +118,9 @@ class VeiculoController extends Controller
         // Aba Corretivas: carregada sob demanda pela própria aba
         // (GET paginado + busca por fornecedor/tipo/descrição) — ver listManutencoes.
 
-        // Aba: Seguros
-        $seguros = $veiculo->seguros()
-            ->orderByDesc('carencia_final')
-            ->get();
-
-        // Aba: IPVAs
-        $ipvas = $veiculo->ipvas()
-            ->orderByDesc('referencia_ano')
-            ->get();
-
-        // Abas Docs Legais/Técnicos: carregadas sob demanda pela própria aba
-        // (GET paginado com busca + filtro de obsoletos) — ver listDocs*.
-
-        // Aba: Abastecimentos
-        $abastecimentos = $veiculo->abastecimentos()
-            ->orderByDesc('data_abastecimento')
-            ->limit(200)
-            ->get()
-            ->map(function ($a) use ($veiculo) {
-                if ($veiculo->tipo_hr) {
-                    $inicial = $a->hr_anterior ?? 0;
-                    $final   = $a->hr_atual ?? 0;
-                } else {
-                    $inicial = $a->km_anterior ?? 0;
-                    $final   = $a->km_atual ?? 0;
-                }
-                $percorrido = max(0, $final - $inicial);
-                $qtd        = (float) $a->quantidade;
-                $a->medicao_inicial = $inicial;
-                $a->medicao_final   = $final;
-                $a->percorrido      = $percorrido;
-                $a->custo_por_litro = $qtd > 0 ? ((float) $a->valor_total) / $qtd : 0;
-                $a->custo_por_km    = $percorrido > 0 ? ((float) $a->valor_total) / $percorrido : 0;
-                $a->emissao_carbono = $this->calcularEmissaoCO2($a->combustivel ?? '', $qtd);
-                return $a;
-            });
-
-        // Aba: Hodômetro / Horímetro (uma lista, dependendo do tipo)
-        if ($veiculo->tipo_hr) {
-            $medicoes = $veiculo->horimetros()->orderByDesc('data_horimetro')->limit(200)->get();
-        } else {
-            $medicoes = $veiculo->quilometragens()->orderByDesc('data_quilometragem')->limit(200)->get();
-        }
+        // Abas Seguros / IPVA / Abastecimentos / Medições / Docs: carregadas
+        // sob demanda pelas próprias abas (GET paginado + busca) —
+        // ver listSeguros / listIpvas / listAbastecimentos / listMedicoes / listDocs*.
 
         // Aba: Preventivas (catalogo do veiculo)
         $preventivas = $veiculo->preventivas()->orderBy('nome_preventiva')->get();
@@ -237,10 +197,6 @@ class VeiculoController extends Controller
 
         return Inertia::render('Admin/Frota/Veiculos/Show', [
             'veiculo'                  => $veiculo,
-            'seguros'                  => $seguros,
-            'ipvas'                    => $ipvas,
-            'abastecimentos'           => $abastecimentos,
-            'medicoes'                 => $medicoes,
             'preventivas'              => $preventivas,
             'dashboard_ciclos'         => $dashboardCiclos,
             'servicos_preventiva'      => $servicosPreventiva,
@@ -1130,6 +1086,118 @@ class VeiculoController extends Controller
                 'to'           => $pagina->lastItem(),
             ],
         ]);
+    }
+
+    /** Estrutura padrão de paginação (data + meta) reutilizada pelas abas. */
+    private function metaPaginacao($pagina): array
+    {
+        return [
+            'current_page' => $pagina->currentPage(),
+            'last_page'    => $pagina->lastPage(),
+            'total'        => $pagina->total(),
+            'from'         => $pagina->firstItem(),
+            'to'           => $pagina->lastItem(),
+        ];
+    }
+
+    public function listSeguros(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        $termo = trim((string) $request->query('q', ''));
+        $q = $veiculo->seguros();
+        if ($termo !== '') {
+            $q->where('nome_seguradora', 'like', '%' . $termo . '%');
+        }
+        $pagina = $q->orderByDesc('carencia_final')->orderByDesc('id')->paginate(10)->withQueryString();
+        $pagina->getCollection()->transform(fn ($s) => [
+            'id'               => $s->id,
+            'nome_seguradora'  => $s->nome_seguradora,
+            'valor'            => $s->valor,
+            'carencia_inicial' => optional($s->carencia_inicial)->toDateString(),
+            'carencia_final'   => optional($s->carencia_final)->toDateString(),
+        ]);
+        return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
+    }
+
+    public function listIpvas(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        $termo = trim((string) $request->query('q', ''));
+        $q = $veiculo->ipvas();
+        if ($termo !== '') {
+            $q->where('referencia_ano', 'like', '%' . $termo . '%');
+        }
+        $pagina = $q->orderByDesc('referencia_ano')->orderByDesc('id')->paginate(10)->withQueryString();
+        $pagina->getCollection()->transform(fn ($i) => [
+            'id'                 => $i->id,
+            'referencia_ano'     => $i->referencia_ano,
+            'valor'              => $i->valor,
+            'data_de_pagamento'  => optional($i->data_de_pagamento)->toDateString(),
+            'data_de_vencimento' => optional($i->data_de_vencimento)->toDateString(),
+            'tem_anexo'          => !empty($i->nome_anexo_ipva),
+        ]);
+        return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
+    }
+
+    public function listAbastecimentos(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        $termo = trim((string) $request->query('q', ''));
+        $base = $veiculo->abastecimentos();
+        if ($termo !== '') {
+            $like = '%' . $termo . '%';
+            $base->where(fn ($q) => $q->where('fornecedor', 'like', $like)->orWhere('combustivel', 'like', $like));
+        }
+
+        // Resumo (KPIs) sobre TODO o conjunto filtrado — não só a página
+        $resumo = [
+            'total_litros' => (float) (clone $base)->sum('quantidade'),
+            'total_gasto'  => (float) (clone $base)->sum('valor_total'),
+            'total'        => (clone $base)->count(),
+        ];
+
+        $pagina = $base->orderByDesc('data_abastecimento')->orderByDesc('id')->paginate(10)->withQueryString();
+        $tipoHr = (bool) $veiculo->tipo_hr;
+        $pagina->getCollection()->transform(function ($a) use ($tipoHr) {
+            $inicial = $tipoHr ? ($a->hr_anterior ?? 0) : ($a->km_anterior ?? 0);
+            $final   = $tipoHr ? ($a->hr_atual ?? 0)    : ($a->km_atual ?? 0);
+            $percorrido = max(0, $final - $inicial);
+            $qtd = (float) $a->quantidade;
+            return [
+                'id'              => $a->id,
+                'data_abastecimento' => optional($a->data_abastecimento)->toDateString(),
+                'combustivel'     => $a->combustivel,
+                'fornecedor'      => $a->fornecedor,
+                'medicao_inicial' => $inicial,
+                'medicao_final'   => $final,
+                'percorrido'      => $percorrido,
+                'quantidade'      => $qtd,
+                'valor_total'     => (float) $a->valor_total,
+                'custo_por_litro' => $qtd > 0 ? ((float) $a->valor_total) / $qtd : 0,
+                'custo_por_km'    => $percorrido > 0 ? ((float) $a->valor_total) / $percorrido : 0,
+                'emissao_carbono' => $this->calcularEmissaoCO2($a->combustivel ?? '', $qtd),
+            ];
+        });
+        return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina), 'resumo' => $resumo]);
+    }
+
+    public function listMedicoes(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        $termo = trim((string) $request->query('q', ''));
+        $tipoHr = (bool) $veiculo->tipo_hr;
+        $dataCol = $tipoHr ? 'data_horimetro' : 'data_quilometragem';
+
+        $q = $tipoHr ? $veiculo->horimetros() : $veiculo->quilometragens();
+        if ($termo !== '') {
+            $like = '%' . $termo . '%';
+            $q->where(fn ($sub) => $sub->where($dataCol, 'like', $like)->orWhere('user_create', 'like', $like));
+        }
+        $pagina = $q->orderByDesc($dataCol)->orderByDesc('id')->paginate(10)->withQueryString();
+        $pagina->getCollection()->transform(fn ($m) => [
+            'id'          => $m->id,
+            'data'        => optional($tipoHr ? $m->data_horimetro : $m->data_quilometragem)->toDateString(),
+            'anterior'    => $tipoHr ? $m->horimetro_atual : $m->quilometragem_atual,
+            'novo'        => $tipoHr ? $m->horimetro_novo  : $m->quilometragem_nova,
+            'user_create' => $m->user_create,
+        ]);
+        return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
     }
 
     public function listDocsTecnicos(Veiculo $veiculo, Request $request): JsonResponse

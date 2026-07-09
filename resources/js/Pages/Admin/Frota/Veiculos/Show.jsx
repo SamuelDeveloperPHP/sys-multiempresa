@@ -54,12 +54,71 @@ const TABS = [
   { id: 'medicoes',       label: 'Hodômetro/Horímetro' },
 ];
 
+/* ============================================================
+ * Reutilizáveis das abas: lista paginada do servidor (GET) com
+ * busca as-you-type + paginação. Usado por Corretivas, Seguros,
+ * IPVA, Abastecimentos e Medições (mesmo padrão dos Docs).
+ * ============================================================ */
+function useServerList(routeName, veiculoId) {
+  const [busca, setBusca] = useState('');
+  const [buscaDebounced, setBuscaDebounced] = useState('');
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0, from: 0, to: 0 });
+  const [resumo, setResumo] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setBuscaDebounced(busca); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [busca]);
+
+  const carregar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const url = route(routeName, { veiculo: veiculoId, q: buscaDebounced || undefined, page });
+      const { data } = await window.axios.get(url);
+      setRows(data.data || []);
+      setMeta(data.meta || { current_page: 1, last_page: 1, total: 0, from: 0, to: 0 });
+      setResumo(data.resumo ?? null);
+    } catch (e) {
+      console.error('[useServerList]', routeName, e);
+      setRows([]);
+    } finally { setLoading(false); }
+  }, [routeName, veiculoId, buscaDebounced, page]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  return { rows, meta, resumo, loading, busca, setBusca, buscaDebounced, page, setPage, reload: carregar };
+}
+
+function BuscaField({ value, onChange, placeholder }) {
+  return (
+    <div className="relative">
+      <input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className="pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500 w-56" />
+      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+    </div>
+  );
+}
+
+function Paginacao({ meta, loading, onPage }) {
+  return (
+    <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
+      <span>{meta.total > 0 ? `Mostrando ${meta.from}–${meta.to} de ${meta.total} registro(s)` : '—'}</span>
+      <div className="flex items-center gap-1">
+        <button disabled={meta.current_page <= 1 || loading} onClick={() => onPage(Math.max(1, meta.current_page - 1))}
+          className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50">Anterior</button>
+        <span className="px-2">Página {meta.current_page} de {meta.last_page}</span>
+        <button disabled={meta.current_page >= meta.last_page || loading} onClick={() => onPage(Math.min(meta.last_page, meta.current_page + 1))}
+          className="px-3 py-1 rounded border border-gray-300 disabled:opacity-40 hover:bg-gray-50">Próximo</button>
+      </div>
+    </div>
+  );
+}
+
 export default function VeiculoShow({
   veiculo,
-  seguros = [],
-  ipvas = [],
-  abastecimentos = [],
-  medicoes = [],
   preventivas = [],
   dashboard_ciclos: dashboardCiclos = null,
   servicos_preventiva: servicosPreventiva = [],
@@ -156,10 +215,10 @@ export default function VeiculoShow({
           {tab === 'docs_legais'    && <TabDocs tipo="legais" veiculo={veiculo} />}
           {tab === 'corretivas'     && <TabCorretivas veiculo={veiculo} fornecedores={fornecedores} />}
           {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} historico={servicosPreventiva} veiculo={veiculo} fornecedores={fornecedores} />}
-          {tab === 'seguros'        && <TabSeguros registros={seguros} veiculo={veiculo} />}
-          {tab === 'ipvas'          && <TabIpvas registros={ipvas} veiculo={veiculo} />}
-          {tab === 'abastecimentos' && <TabAbastecimentos veiculo={veiculo} registros={abastecimentos} />}
-          {tab === 'medicoes'       && <TabMedicoes veiculo={veiculo} registros={medicoes} />}
+          {tab === 'seguros'        && <TabSeguros veiculo={veiculo} />}
+          {tab === 'ipvas'          && <TabIpvas veiculo={veiculo} />}
+          {tab === 'abastecimentos' && <TabAbastecimentos veiculo={veiculo} />}
+          {tab === 'medicoes'       && <TabMedicoes veiculo={veiculo} />}
         </div>
       </div>
     </AuthenticatedLayout>
@@ -1607,29 +1666,32 @@ function CicloCard({ ciclo, unidade, medicaoAtual, onCadastrar }) {
 }
 
 /* ============ TAB: Seguros ============ */
-function TabSeguros({ registros, veiculo }) {
+function TabSeguros({ veiculo }) {
   const [editando, setEditando] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage, reload } =
+    useServerList('admin.frota.veiculos.seguros.list', veiculo.id);
 
   const abrirNovo = () => { setEditando(null); setShowForm(true); };
   const abrirEdit = (s) => { setEditando(s); setShowForm(true); };
+  const onSaved = () => { setShowForm(false); reload(); };
   const excluir = (s) => {
     if (!confirm('Remover este seguro?')) return;
-    router.delete(route('admin.frota.seguros.destroy', s.id), { preserveScroll: true });
+    router.delete(route('admin.frota.seguros.destroy', s.id), { preserveScroll: true, onSuccess: reload });
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">Seguros</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">{registros.length} apólices</span>
-          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1 rounded text-sm hover:bg-rise-700">+ Novo seguro</button>
+        <div className="flex items-center gap-2">
+          <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar seguradora…" />
+          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700">+ Novo seguro</button>
         </div>
       </div>
 
       {showForm && (
-        <ModalSeguro veiculo={veiculo} seguro={editando} onClose={() => setShowForm(false)} />
+        <ModalSeguro veiculo={veiculo} seguro={editando} onClose={() => setShowForm(false)} onSaved={onSaved} />
       )}
 
       <div className="overflow-x-auto">
@@ -1645,9 +1707,11 @@ function TabSeguros({ registros, veiculo }) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {registros.length === 0 ? (
-              <tr><td colSpan={6} className="text-center text-gray-500 py-6">Nenhum seguro cadastrado.</td></tr>
-            ) : registros.map((s) => (
+            {loading ? (
+              <tr><td colSpan={6} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={6} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhum seguro cadastrado.'}</td></tr>
+            ) : rows.map((s) => (
               <tr key={s.id} className="hover:bg-gray-50">
                 <td className="px-3 py-2 text-gray-500">#{s.id}</td>
                 <td className="px-3 py-2 font-medium">{s.nome_seguradora || '—'}</td>
@@ -1663,11 +1727,12 @@ function TabSeguros({ registros, veiculo }) {
           </tbody>
         </table>
       </div>
+      <Paginacao meta={meta} loading={loading} onPage={setPage} />
     </div>
   );
 }
 
-function ModalSeguro({ veiculo, seguro, onClose }) {
+function ModalSeguro({ veiculo, seguro, onClose, onSaved }) {
   const editando = !!seguro?.id;
   const { data, setData, post, put, processing, errors } = useForm({
     nome_seguradora:  seguro?.nome_seguradora ?? '',
@@ -1676,10 +1741,11 @@ function ModalSeguro({ veiculo, seguro, onClose }) {
     carencia_final:   seguro?.carencia_final?.substring(0, 10) ?? '',
   });
 
+  const done = () => (onSaved ? onSaved() : onClose());
   const submit = (e) => {
     e.preventDefault();
-    if (editando) put(route('admin.frota.seguros.update', seguro.id), { preserveScroll: true, onSuccess: onClose });
-    else post(route('admin.frota.veiculos.seguros.store', veiculo.id), { preserveScroll: true, onSuccess: onClose });
+    if (editando) put(route('admin.frota.seguros.update', seguro.id), { preserveScroll: true, onSuccess: done });
+    else post(route('admin.frota.veiculos.seguros.store', veiculo.id), { preserveScroll: true, onSuccess: done });
   };
 
   return (
@@ -1697,29 +1763,32 @@ function ModalSeguro({ veiculo, seguro, onClose }) {
 }
 
 /* ============ TAB: IPVAs ============ */
-function TabIpvas({ registros, veiculo }) {
+function TabIpvas({ veiculo }) {
   const [editando, setEditando] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage, reload } =
+    useServerList('admin.frota.veiculos.ipvas.list', veiculo.id);
 
   const abrirNovo = () => { setEditando(null); setShowForm(true); };
   const abrirEdit = (i) => { setEditando(i); setShowForm(true); };
+  const onSaved = () => { setShowForm(false); reload(); };
   const excluir = (i) => {
     if (!confirm('Remover este IPVA?')) return;
-    router.delete(route('admin.frota.ipvas.destroy', i.id), { preserveScroll: true });
+    router.delete(route('admin.frota.ipvas.destroy', i.id), { preserveScroll: true, onSuccess: reload });
   };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">IPVAs</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">{registros.length} anos</span>
-          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1 rounded text-sm hover:bg-rise-700">+ Novo IPVA</button>
+        <div className="flex items-center gap-2">
+          <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar ano…" />
+          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700">+ Novo IPVA</button>
         </div>
       </div>
 
       {showForm && (
-        <ModalIpva veiculo={veiculo} ipva={editando} onClose={() => setShowForm(false)} />
+        <ModalIpva veiculo={veiculo} ipva={editando} onClose={() => setShowForm(false)} onSaved={onSaved} />
       )}
 
       <div className="overflow-x-auto">
@@ -1736,9 +1805,11 @@ function TabIpvas({ registros, veiculo }) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {registros.length === 0 ? (
-              <tr><td colSpan={7} className="text-center text-gray-500 py-6">Nenhum IPVA cadastrado.</td></tr>
-            ) : registros.map((i) => (
+            {loading ? (
+              <tr><td colSpan={7} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={7} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhum IPVA cadastrado.'}</td></tr>
+            ) : rows.map((i) => (
               <tr key={i.id} className="hover:bg-gray-50">
                 <td className="px-3 py-2 text-gray-500">#{i.id}</td>
                 <td className="px-3 py-2 font-medium">{i.referencia_ano || '—'}</td>
@@ -1746,7 +1817,7 @@ function TabIpvas({ registros, veiculo }) {
                 <td className="px-3 py-2">{fmtData(i.data_de_pagamento)}</td>
                 <td className="px-3 py-2">{fmtData(i.data_de_vencimento)}</td>
                 <td className="px-3 py-2 text-xs">
-                  {i.nome_anexo_ipva
+                  {i.tem_anexo
                     ? <a href={route('admin.frota.anexos.view', ['ipva', i.id])} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Abrir</a>
                     : '—'}
                 </td>
@@ -1759,11 +1830,12 @@ function TabIpvas({ registros, veiculo }) {
           </tbody>
         </table>
       </div>
+      <Paginacao meta={meta} loading={loading} onPage={setPage} />
     </div>
   );
 }
 
-function ModalIpva({ veiculo, ipva, onClose }) {
+function ModalIpva({ veiculo, ipva, onClose, onSaved }) {
   const editando = !!ipva?.id;
   const { data, setData, post, processing, errors } = useForm({
     referencia_ano:     ipva?.referencia_ano ?? new Date().getFullYear().toString(),
@@ -1779,7 +1851,7 @@ function ModalIpva({ veiculo, ipva, onClose }) {
     const url = editando
       ? route('admin.frota.ipvas.update', ipva.id)
       : route('admin.frota.veiculos.ipvas.store', veiculo.id);
-    post(url, { forceFormData: true, preserveScroll: true, onSuccess: onClose });
+    post(url, { forceFormData: true, preserveScroll: true, onSuccess: () => (onSaved ? onSaved() : onClose()) });
   };
 
   return (
@@ -1797,21 +1869,23 @@ function ModalIpva({ veiculo, ipva, onClose }) {
 }
 
 /* ============ TAB: Abastecimentos ============ */
-function TabAbastecimentos({ veiculo, registros }) {
-  const totalLitros = registros.reduce((acc, a) => acc + Number(a.quantidade || 0), 0);
-  const totalGasto  = registros.reduce((acc, a) => acc + Number(a.valor_total || 0), 0);
+function TabAbastecimentos({ veiculo }) {
+  const { rows, meta, resumo, loading, busca, setBusca, buscaDebounced, setPage } =
+    useServerList('admin.frota.veiculos.abastecimentos.list', veiculo.id);
+  const unidade = veiculo.tipo_hr ? 'hr' : 'km';
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">Histórico de abastecimentos</h2>
-        <span className="text-sm text-gray-500">{registros.length} registros</span>
+        <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar fornecedor / combustível…" />
       </div>
 
+      {/* KPIs sobre TODO o histórico (não só a página atual) */}
       <div className="grid grid-cols-3 gap-4 mb-4">
-        <Kpi label="Total de litros" value={fmtNum(totalLitros, 2)} />
-        <Kpi label="Total gasto" value={fmtMoney(totalGasto)} />
-        <Kpi label="# Abastecimentos" value={registros.length} />
+        <Kpi label="Total de litros" value={fmtNum(resumo?.total_litros ?? 0, 2)} />
+        <Kpi label="Total gasto" value={fmtMoney(resumo?.total_gasto ?? 0)} />
+        <Kpi label="# Abastecimentos" value={resumo?.total ?? 0} />
       </div>
 
       <div className="overflow-x-auto">
@@ -1821,6 +1895,7 @@ function TabAbastecimentos({ veiculo, registros }) {
               <th className="px-3 py-2 w-16">ID</th>
               <th className="px-3 py-2">Data</th>
               <th className="px-3 py-2">Combustível</th>
+              <th className="px-3 py-2">Fornecedor</th>
               <th className="px-3 py-2 text-right">{veiculo.tipo_hr ? 'Hr ant.' : 'Km ant.'}</th>
               <th className="px-3 py-2 text-right">{veiculo.tipo_hr ? 'Hr atual' : 'Km atual'}</th>
               <th className="px-3 py-2 text-right">{veiculo.tipo_hr ? 'Trab.' : 'Percorr.'}</th>
@@ -1832,16 +1907,19 @@ function TabAbastecimentos({ veiculo, registros }) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {registros.length === 0 ? (
-              <tr><td colSpan={11} className="text-center text-gray-500 py-6">Nenhum abastecimento.</td></tr>
-            ) : registros.map((a) => (
+            {loading ? (
+              <tr><td colSpan={12} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={12} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhum abastecimento.'}</td></tr>
+            ) : rows.map((a) => (
               <tr key={a.id} className="hover:bg-gray-50">
                 <td className="px-3 py-2 text-gray-500">#{a.id}</td>
                 <td className="px-3 py-2">{fmtData(a.data_abastecimento)}</td>
                 <td className="px-3 py-2 uppercase text-xs">{a.combustivel || '—'}</td>
+                <td className="px-3 py-2 text-xs">{a.fornecedor || '—'}</td>
                 <td className="px-3 py-2 text-right">{fmtNum(a.medicao_inicial)}</td>
                 <td className="px-3 py-2 text-right">{fmtNum(a.medicao_final)}</td>
-                <td className="px-3 py-2 text-right font-medium">{fmtNum(a.percorrido)} {veiculo.tipo_hr ? 'hr' : 'km'}</td>
+                <td className="px-3 py-2 text-right font-medium">{fmtNum(a.percorrido)} {unidade}</td>
                 <td className="px-3 py-2 text-right">{fmtNum(a.quantidade, 2)} L</td>
                 <td className="px-3 py-2 text-right">{fmtMoney(a.custo_por_litro)}</td>
                 <td className="px-3 py-2 text-right">{fmtMoney(a.custo_por_km)}</td>
@@ -1852,18 +1930,21 @@ function TabAbastecimentos({ veiculo, registros }) {
           </tbody>
         </table>
       </div>
+      <Paginacao meta={meta} loading={loading} onPage={setPage} />
     </div>
   );
 }
 
 /* ============ TAB: Medições (hodômetro/horímetro) ============ */
-function TabMedicoes({ veiculo, registros }) {
+function TabMedicoes({ veiculo }) {
+  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage } =
+    useServerList('admin.frota.veiculos.medicoes.list', veiculo.id);
   const unidade = veiculo.tipo_hr ? 'hr' : 'km';
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">{veiculo.tipo_hr ? 'Horímetros' : 'Hodômetros'}</h2>
-        <span className="text-sm text-gray-500">{registros.length} registros</span>
+        <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar data / responsável…" />
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -1878,19 +1959,18 @@ function TabMedicoes({ veiculo, registros }) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {registros.length === 0 ? (
-              <tr><td colSpan={6} className="text-center text-gray-500 py-6">Sem medições.</td></tr>
-            ) : registros.map((m) => {
-              const ant = veiculo.tipo_hr ? m.horimetro_atual : m.quilometragem_atual;
-              const novo = veiculo.tipo_hr ? m.horimetro_novo : m.quilometragem_nova;
-              const data = veiculo.tipo_hr ? m.data_horimetro : m.data_quilometragem;
-              const delta = (ant != null && novo != null) ? (novo - ant) : null;
+            {loading ? (
+              <tr><td colSpan={6} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={6} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Sem medições.'}</td></tr>
+            ) : rows.map((m) => {
+              const delta = (m.anterior != null && m.novo != null) ? (m.novo - m.anterior) : null;
               return (
                 <tr key={m.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 text-gray-500">#{m.id}</td>
-                  <td className="px-3 py-2">{fmtData(data)}</td>
-                  <td className="px-3 py-2 text-right">{fmtNum(ant)} {unidade}</td>
-                  <td className="px-3 py-2 text-right font-semibold">{fmtNum(novo)} {unidade}</td>
+                  <td className="px-3 py-2">{fmtData(m.data)}</td>
+                  <td className="px-3 py-2 text-right">{fmtNum(m.anterior)} {unidade}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{fmtNum(m.novo)} {unidade}</td>
                   <td className="px-3 py-2 text-right text-rise-700">{delta != null ? `+${fmtNum(delta)} ${unidade}` : '—'}</td>
                   <td className="px-3 py-2 text-xs text-gray-500">{m.user_create || '—'}</td>
                 </tr>
@@ -1899,6 +1979,7 @@ function TabMedicoes({ veiculo, registros }) {
           </tbody>
         </table>
       </div>
+      <Paginacao meta={meta} loading={loading} onPage={setPage} />
     </div>
   );
 }

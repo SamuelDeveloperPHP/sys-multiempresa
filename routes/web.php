@@ -597,6 +597,16 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::delete('manutencoes/{manutencao}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyManutencao'])
                     ->name('manutencoes.destroy');
 
+                // Listagens paginadas (GET JSON, busca as-you-type) das abas do veículo
+                Route::get('veiculos/{veiculo}/seguros/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listSeguros'])
+                    ->name('veiculos.seguros.list');
+                Route::get('veiculos/{veiculo}/ipvas/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listIpvas'])
+                    ->name('veiculos.ipvas.list');
+                Route::get('veiculos/{veiculo}/abastecimentos/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listAbastecimentos'])
+                    ->name('veiculos.abastecimentos.list');
+                Route::get('veiculos/{veiculo}/medicoes/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listMedicoes'])
+                    ->name('veiculos.medicoes.list');
+
                 Route::post('veiculos/{veiculo}/ipvas', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeIpva'])
                     ->name('veiculos.ipvas.store');
                 Route::put('ipvas/{ipva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateIpva'])
