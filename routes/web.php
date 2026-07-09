@@ -601,6 +601,9 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('os-preventiva.status');
                 Route::delete('os-preventiva/{osPreventiva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyOsPreventiva'])
                     ->name('os-preventiva.destroy');
+                // Stream do PDF de uma nota fiscal específica da OS preventiva (inline)
+                Route::get('os-preventiva/{osPreventiva}/notas/{idx}/arquivo', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewNotaArquivoPreventiva'])
+                    ->where('idx', '[0-9]+')->name('os-preventiva.nota-arquivo');
 
                 // CRUDs aninhados das abas Show
                 Route::get('veiculos/{veiculo}/manutencoes/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listManutencoes'])

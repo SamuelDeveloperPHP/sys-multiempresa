@@ -18,7 +18,7 @@ class VeiculoPreventivaItemRealizada extends Model
     protected $fillable = [
         'company_id', 'id_veiculo', 'fornecedor_id', 'id_obra',
         'id_preventiva', 'id_motorista', 'tipo',
-        'nf_pecas', 'nf_mao_obra',
+        'nf_pecas', 'nf_mao_obra', 'notas_fiscais',
         'valor_do_servico', 'valor_da_mao_obra', 'total_valor_servico',
         'quilometragem_atual', 'quilometragem_nova', 'campo_calc_km',
         'horimetro_atual', 'horimetro_proximo', 'campo_cal_hr',
@@ -29,6 +29,7 @@ class VeiculoPreventivaItemRealizada extends Model
     ];
 
     protected $casts = [
+        'notas_fiscais' => 'array',
         'data_de_execucao' => 'date',
         'data_previsao_termino' => 'date',
         'data_conclusao' => 'date',

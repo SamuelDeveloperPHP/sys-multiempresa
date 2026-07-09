@@ -663,8 +663,8 @@ class VeiculoController extends Controller
             ->where('periodo_maq_vei', $periodo)
             ->value('id_preventiva');
 
-        $valorPecas = (float) ($data['valor_do_servico'] ?? 0);
-        $valorMO    = (float) ($data['valor_da_mao_obra'] ?? 0);
+        // Notas fiscais (lista repetível, igual à corretiva): total → total_valor_servico.
+        [$notasFiscais, $totalNotas] = $this->prepararNotasFiscais($request, $veiculo->id, 'preventivas/notas');
         $situacao   = (string) $data['situacao'];
         $dataConclusao = $data['data_conclusao'] ?? null;
         if ($situacao === '3' && ! $dataConclusao) {
@@ -673,7 +673,7 @@ class VeiculoController extends Controller
 
         $registro = \Illuminate\Support\Facades\DB::transaction(function () use (
             $veiculo, $data, $tipoHr, $medicaoAtual, $periodo, $idPreventiva,
-            $valorPecas, $valorMO, $situacao, $dataConclusao
+            $notasFiscais, $totalNotas, $situacao, $dataConclusao
         ) {
             $os = VeiculoPreventivaItemRealizada::create([
                 'id_veiculo'          => $veiculo->id,
@@ -682,11 +682,8 @@ class VeiculoController extends Controller
                 'fornecedor_id'       => $data['fornecedor_id'] ?? null,
                 'id_motorista'        => $data['id_motorista'] ?? null,
                 'tipo'                => $data['tipo'] ?? null,
-                'nf_pecas'            => $data['nf_pecas'] ?? null,
-                'nf_mao_obra'         => $data['nf_mao_obra'] ?? null,
-                'valor_do_servico'    => $valorPecas,
-                'valor_da_mao_obra'   => $valorMO,
-                'total_valor_servico' => $valorPecas + $valorMO,
+                'notas_fiscais'       => $notasFiscais,
+                'total_valor_servico' => $totalNotas,
                 'quilometragem_atual' => $tipoHr ? null : $medicaoAtual,
                 'quilometragem_nova'  => $tipoHr ? null : ($data['medicao_proxima'] ?? null),
                 'campo_calc_km'       => $tipoHr ? null : $periodo,
@@ -750,10 +747,13 @@ class VeiculoController extends Controller
             'id_motorista'        => $osPreventiva->id_motorista,
             'tipo'                => $osPreventiva->tipo,
             'status_realizado'    => $osPreventiva->status_realizado,
-            'nf_pecas'            => $osPreventiva->nf_pecas,
-            'nf_mao_obra'         => $osPreventiva->nf_mao_obra,
-            'valor_do_servico'    => $osPreventiva->valor_do_servico,
-            'valor_da_mao_obra'   => $osPreventiva->valor_da_mao_obra,
+            'notas_fiscais'       => array_values(array_map(fn ($n, $i) => [
+                'numero'  => $n['numero'] ?? null,
+                'data'    => $n['data'] ?? null,
+                'valor'   => $n['valor'] ?? null,
+                'arquivo' => $n['arquivo'] ?? null,
+                'idx'     => $i,
+            ], $osPreventiva->notas_fiscais ?? [], array_keys($osPreventiva->notas_fiscais ?? []))),
             'total_valor_servico' => $osPreventiva->total_valor_servico,
             'quilometragem_atual' => $osPreventiva->quilometragem_atual,
             'quilometragem_nova'  => $osPreventiva->quilometragem_nova,
@@ -787,8 +787,9 @@ class VeiculoController extends Controller
     {
         $data = $this->validarOsPreventiva($request, true);
 
-        $valorPecas = (float) ($data['valor_do_servico'] ?? 0);
-        $valorMO    = (float) ($data['valor_da_mao_obra'] ?? 0);
+        // Notas fiscais (lista repetível): total → total_valor_servico. A correlação
+        // do PDF novo é por posição, então preserva os PDFs já enviados das linhas.
+        [$notasFiscais, $totalNotas] = $this->prepararNotasFiscais($request, $osPreventiva->id_veiculo, 'preventivas/notas');
         $situacao   = (string) $data['situacao'];
         $dataConclusao = $data['data_conclusao'] ?? null;
         if ($situacao === '3' && ! $dataConclusao) {
@@ -801,17 +802,14 @@ class VeiculoController extends Controller
         $medProx = array_key_exists('medicao_proxima', $data) && $data['medicao_proxima'] !== null
             ? (int) $data['medicao_proxima'] : null;
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $osPreventiva, $data, $valorPecas, $valorMO, $situacao, $dataConclusao, $tipoHr, $medProx) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($request, $osPreventiva, $data, $notasFiscais, $totalNotas, $situacao, $dataConclusao, $tipoHr, $medProx) {
             $osPreventiva->update([
                 'id_obra'             => $data['id_obra'] ?? null,
                 'fornecedor_id'       => $data['fornecedor_id'] ?? null,
                 'id_motorista'        => $data['id_motorista'] ?? null,
                 'tipo'                => $data['tipo'] ?? null,
-                'nf_pecas'            => $data['nf_pecas'] ?? null,
-                'nf_mao_obra'         => $data['nf_mao_obra'] ?? null,
-                'valor_do_servico'    => $valorPecas,
-                'valor_da_mao_obra'   => $valorMO,
-                'total_valor_servico' => $valorPecas + $valorMO,
+                'notas_fiscais'       => $notasFiscais,
+                'total_valor_servico' => $totalNotas,
                 'horimetro_proximo'   => $tipoHr && $medProx !== null ? $medProx : $osPreventiva->horimetro_proximo,
                 'quilometragem_nova'  => ! $tipoHr && $medProx !== null ? $medProx : $osPreventiva->quilometragem_nova,
                 'campo_cal_mes'       => $data['campo_cal_mes'] ?? null,
@@ -932,10 +930,15 @@ class VeiculoController extends Controller
             'data_de_execucao'   => 'required|date',
             'data_conclusao'     => 'nullable|date',
             'data_de_vencimento' => 'nullable|date',
-            'nf_pecas'           => 'nullable|string|max:60',
-            'nf_mao_obra'        => 'nullable|string|max:60',
-            'valor_do_servico'   => 'nullable|numeric|min:0',
-            'valor_da_mao_obra'  => 'nullable|numeric|min:0',
+            // Notas fiscais (lista repetível, igual à corretiva). O PDF novo de
+            // cada linha viaja em notas_fiscais.{i}.arquivo_novo (correlação por
+            // posição); arquivo = path do PDF já enviado.
+            'notas_fiscais'                => 'nullable|array|max:50',
+            'notas_fiscais.*.numero'       => 'nullable|string|max:60',
+            'notas_fiscais.*.data'         => 'nullable|date',
+            'notas_fiscais.*.valor'        => 'nullable|numeric|min:0|max:99999999.99',
+            'notas_fiscais.*.arquivo'      => 'nullable|string|max:255',
+            'notas_fiscais.*.arquivo_novo' => 'nullable|file|mimetypes:application/pdf|mimes:pdf|max:10240',
             'descricao'          => 'nullable|string',
             // Anexo (NF/comprovante): PDF ou imagem — nunca tipo arbitrário
             // (upload irrestrito -> XSS armazenado ao servir inline via viewAnexo).
@@ -1071,7 +1074,7 @@ class VeiculoController extends Controller
      * linhas vazias e devolve [notas_limpas, total]. O total vai para
      * valor_do_servico (mantém os gráficos de custo).
      */
-    private function prepararNotasFiscais(Request $request, int $veiculoId): array
+    private function prepararNotasFiscais(Request $request, int $veiculoId, string $subpasta = 'manutencoes/notas'): array
     {
         $entrada = (array) $request->input('notas_fiscais', []);
         $limpas = [];
@@ -1082,7 +1085,7 @@ class VeiculoController extends Controller
 
             $novo = $request->file("notas_fiscais.$idx.arquivo_novo");
             if ($novo) {
-                $arquivo = $this->uploadOneDrive($novo, $veiculoId, 'manutencoes/notas');
+                $arquivo = $this->uploadOneDrive($novo, $veiculoId, $subpasta);
             }
 
             // Linha vazia (sem número, valor nem arquivo) é descartada
@@ -1132,6 +1135,15 @@ class VeiculoController extends Controller
     public function viewNotaArquivo(VeiculoManutencao $manutencao, int $idx)
     {
         $nota = ($manutencao->notas_fiscais ?? [])[$idx] ?? null;
+        abort_if(empty($nota['arquivo']), 404, 'Nota fiscal sem arquivo.');
+        return $this->streamArquivoOneDrive($nota['arquivo']);
+    }
+
+    /** Stream do PDF de uma nota fiscal específica da OS preventiva.
+     *  A OS já vem company-scoped pelo Tenantable (route binding). */
+    public function viewNotaArquivoPreventiva(VeiculoPreventivaItemRealizada $osPreventiva, int $idx)
+    {
+        $nota = ($osPreventiva->notas_fiscais ?? [])[$idx] ?? null;
         abort_if(empty($nota['arquivo']), 404, 'Nota fiscal sem arquivo.');
         return $this->streamArquivoOneDrive($nota['arquivo']);
     }

@@ -2399,10 +2399,8 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
     data_de_execucao: hoje,
     data_conclusao: '',
     data_de_vencimento: '',
-    nf_pecas: '',
-    nf_mao_obra: '',
-    valor_do_servico: '',
-    valor_da_mao_obra: '',
+    // Notas fiscais como lista repetível (igual à corretiva).
+    notas_fiscais: [{ numero: '', data: '', valor: '', arquivo: null, arquivo_novo: null }],
     descricao: '',
     anexo: null,
   });
@@ -2450,10 +2448,9 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
             data_de_execucao: os.data_de_execucao ?? hoje,
             data_conclusao: os.data_conclusao ?? '',
             data_de_vencimento: os.data_de_vencimento ?? '',
-            nf_pecas: os.nf_pecas ?? '',
-            nf_mao_obra: os.nf_mao_obra ?? '',
-            valor_do_servico: os.valor_do_servico ?? '',
-            valor_da_mao_obra: os.valor_da_mao_obra ?? '',
+            notas_fiscais: (os.notas_fiscais?.length
+              ? os.notas_fiscais.map((n) => ({ numero: n.numero ?? '', data: (n.data ?? '').substring(0, 10), valor: n.valor ?? '', arquivo: n.arquivo ?? null, arquivo_novo: null }))
+              : [{ numero: '', data: '', valor: '', arquivo: null, arquivo_novo: null }]),
             descricao: os.descricao ?? '',
           }));
         }
@@ -2484,8 +2481,19 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
   const setItem = (key, patch) =>
     setItensState((s) => ({ ...s, [key]: { ...(s[key] || { status: 'sim', observacao: '' }), ...patch } }));
 
-  const total = (Number(data.valor_do_servico || 0) + Number(data.valor_da_mao_obra || 0))
-    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  // Autocompletes (id + rótulo) e notas fiscais repetíveis — mesmo padrão da corretiva.
+  const optFornecedores = useMemo(() => fornecedores.map((f) => ({ id: f.id, label: f.nome_fantasia })), [fornecedores]);
+  const optObras = useMemo(() => obras.map((o) => ({ id: o.id, label: `${o.code ? o.code + ' — ' : ''}${o.nome_fantasia}` })), [obras]);
+  const optFuncionarios = useMemo(() => funcionarios.map((u) => ({ id: u.id, label: u.nome })), [funcionarios]);
+
+  const linhaNfVazia = { numero: '', data: '', valor: '', arquivo: null, arquivo_novo: null };
+  const addNota = () => setData('notas_fiscais', [...(data.notas_fiscais || []), { ...linhaNfVazia }]);
+  const removeNota = (idx) => setData('notas_fiscais',
+    (data.notas_fiscais || []).length > 1 ? data.notas_fiscais.filter((_, i) => i !== idx) : data.notas_fiscais);
+  const setNota = (idx, campo, valor) => setData('notas_fiscais',
+    (data.notas_fiscais || []).map((n, i) => (i === idx ? { ...n, [campo]: valor } : n)));
+
+  const totalNotas = (data.notas_fiscais || []).reduce((acc, n) => acc + (Number(n.valor) || 0), 0);
 
   const submit = (e) => {
     e.preventDefault();
@@ -2505,7 +2513,6 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
     post(url, { forceFormData: true, preserveScroll: true, onSuccess: () => { onSaved?.(); onClose(); } });
   };
 
-  const optObra = (o) => `${o.code ? o.code + '- ' : ''}${o.nome_fantasia}`;
   const titulo = mode === 'edit'
     ? `Editar OS Preventiva #${osId}`
     : `Cadastrar OS Preventiva — Ciclo ${Number(ciclo?.periodo ?? 0).toLocaleString('pt-BR')} ${unidade}`;
@@ -2530,26 +2537,17 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className={osLbl}>Obra *</label>
-                  <select value={data.id_obra} onChange={(e) => setData('id_obra', e.target.value)} className={osInp}>
-                    <option value="">— selecione —</option>
-                    {obras.map((o) => <option key={o.id} value={o.id}>{optObra(o)}</option>)}
-                  </select>
+                  <AutocompleteSelect value={data.id_obra} onChange={(v) => setData('id_obra', v)} options={optObras} placeholder="Buscar obra…" />
                   {errors.id_obra && <p className="text-red-600 text-xs mt-0.5">{errors.id_obra}</p>}
                 </div>
                 <div className="col-span-2">
                   <label className={osLbl}>Fornecedor</label>
-                  <select value={data.fornecedor_id} onChange={(e) => setData('fornecedor_id', e.target.value)} className={osInp}>
-                    <option value="">— selecione —</option>
-                    {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome_fantasia}</option>)}
-                  </select>
+                  <AutocompleteSelect value={data.fornecedor_id} onChange={(v) => setData('fornecedor_id', v)} options={optFornecedores} placeholder="Buscar fornecedor…" />
                   {errors.fornecedor_id && <p className="text-red-600 text-xs mt-0.5">{errors.fornecedor_id}</p>}
                 </div>
                 <div className="col-span-2">
                   <label className={osLbl}>Motorista do veículo</label>
-                  <select value={data.id_motorista} onChange={(e) => setData('id_motorista', e.target.value)} className={osInp}>
-                    <option value="">— selecione —</option>
-                    {funcionarios.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                  </select>
+                  <AutocompleteSelect value={data.id_motorista} onChange={(v) => setData('id_motorista', v)} options={optFuncionarios} placeholder="Buscar responsável…" />
                 </div>
                 <div className="col-span-2 bg-rise-50/60 border border-rise-200 rounded p-2">
                   <label className={osLbl}>Situação da Manutenção *</label>
@@ -2587,27 +2585,6 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
                 <div>
                   <label className={osLbl}>Data próx. revisão</label>
                   <input type="date" value={data.data_de_vencimento} onChange={(e) => setData('data_de_vencimento', e.target.value)} className={osInp} />
-                </div>
-
-                <div>
-                  <label className={osLbl}>NF peças</label>
-                  <input type="text" value={data.nf_pecas} onChange={(e) => setData('nf_pecas', e.target.value)} className={osInp} />
-                </div>
-                <div>
-                  <label className={osLbl}>Valor das peças</label>
-                  <input type="number" step="0.01" value={data.valor_do_servico} onChange={(e) => setData('valor_do_servico', e.target.value)} className={osInp} />
-                </div>
-                <div>
-                  <label className={osLbl}>NF mão de obra</label>
-                  <input type="text" value={data.nf_mao_obra} onChange={(e) => setData('nf_mao_obra', e.target.value)} className={osInp} />
-                </div>
-                <div>
-                  <label className={osLbl}>Valor da mão de obra</label>
-                  <input type="number" step="0.01" value={data.valor_da_mao_obra} onChange={(e) => setData('valor_da_mao_obra', e.target.value)} className={osInp} />
-                </div>
-                <div className="col-span-2">
-                  <label className={osLbl}>Valor total Serviços/ peças</label>
-                  <p className="border border-gray-200 rounded px-2 py-1.5 bg-gray-50 font-bold text-sm">{total}</p>
                 </div>
 
                 <div className="col-span-2">
@@ -2696,6 +2673,61 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
               ))}
             </div>
 
+            {/* ===== Notas fiscais — lista repetível com Adicionar/Remover + total ===== */}
+            <div className="lg:col-span-5 border-t px-6 py-4">
+              <div className="flex items-center justify-between border-b border-gray-200 pb-1 mb-3">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-rise-700">Notas fiscais</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={addNota}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#557bbb] text-white hover:bg-[#3a5a8c]">
+                    <i className="fa-solid fa-plus mr-1" /> Adicionar NF
+                  </button>
+                  <button type="button" onClick={() => removeNota(data.notas_fiscais.length - 1)}
+                    disabled={data.notas_fiscais.length <= 1}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-40">
+                    <i className="fa-solid fa-minus mr-1" /> Remover NF
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {data.notas_fiscais.map((n, idx) => (
+                  <div key={idx} className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr_0.9fr_1.3fr_auto] gap-2 items-end">
+                    <div>
+                      {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Núm. NF / NFSE</label>}
+                      <input value={n.numero} onChange={(e) => setNota(idx, 'numero', e.target.value)} className={inputCls} />
+                    </div>
+                    <div>
+                      {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Data NF</label>}
+                      <input type="date" value={n.data} onChange={(e) => setNota(idx, 'data', e.target.value)} className={inputCls} />
+                    </div>
+                    <div>
+                      {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Valor (R$)</label>}
+                      <input type="number" step="0.01" min="0" value={n.valor} onChange={(e) => setNota(idx, 'valor', e.target.value)} className={inputCls} />
+                    </div>
+                    <div>
+                      {idx === 0 && <label className="block text-[11px] font-semibold text-gray-600 mb-1">Arquivo PDF</label>}
+                      <DropFileField compact pdfOnly
+                        onFile={(f) => setNota(idx, 'arquivo_novo', f)}
+                        viewHref={mode === 'edit' && n.arquivo ? route('admin.frota.os-preventiva.nota-arquivo', [osId, idx]) : null} />
+                    </div>
+                    <button type="button" onClick={() => removeNota(idx)} disabled={data.notas_fiscais.length <= 1}
+                      title="Remover esta NF"
+                      className="h-[38px] w-9 flex items-center justify-center rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-30">
+                      <i className="fa-solid fa-trash-can" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end mt-3">
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase text-gray-500">Total das Notas Fiscais</p>
+                  <div className="mt-1 px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold">{fmtMoney(totalNotas)}</div>
+                </div>
+              </div>
+            </div>
+
             {/* ===== Rodapé ===== */}
             <div className="lg:col-span-5 flex justify-end gap-2 border-t px-6 py-3">
               <button type="button" onClick={onClose} className="px-4 py-2 border rounded hover:bg-gray-50 text-sm">Cancelar</button>
@@ -2746,12 +2778,35 @@ function ModalVerOs({ osId, unidade = 'km', tipoHr = false, onClose }) {
               <Info label="Execução" value={fmtData(os.data_de_execucao)} />
               <Info label="Conclusão" value={fmtData(os.data_conclusao)} />
               <Info label="Próx. revisão" value={fmtData(os.data_de_vencimento)} />
-              <Info label="NF peças" value={os.nf_pecas ?? '—'} />
-              <Info label="NF mão de obra" value={os.nf_mao_obra ?? '—'} />
-              <Info label="Valor peças" value={fmtMoney(os.valor_do_servico)} />
-              <Info label="Valor mão de obra" value={fmtMoney(os.valor_da_mao_obra)} />
-              <Info label="Total" value={fmtMoney(os.total_valor_servico)} />
+              <Info label="Total das NFs" value={fmtMoney(os.total_valor_servico)} />
             </div>
+
+            {(os.notas_fiscais || []).length > 0 && (
+              <div>
+                <p className="text-xs uppercase text-gray-500 mb-1">Notas fiscais</p>
+                <div className="border rounded overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-left text-xs text-gray-500">
+                      <tr><th className="px-3 py-1.5">Núm. NF / NFSE</th><th className="px-3 py-1.5 w-28">Data</th><th className="px-3 py-1.5 w-32 text-right">Valor</th><th className="px-3 py-1.5 w-24">PDF</th></tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {os.notas_fiscais.map((n, i) => (
+                        <tr key={i}>
+                          <td className="px-3 py-2 font-medium text-gray-800">{n.numero || '—'}</td>
+                          <td className="px-3 py-2">{fmtData(n.data)}</td>
+                          <td className="px-3 py-2 text-right">{fmtMoney(n.valor)}</td>
+                          <td className="px-3 py-2">
+                            {n.arquivo
+                              ? <a href={route('admin.frota.os-preventiva.nota-arquivo', [os.id, n.idx ?? i])} target="_blank" rel="noreferrer" className="text-purple-700 hover:underline">📎 ver</a>
+                              : <span className="text-gray-400">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {os.descricao && (
               <div>
