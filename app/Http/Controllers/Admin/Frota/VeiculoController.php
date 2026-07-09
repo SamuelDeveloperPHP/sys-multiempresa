@@ -139,12 +139,8 @@ class VeiculoController extends Controller
         // ---- DASHBOARD DE CICLOS ----
         $dashboardCiclos = app(CalculadorCiclosPreventiva::class)->montar($veiculo);
 
-        // Historico de OS preventivas (servicos_preventiva no legado)
-        $servicosPreventiva = $veiculo->preventivasRealizadas()
-            ->with(['motorista:id,nome', 'preventiva:id,nome_preventiva'])
-            ->orderByDesc('data_de_execucao')
-            ->limit(200)
-            ->get();
+        // Histórico de OS preventivas: carregado sob demanda pela aba
+        // (GET paginado + busca) — ver listServicosPreventiva.
 
         /* =========================================================
          * KPI Medição (porta `$maiorValor` do legacy detalhes.blade)
@@ -205,7 +201,6 @@ class VeiculoController extends Controller
             'veiculo'                  => $veiculo,
             'preventivas'              => $preventivas,
             'dashboard_ciclos'         => $dashboardCiclos,
-            'servicos_preventiva'      => $servicosPreventiva,
             'fornecedores'             => $fornecedores,
             'obras'                    => $obras,
             'funcionarios'             => $funcionarios,
@@ -1280,6 +1275,46 @@ class VeiculoController extends Controller
             'novo'        => $tipoHr ? $m->horimetro_novo  : $m->quilometragem_nova,
             'user_create' => $m->user_create,
         ]);
+        return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
+    }
+
+    /** Histórico paginado de OS preventivas executadas (busca por responsável,
+     *  plano de preventiva ou status). */
+    public function listServicosPreventiva(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        $termo = trim((string) $request->query('q', ''));
+        $q = $veiculo->preventivasRealizadas()
+            ->with(['motorista:id,nome', 'preventiva:id,nome_preventiva']);
+
+        if ($termo !== '') {
+            $like = '%' . $termo . '%';
+            $q->where(function ($sub) use ($like) {
+                $sub->where('status_realizado', 'like', $like)
+                    ->orWhereHas('motorista', fn ($m) => $m->where('nome', 'like', $like))
+                    ->orWhereHas('preventiva', fn ($p) => $p->where('nome_preventiva', 'like', $like));
+            });
+        }
+
+        $pagina = $q->orderByDesc('data_de_execucao')->orderByDesc('id')
+            ->paginate(10)->withQueryString();
+
+        $pagina->getCollection()->transform(fn ($h) => [
+            'id'                  => $h->id,
+            'campo_cal_hr'        => $h->campo_cal_hr,
+            'campo_calc_km'       => $h->campo_calc_km,
+            'horimetro_atual'     => $h->horimetro_atual,
+            'quilometragem_atual' => $h->quilometragem_atual,
+            'horimetro_proximo'   => $h->horimetro_proximo,
+            'quilometragem_nova'  => $h->quilometragem_nova,
+            'data_de_execucao'    => optional($h->data_de_execucao)->toDateString(),
+            'data_conclusao'      => optional($h->data_conclusao)->toDateString(),
+            'data_de_vencimento'  => optional($h->data_de_vencimento)->toDateString(),
+            'status_realizado'    => $h->status_realizado,
+            'total_valor_servico' => $h->total_valor_servico,
+            'motorista'           => $h->motorista ? ['nome' => $h->motorista->nome] : null,
+            'preventiva'          => $h->preventiva ? ['nome_preventiva' => $h->preventiva->nome_preventiva] : null,
+        ]);
+
         return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
     }
 

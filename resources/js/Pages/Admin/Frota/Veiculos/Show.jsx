@@ -121,7 +121,6 @@ export default function VeiculoShow({
   veiculo,
   preventivas = [],
   dashboard_ciclos: dashboardCiclos = null,
-  servicos_preventiva: servicosPreventiva = [],
   fornecedores = [],
   obras = [],
   funcionarios = [],
@@ -216,7 +215,7 @@ export default function VeiculoShow({
           {tab === 'docs_tecnicos'  && <TabDocs tipo="técnicos" veiculo={veiculo} />}
           {tab === 'docs_legais'    && <TabDocs tipo="legais" veiculo={veiculo} />}
           {tab === 'corretivas'     && <TabCorretivas veiculo={veiculo} fornecedores={fornecedores} obras={obras} funcionarios={funcionarios} />}
-          {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} historico={servicosPreventiva} veiculo={veiculo} fornecedores={fornecedores} />}
+          {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} veiculo={veiculo} fornecedores={fornecedores} />}
           {tab === 'seguros'        && <TabSeguros veiculo={veiculo} />}
           {tab === 'ipvas'          && <TabIpvas veiculo={veiculo} />}
           {tab === 'abastecimentos' && <TabAbastecimentos veiculo={veiculo} />}
@@ -1706,7 +1705,7 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
 }
 
 /* ============ TAB: Preventivas (Dashboard de Ciclos + Histórico) ============ */
-function TabPreventivas({ dashboard, historico, veiculo, registros, fornecedores = [] }) {
+function TabPreventivas({ dashboard, veiculo, registros, fornecedores = [] }) {
   const [cicloParaOs, setCicloParaOs] = useState(null);
 
   if (!dashboard || dashboard.ciclos.length === 0) {
@@ -1764,53 +1763,69 @@ function TabPreventivas({ dashboard, historico, veiculo, registros, fornecedores
         />
       )}
 
-      <div className="bg-white border rounded-lg mt-6">
-        <div className="border-b px-4 py-3 flex items-center justify-between">
-          <h3 className="font-semibold">📜 Histórico de OS Preventivas</h3>
-          <span className="text-sm text-gray-500">{historico.length} execuções</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left">
-              <tr>
-                <th className="px-3 py-2 w-16">ID</th>
-                <th className="px-3 py-2">Ciclo</th>
-                <th className="px-3 py-2">Responsável</th>
-                <th className="px-3 py-2 text-right">Atual</th>
-                <th className="px-3 py-2 text-right">Próxima</th>
-                <th className="px-3 py-2">Início</th>
-                <th className="px-3 py-2">Conclusão</th>
-                <th className="px-3 py-2">Vencimento</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {historico.length === 0 ? (
-                <tr><td colSpan={10} className="text-center text-gray-500 py-6">Nenhuma OS preventiva executada.</td></tr>
-              ) : historico.map((h) => {
-                const cicloLabel = veiculo.tipo_hr ? h.campo_cal_hr : h.campo_calc_km;
-                const atual = veiculo.tipo_hr ? h.horimetro_atual : h.quilometragem_atual;
-                const prox  = veiculo.tipo_hr ? h.horimetro_proximo : h.quilometragem_nova;
-                const sit = situacaoCorretiva[h.status_realizado] ?? { label: h.status_realizado || '—', cor: 'bg-gray-200 text-gray-700' };
-                return (
-                  <tr key={h.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-gray-500">#{h.id}</td>
-                    <td className="px-3 py-2 font-medium">{cicloLabel ? `${fmtNum(cicloLabel)} ${unidade}` : '—'}</td>
-                    <td className="px-3 py-2">{h.motorista?.nome ?? '—'}</td>
-                    <td className="px-3 py-2 text-right">{fmtNum(atual)} {unidade}</td>
-                    <td className="px-3 py-2 text-right">{fmtNum(prox)} {unidade}</td>
-                    <td className="px-3 py-2">{fmtData(h.data_de_execucao)}</td>
-                    <td className="px-3 py-2">{fmtData(h.data_conclusao)}</td>
-                    <td className="px-3 py-2">{fmtData(h.data_de_vencimento)}</td>
-                    <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${sit.cor}`}>{sit.label}</span></td>
-                    <td className="px-3 py-2 text-right font-semibold">{fmtMoney(h.total_valor_servico)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <HistoricoPreventivas veiculo={veiculo} unidade={unidade} />
+    </div>
+  );
+}
+
+/* Histórico de OS preventivas — self-fetch paginado + busca (padrão das
+   demais abas). O dashboard de ciclos acima continua vindo do show(). */
+function HistoricoPreventivas({ veiculo, unidade }) {
+  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage } =
+    useServerList('admin.frota.veiculos.servicos-preventiva.list', veiculo.id);
+
+  return (
+    <div className="bg-white border rounded-lg mt-6">
+      <div className="border-b px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-semibold">📜 Histórico de OS Preventivas</h3>
+        <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar responsável / plano…" />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left">
+            <tr>
+              <th className="px-3 py-2 w-16">ID</th>
+              <th className="px-3 py-2">Ciclo</th>
+              <th className="px-3 py-2">Responsável</th>
+              <th className="px-3 py-2 text-right">Atual</th>
+              <th className="px-3 py-2 text-right">Próxima</th>
+              <th className="px-3 py-2">Início</th>
+              <th className="px-3 py-2">Conclusão</th>
+              <th className="px-3 py-2">Vencimento</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2 text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {loading ? (
+              <tr><td colSpan={10} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={10} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhuma OS preventiva executada.'}</td></tr>
+            ) : rows.map((h) => {
+              const cicloLabel = veiculo.tipo_hr ? h.campo_cal_hr : h.campo_calc_km;
+              const atual = veiculo.tipo_hr ? h.horimetro_atual : h.quilometragem_atual;
+              const prox  = veiculo.tipo_hr ? h.horimetro_proximo : h.quilometragem_nova;
+              const sit = situacaoCorretiva[h.status_realizado] ?? { label: h.status_realizado || '—', cor: 'bg-gray-200 text-gray-700' };
+              return (
+                <tr key={h.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 text-gray-500">#{h.id}</td>
+                  <td className="px-3 py-2 font-medium">{cicloLabel ? `${fmtNum(cicloLabel)} ${unidade}` : '—'}</td>
+                  <td className="px-3 py-2">{h.motorista?.nome ?? '—'}</td>
+                  <td className="px-3 py-2 text-right">{fmtNum(atual)} {unidade}</td>
+                  <td className="px-3 py-2 text-right">{fmtNum(prox)} {unidade}</td>
+                  <td className="px-3 py-2">{fmtData(h.data_de_execucao)}</td>
+                  <td className="px-3 py-2">{fmtData(h.data_conclusao)}</td>
+                  <td className="px-3 py-2">{fmtData(h.data_de_vencimento)}</td>
+                  <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded text-xs ${sit.cor}`}>{sit.label}</span></td>
+                  <td className="px-3 py-2 text-right font-semibold">{fmtMoney(h.total_valor_servico)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-4 pb-3">
+        <Paginacao meta={meta} loading={loading} onPage={setPage} />
       </div>
     </div>
   );

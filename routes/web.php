@@ -608,6 +608,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('veiculos.abastecimentos.list');
                 Route::get('veiculos/{veiculo}/medicoes/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listMedicoes'])
                     ->name('veiculos.medicoes.list');
+                Route::get('veiculos/{veiculo}/servicos-preventiva/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listServicosPreventiva'])
+                    ->name('veiculos.servicos-preventiva.list');
 
                 Route::post('veiculos/{veiculo}/ipvas', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeIpva'])
                     ->name('veiculos.ipvas.store');
