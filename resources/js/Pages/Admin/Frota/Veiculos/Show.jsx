@@ -1202,7 +1202,7 @@ function DropFileField({ label, hint, onFile, pdfOnly = false, viewHref = null, 
       <input ref={inputRef} type="file" accept={accept} onChange={(e) => aplicar(e.target.files?.[0] ?? null)} className="hidden" />
       {viewHref && !nome && (
         <a href={viewHref} target="_blank" rel="noreferrer" className="inline-block mt-1 text-[11px] text-purple-700 hover:underline">
-          <i className="fa-solid fa-up-right-from-square mr-1" />Ver arquivo atual
+          Ver arquivo atual
         </a>
       )}
       {(erro || error) && <p className="text-red-600 text-xs mt-1">{erro || error}</p>}
@@ -1451,7 +1451,7 @@ function TabCorretivas({ veiculo, fornecedores = [], obras = [], funcionarios = 
                   <td className="px-3 py-2">{fmtData(m.data_de_vencimento)}</td>
                   <td className="px-3 py-2 text-right font-semibold">{fmtMoney(m.valor_do_servico)}</td>
                   <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
-                    <button onClick={() => setVerManutencao(m)} title="Ver detalhes e arquivos" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition">👁 Ver</button>
+                    <button onClick={() => setVerManutencao(m)} title="Ver detalhes e arquivos" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">Ver</button>
                     <button onClick={() => abrirEdit(m)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
                     <button onClick={() => excluir(m)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
@@ -1556,7 +1556,7 @@ function ModalVerCorretiva({ manutencao, onClose }) {
                         <td className="px-3 py-2 text-right">{fmtMoney(n.valor)}</td>
                         <td className="px-3 py-2">
                           {n.arquivo
-                            ? <a href={route('admin.frota.manutencoes.nota-arquivo', [m.id, i])} target="_blank" rel="noreferrer" className="text-purple-700 hover:underline">📎 ver</a>
+                            ? <a href={route('admin.frota.manutencoes.nota-arquivo', [m.id, i])} target="_blank" rel="noreferrer" className="text-purple-700 hover:underline">Abrir</a>
                             : <span className="text-gray-400">—</span>}
                         </td>
                       </tr>
@@ -1753,12 +1753,12 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
             <div className="flex gap-2">
               <button type="button" onClick={addNota}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#557bbb] text-white hover:bg-[#3a5a8c]">
-                <i className="fa-solid fa-plus mr-1" /> Adicionar NF
+                Adicionar NF
               </button>
               <button type="button" onClick={() => removeNota(data.notas_fiscais.length - 1)}
                 disabled={data.notas_fiscais.length <= 1}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-40">
-                <i className="fa-solid fa-minus mr-1" /> Remover NF
+                Remover NF
               </button>
             </div>
           </div>
@@ -1786,8 +1786,8 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
                 </div>
                 <button type="button" onClick={() => removeNota(idx)} disabled={data.notas_fiscais.length <= 1}
                   title="Remover esta NF"
-                  className="h-[38px] w-9 flex items-center justify-center rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-30">
-                  <i className="fa-solid fa-trash-can" />
+                  className="h-[38px] px-3 flex items-center justify-center rounded-lg text-xs font-medium text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 disabled:opacity-30">
+                  Remover
                 </button>
               </div>
             ))}
@@ -1993,10 +1993,10 @@ function HistoricoPreventivas({ veiculo, unidade, refreshKey, onVer, onEditar, o
                     </select>
                   </td>
                   <td className="px-3 py-2 text-right font-semibold">{fmtMoney(h.total_valor_servico)}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap space-x-1">
-                    <button onClick={() => onVer(h.id)} title="Ver" className="px-2 py-1 text-xs border rounded hover:bg-gray-50">👁</button>
-                    <button onClick={() => onEditar(h.id)} title="Editar" className="px-2 py-1 text-xs border rounded text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100">✎</button>
-                    <button onClick={() => onExcluir(h.id)} title="Excluir" className="px-2 py-1 text-xs border rounded text-red-700 border-red-200 bg-red-50 hover:bg-red-100">🗑</button>
+                  <td className="px-3 py-2 text-right whitespace-nowrap space-x-2">
+                    <button onClick={() => onVer(h.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">Ver</button>
+                    <button onClick={() => onEditar(h.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
+                    <button onClick={() => onExcluir(h.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
                 </tr>
               );
@@ -2128,7 +2128,7 @@ function CicloCard({ ciclo, unidade, medicaoAtual, onCadastrar }) {
             onClick={onCadastrar}
             className="w-full bg-rise-600 text-white py-1.5 rounded text-sm font-semibold hover:bg-rise-700 animate-pulse"
           >
-            🔧 Cadastrar OS
+            Cadastrar OS
           </button>
         ) : (
           <div className="space-y-1">
@@ -2141,7 +2141,7 @@ function CicloCard({ ciclo, unidade, medicaoAtual, onCadastrar }) {
               }}
               className="w-full border border-rise-300 text-rise-700 py-1.5 rounded text-xs font-medium hover:bg-rise-50"
             >
-              {estado === 'aguardando' ? '⏱ Antecipar OS'
+              {estado === 'aguardando' ? 'Antecipar OS'
                 : estado === 'bloqueado_por_maior' ? 'Cadastrar só este'
                 : 'Cadastrar OS'}
             </button>
@@ -2319,7 +2319,7 @@ function TabIpvas({ veiculo }) {
                 <td className="px-3 py-2">{fmtData(i.data_de_vencimento)}</td>
                 <td className="px-3 py-2 text-xs">
                   {i.tem_anexo
-                    ? <a href={route('admin.frota.anexos.view', ['ipva', i.id])} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Abrir</a>
+                    ? <a href={route('admin.frota.anexos.view', ['ipva', i.id])} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">Abrir</a>
                     : '—'}
                 </td>
                 <td className="px-3 py-2 text-right space-x-2">
@@ -2723,7 +2723,7 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
                 <div key={g.periodo} className="border rounded-lg mb-2 overflow-hidden">
                   <button type="button" onClick={() => setAbertos((a) => ({ ...a, [g.periodo]: !a[g.periodo] }))}
                     className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100">
-                    <span className="font-semibold text-sm text-gray-700">🔧 Serviços do Ciclo {fmtNum(g.periodo)} {unidade}</span>
+                    <span className="font-semibold text-sm text-gray-700">Serviços do Ciclo {fmtNum(g.periodo)} {unidade}</span>
                     <span className="flex items-center gap-2">
                       <span className="text-xs bg-rise-600 text-white px-2 py-0.5 rounded">{g.itens.length} {g.itens.length === 1 ? 'item' : 'itens'}</span>
                       <span className="text-gray-400 text-xs">{abertos[g.periodo] ? '▲' : '▼'}</span>
@@ -2790,12 +2790,12 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
                 <div className="flex gap-2">
                   <button type="button" onClick={addNota}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#557bbb] text-white hover:bg-[#3a5a8c]">
-                    <i className="fa-solid fa-plus mr-1" /> Adicionar NF
+                    Adicionar NF
                   </button>
                   <button type="button" onClick={() => removeNota(data.notas_fiscais.length - 1)}
                     disabled={data.notas_fiscais.length <= 1}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-40">
-                    <i className="fa-solid fa-minus mr-1" /> Remover NF
+                    Remover NF
                   </button>
                 </div>
               </div>
@@ -2907,7 +2907,7 @@ function ModalVerOs({ osId, unidade = 'km', tipoHr = false, onClose }) {
                           <td className="px-3 py-2 text-right">{fmtMoney(n.valor)}</td>
                           <td className="px-3 py-2">
                             {n.arquivo
-                              ? <a href={route('admin.frota.os-preventiva.nota-arquivo', [os.id, n.idx ?? i])} target="_blank" rel="noreferrer" className="text-purple-700 hover:underline">📎 ver</a>
+                              ? <a href={route('admin.frota.os-preventiva.nota-arquivo', [os.id, n.idx ?? i])} target="_blank" rel="noreferrer" className="text-purple-700 hover:underline">Abrir</a>
                               : <span className="text-gray-400">—</span>}
                           </td>
                         </tr>
