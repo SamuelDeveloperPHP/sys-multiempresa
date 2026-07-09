@@ -18,7 +18,7 @@ class Veiculo extends Model
         'company_id', 'obra_id',
         'id_categoria', 'id_subcategoria', 'id_preventiva',
         'prefixo', 'tipo', 'placa', 'modelo', 'marca', 'ano', 'imagem',
-        'tipo_km', 'tipo_hr', 'tipo_tempo',
+        'tipo_km', 'tipo_hr', 'tipo_tempo', 'id_combustivel_padrao',
         'veiculo',
         'valor_fipe', 'valor_aquisicao', 'valor_mercado',
         'codigo_fipe', 'fipe_mes_referencia', 'mes_aquisicao',
@@ -44,6 +44,7 @@ class Veiculo extends Model
     public function subcategoria(){ return $this->belongsTo(VeiculoSubCategoria::class, 'id_subcategoria'); }
     public function preventiva()  { return $this->belongsTo(VeiculoPreventiva::class, 'id_preventiva'); }
     public function tipoVeiculo() { return $this->belongsTo(TiposVeiculo::class, 'tipo'); }
+    public function combustivelPadrao() { return $this->belongsTo(Combustivel::class, 'id_combustivel_padrao'); }
     public function imagens()     { return $this->hasMany(VeiculoImagem::class, 'veiculo_id')->orderBy('ordem'); }
 
     public function locacoes()      { return $this->hasMany(VeiculoLocacao::class, 'veiculo_id'); }

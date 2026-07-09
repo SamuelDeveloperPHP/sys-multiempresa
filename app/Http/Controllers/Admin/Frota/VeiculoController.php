@@ -1018,7 +1018,8 @@ class VeiculoController extends Controller
             'marcas'      => MarcaMaquina::orderBy('marca')->get(['id', 'marca']),
             'modelos'     => ModeloMaquina::orderBy('modelo')->get(['id', 'modelo', 'marca_id']),
             'preventivas' => VeiculoPreventiva::orderBy('nome_preventiva')->get(['id', 'nome_preventiva']),
-            'tipos'       => TiposVeiculo::orderBy('nome')->get(['id', 'nome', 'codigo']),
+            'tipos'       => TiposVeiculo::orderBy('id')->get(['id', 'nome', 'codigo']),
+            'combustiveis'=> \App\Models\Frota\Combustivel::where('ativo', true)->orderBy('ordem')->orderBy('nome')->get(['id', 'nome']),
             'situacoes'   => ['Ativo', 'Inativo', 'Manutenção', 'Vendido', 'Baixado'],
         ];
     }

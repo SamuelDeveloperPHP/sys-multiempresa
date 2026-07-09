@@ -14,10 +14,11 @@ class UpdateVeiculoRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'obra_id'         => $this->input('obra_id')         ?: null,
-            'id_categoria'    => $this->input('id_categoria')    ?: null,
-            'id_subcategoria' => $this->input('id_subcategoria') ?: null,
-            'id_preventiva'   => $this->input('id_preventiva')   ?: null,
+            'obra_id'               => $this->input('obra_id')               ?: null,
+            'id_categoria'          => $this->input('id_categoria')          ?: null,
+            'id_subcategoria'       => $this->input('id_subcategoria')       ?: null,
+            'id_preventiva'         => $this->input('id_preventiva')         ?: null,
+            'id_combustivel_padrao' => $this->input('id_combustivel_padrao') ?: null,
             'tipo_km'         => (bool) $this->input('tipo_km', false),
             'tipo_hr'         => (bool) $this->input('tipo_hr', false),
             'tipo_tempo'      => (bool) $this->input('tipo_tempo', false),
@@ -32,6 +33,7 @@ class UpdateVeiculoRequest extends FormRequest
             'id_categoria'         => 'nullable|exists:veiculo_categorias,id',
             'id_subcategoria'      => 'nullable|exists:veiculo_subcategorias,id',
             'id_preventiva'        => 'nullable|exists:veiculo_preventivas,id',
+            'id_combustivel_padrao'=> 'nullable|exists:combustiveis,id',
 
             'tipo'                 => 'nullable|string|max:30',
             'placa'                => 'nullable|string|max:12',
