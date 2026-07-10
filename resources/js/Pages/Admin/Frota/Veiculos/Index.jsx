@@ -51,7 +51,7 @@ export default function VeiculosIndex({ veiculos, obras, categorias, filtros }) 
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href={route('admin.frota.diario-bordo.index')}
+              href={route('admin.frota.diario.index')}
               className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
             >
               Diário de Bordo

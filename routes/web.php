@@ -657,9 +657,6 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::put('combustiveis/{combustivel}', [\App\Http\Controllers\Admin\Frota\CombustivelController::class, 'update'])->name('combustiveis.update');
                 Route::delete('combustiveis/{combustivel}', [\App\Http\Controllers\Admin\Frota\CombustivelController::class, 'destroy'])->name('combustiveis.destroy');
 
-                // Diário de bordo — painel do gerente (realizados/pendentes + histórico 5 dias)
-                Route::get('diario-bordo', [\App\Http\Controllers\Admin\Frota\DiarioBordoGerenteController::class, 'index'])->name('diario-bordo.index');
-
                 Route::post('veiculos/{veiculo}/ipvas', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeIpva'])
                     ->name('veiculos.ipvas.store');
                 Route::put('ipvas/{ipva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateIpva'])
