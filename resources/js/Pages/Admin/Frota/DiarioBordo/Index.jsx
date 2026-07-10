@@ -104,24 +104,28 @@ function Lista({ titulo, icone, corTitulo, corHead, linhas, dias, fmtDia, vazio 
               <th className="px-3 py-2">Veículo</th>
               <th className="px-3 py-2">Placa / Chassi</th>
               {dias.map((d) => <th key={d} className="px-3 py-2 text-center whitespace-nowrap">{fmtDia(d)}</th>)}
+              <th className="px-3 py-2">Cadastrado por</th>
               <th className="px-3 py-2 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {linhas.length === 0 ? (
-              <tr><td colSpan={4 + dias.length} className="text-center text-gray-400 py-6">{vazio}</td></tr>
+              <tr><td colSpan={5 + dias.length} className="text-center text-gray-400 py-6">{vazio}</td></tr>
             ) : linhas.map((l) => (
               <tr key={l.id} className="hover:bg-gray-50">
                 <td className="px-3 py-2 font-semibold text-rise-700">{l.prefixo || '—'}</td>
                 <td className="px-3 py-2">{l.veiculo}</td>
                 <td className="px-3 py-2 text-gray-600">{l.placa_chassi}</td>
-                {l.dias.map((feito, i) => (
+                {l.dias.map((ciclo, i) => (
                   <td key={i} className="px-3 py-2 text-center">
-                    {feito
-                      ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">Realizado</span>
-                      : <span className="text-gray-300">–</span>}
+                    {ciclo === 'encerrado'
+                      ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">Encerrado</span>
+                      : ciclo === 'aberto'
+                        ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">Aberto</span>
+                        : <span className="text-gray-300">–</span>}
                   </td>
                 ))}
+                <td className="px-3 py-2 text-gray-600 text-xs">{l.cadastrado_por ?? '—'}</td>
                 <td className="px-3 py-2 text-right">
                   <Link href={route('admin.frota.veiculos.show', l.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100">Detalhes</Link>
                 </td>
