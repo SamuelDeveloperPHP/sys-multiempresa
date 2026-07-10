@@ -7,15 +7,22 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
  * Duas listas do dia (Realizados / Pendentes) + histórico de 5 dias corridos.
  * O preenchimento em campo é feito pelo motorista no PWA.
  */
-export default function DiarioBordoIndex({ dias = [], realizados = [], pendentes = [], kpis = {}, filtros = {}, obra_atual = null, agora = '' }) {
+export default function DiarioBordoIndex({ dias = [], realizados = [], pendentes = [], kpis = {}, filtros = {}, obras = [], agora = '' }) {
   const [busca, setBusca] = useState(filtros.q ?? '');
+  const [obraId, setObraId] = useState(filtros.obra_id ? String(filtros.obra_id) : '');
 
-  const filtrar = (e) => {
-    e?.preventDefault();
-    router.get(route('admin.frota.diario-bordo.index'), { q: busca || undefined }, { preserveState: true, preserveScroll: true });
+  // Todos os filtros via GET (querystring).
+  const aplicar = (extra = {}) => {
+    router.get(
+      route('admin.frota.diario-bordo.index'),
+      { q: busca || undefined, obra_id: obraId || undefined, ...extra },
+      { preserveState: true, preserveScroll: true },
+    );
   };
+  const filtrar = (e) => { e?.preventDefault(); aplicar(); };
   const limpar = () => {
     setBusca('');
+    setObraId('');
     router.get(route('admin.frota.diario-bordo.index'), {}, { preserveScroll: true });
   };
 
@@ -30,11 +37,7 @@ export default function DiarioBordoIndex({ dias = [], realizados = [], pendentes
           <h1 className="text-2xl font-bold">Diário de Bordo — Veículos</h1>
           <Link href={route('admin.frota.veiculos.index')} className="text-sm text-gray-600 hover:underline">← voltar para veículos</Link>
         </header>
-        <p className="text-sm text-gray-500 mb-4">
-          <strong>Data atual:</strong> {agora}
-          <span className="mx-2 text-gray-300">·</span>
-          <strong>Obra:</strong> {obra_atual ?? 'Matriz (todas as obras)'}
-        </p>
+        <p className="text-sm text-gray-500 mb-4"><strong>Data atual:</strong> {agora}</p>
 
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
@@ -44,14 +47,22 @@ export default function DiarioBordoIndex({ dias = [], realizados = [], pendentes
           <Kpi label="% Cumprimento" value={`${kpis.cumprimento ?? 0}%`} cor="text-rise-700" />
         </div>
 
-        {/* Filtro */}
+        {/* Filtros (todos via GET) */}
         <form onSubmit={filtrar} className="flex flex-wrap items-center gap-2 mb-6">
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Placa / Prefixo / Modelo / Marca"
-            className="flex-1 min-w-[240px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500"
+            className="flex-1 min-w-[220px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500"
           />
+          <select
+            value={obraId}
+            onChange={(e) => { setObraId(e.target.value); aplicar({ obra_id: e.target.value || undefined }); }}
+            className="min-w-[220px] border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500"
+          >
+            <option value="">Todas as obras</option>
+            {obras.map((o) => <option key={o.id} value={o.id}>{o.code ? `${o.code} — ` : ''}{o.nome_fantasia}</option>)}
+          </select>
           <button type="submit" className="px-5 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800">Filtrar</button>
           <button type="button" onClick={limpar} className="px-5 py-2 bg-rise-600 text-white rounded-lg text-sm font-medium hover:bg-rise-700">Limpar</button>
         </form>

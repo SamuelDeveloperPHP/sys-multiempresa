@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Admin\Frota;
 
-use App\Helpers\ObraContext;
 use App\Http\Controllers\Controller;
 use App\Models\Frota\Veiculo;
 use App\Models\Frota\VeiculoDiarioBordo;
+use App\Models\Obra;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
@@ -16,9 +16,9 @@ use Inertia\Response as InertiaResponse;
  * preencheu (Realizados) e quem não (Pendentes) — com o histórico dos últimos
  * 7 dias corridos por veículo. Semelhante ao painel do checklist semanal.
  *
- * Escopo: empresa (Tenantable) + OBRA selecionada. A obra ativa do veículo é
- * a locação corrente — veiculos_locacaos.data_fim IS NULL, id_obraDestino =
- * obra selecionada. Sem obra selecionada (Matriz), vê toda a frota da empresa.
+ * Por padrão mostra TODA a frota da empresa (o gerente acompanha tudo). Há um
+ * filtro OPCIONAL de obra (GET obra_id): a obra ativa do veículo é a locação
+ * corrente — veiculos_locacaos.data_fim IS NULL, id_obraDestino = obra.
  *
  * "Realizado no dia X" = existe um diário do veículo com data_cadastro em X.
  */
@@ -36,12 +36,13 @@ class DiarioBordoGerenteController extends Controller
         $inicio  = $dias->first();
         $hojeStr = $hoje->toDateString();
 
-        // Frota ativa (o gerente acompanha os veículos em operação)
+        // Frota ativa (o gerente acompanha os veículos em operação). Por padrão,
+        // TODA a frota da empresa — sem escopo por obra da sessão.
         $veiculosQ = Veiculo::query()->where('situacao', 'Ativo')->orderBy('prefixo');
 
-        // Obra selecionada → só veículos com locação ATIVA nessa obra
-        // (data_fim IS NULL, id_obraDestino = obra). Matriz (sem obra) = todos.
-        $obraId = ObraContext::id();
+        // Filtro OPCIONAL de obra (GET): só veículos com locação ATIVA nessa obra
+        // (data_fim IS NULL, id_obraDestino = obra).
+        $obraId = (int) $request->input('obra_id') ?: null;
         if ($obraId) {
             $veiculosQ->whereHas('locacoes', function ($q) use ($obraId) {
                 $q->whereNull('data_fim')->where('id_obraDestino', $obraId);
@@ -103,8 +104,8 @@ class DiarioBordoGerenteController extends Controller
                 'pendentes_hoje'  => $total - $nReal,
                 'cumprimento'     => $total > 0 ? round($nReal / $total * 100, 1) : 0.0,
             ],
-            'filtros'    => ['q' => $termo],
-            'obra_atual' => ObraContext::current()?->nome_fantasia,
+            'filtros'    => ['q' => $termo, 'obra_id' => $obraId],
+            'obras'      => Obra::orderBy('nome_fantasia')->get(['id', 'nome_fantasia', 'code']),
             'agora'      => now()->format('d/m/Y H:i:s'),
         ]);
     }
