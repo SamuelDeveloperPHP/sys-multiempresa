@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import SearchableSelect from '@/Components/SearchableSelect';
 
 /**
  * Admin/Frota/ChecklistExecucoes/Index — painel do gerente (read-only) dos
@@ -21,11 +22,20 @@ export default function ChecklistExecucoesIndex({ dias = [], realizados = [], pe
       ...extra,
     }, { preserveState: true, preserveScroll: true });
   };
-  const filtrar = (e) => { e?.preventDefault(); aplicar(); };
+  // Busca conforme digita (GET com debounce) — sem botão "Filtrar".
+  const primeira = useRef(true);
+  useEffect(() => {
+    if (primeira.current) { primeira.current = false; return; }
+    const t = setTimeout(() => aplicar(), 350);
+    return () => clearTimeout(t);
+  }, [busca]); // eslint-disable-line react-hooks/exhaustive-deps
   const limpar = () => {
     setBusca(''); setObraId(''); setCiclo('');
     router.get(route('admin.frota.checklist-execucoes.index'), {}, { preserveScroll: true });
   };
+
+  const optObras = useMemo(() => obras.map((o) => ({ value: o.id, label: `${o.code ? o.code + ' — ' : ''}${o.nome_fantasia}` })), [obras]);
+  const optCiclos = [{ value: 'ABERTO', label: 'Aberto' }, { value: 'ENCERRADO', label: 'Encerrado' }];
 
   const fmtDia = (ds) => `${ds.slice(8, 10)}/${ds.slice(5, 7)}`;
 
@@ -50,25 +60,17 @@ export default function ChecklistExecucoesIndex({ dias = [], realizados = [], pe
           <Kpi label="% Cumprimento" value={`${kpis.cumprimento ?? 0}%`} cor="text-rise-700" />
         </div>
 
-        <form onSubmit={filtrar} className="flex flex-wrap items-center gap-2 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-6">
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Placa / Prefixo / Modelo / Marca"
-            className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500"
+            placeholder="Placa / Prefixo / Modelo / Marca (busca ao digitar)"
+            className="flex-1 min-w-[220px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500"
           />
-          <select value={obraId} onChange={(e) => { setObraId(e.target.value); aplicar({ obra_id: e.target.value || undefined }); }} className={selectCls}>
-            <option value="">Todas as obras</option>
-            {obras.map((o) => <option key={o.id} value={o.id}>{o.code ? `${o.code} — ` : ''}{o.nome_fantasia}</option>)}
-          </select>
-          <select value={ciclo} onChange={(e) => { setCiclo(e.target.value); aplicar({ ciclo_status: e.target.value || undefined }); }} className={selectCls}>
-            <option value="">Todos os ciclos</option>
-            <option value="ABERTO">Aberto</option>
-            <option value="ENCERRADO">Encerrado</option>
-          </select>
-          <button type="submit" className="px-5 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800">Filtrar</button>
+          <SearchableSelect value={obraId} onChange={(v) => { setObraId(v); aplicar({ obra_id: v || undefined }); }} options={optObras} placeholder="Todas as obras" className="min-w-[220px]" />
+          <SearchableSelect value={ciclo} onChange={(v) => { setCiclo(v); aplicar({ ciclo_status: v || undefined }); }} options={optCiclos} placeholder="Todos os ciclos" className="min-w-[170px]" />
           <button type="button" onClick={limpar} className="px-5 py-2 bg-rise-600 text-white rounded-lg text-sm font-medium hover:bg-rise-700">Limpar</button>
-        </form>
+        </div>
 
         <Lista
           titulo="Checklists realizados hoje" icone="✓"
@@ -89,8 +91,6 @@ export default function ChecklistExecucoesIndex({ dias = [], realizados = [], pe
     </AuthenticatedLayout>
   );
 }
-
-const selectCls = 'min-w-[200px] border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500';
 
 function Kpi({ label, value, cor = 'text-gray-800' }) {
   return (
