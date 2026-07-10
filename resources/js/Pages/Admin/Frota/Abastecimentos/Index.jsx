@@ -84,9 +84,9 @@ export default function AbastecimentosIndex({ veiculos = [], totais = {}, obras 
 
         {/* Curva ABC + lista por veículo */}
         <div className="bg-white rounded-lg border overflow-hidden">
-          <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2">
+          <div className="px-4 py-3 border-b border-purple-200 bg-purple-50 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-800">Curva ABC dos veículos</h3>
+              <h3 className="font-semibold text-purple-900">Curva ABC dos veículos</h3>
               <span className="text-xs text-gray-500">A:{contagem.A} · B:{contagem.B} · C:{contagem.C}</span>
             </div>
             <div className="flex items-center gap-1 text-xs">
