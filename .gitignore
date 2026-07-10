@@ -26,3 +26,11 @@ Thumbs.db
 # Releases empacotadas pelo scripts/deploy-build.ps1
 /_release
 /.claude
+
+# Dumps/planilhas de dados TCPO e pacotes locais (não versionar)
+/docs/excel/
+/docs/*.sql
+/docs/*.xlsx
+/docs/extracao.js
+/package.zip
+/scripts.zip
