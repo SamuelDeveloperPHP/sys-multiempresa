@@ -7,7 +7,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
  * Duas listas do dia (Realizados / Pendentes) + histórico de 5 dias corridos.
  * O preenchimento em campo é feito pelo motorista no PWA.
  */
-export default function DiarioBordoIndex({ dias = [], realizados = [], pendentes = [], kpis = {}, filtros = {}, agora = '' }) {
+export default function DiarioBordoIndex({ dias = [], realizados = [], pendentes = [], kpis = {}, filtros = {}, obra_atual = null, agora = '' }) {
   const [busca, setBusca] = useState(filtros.q ?? '');
 
   const filtrar = (e) => {
@@ -30,7 +30,11 @@ export default function DiarioBordoIndex({ dias = [], realizados = [], pendentes
           <h1 className="text-2xl font-bold">Diário de Bordo — Veículos</h1>
           <Link href={route('admin.frota.veiculos.index')} className="text-sm text-gray-600 hover:underline">← voltar para veículos</Link>
         </header>
-        <p className="text-sm text-gray-500 mb-4"><strong>Data atual:</strong> {agora}</p>
+        <p className="text-sm text-gray-500 mb-4">
+          <strong>Data atual:</strong> {agora}
+          <span className="mx-2 text-gray-300">·</span>
+          <strong>Obra:</strong> {obra_atual ?? 'Matriz (todas as obras)'}
+        </p>
 
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">

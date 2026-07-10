@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin\Frota;
 
+use App\Helpers\ObraContext;
 use App\Http\Controllers\Controller;
 use App\Models\Frota\Veiculo;
 use App\Models\Frota\VeiculoDiarioBordo;
@@ -13,7 +14,11 @@ use Inertia\Response as InertiaResponse;
  * Painel do gerente para o Diário de Bordo (read-only). O motorista preenche
  * em campo pelo PWA; aqui o gerente vê, no dia, duas listas — quem já
  * preencheu (Realizados) e quem não (Pendentes) — com o histórico dos últimos
- * 5 dias corridos por veículo. Semelhante ao painel do checklist semanal.
+ * 7 dias corridos por veículo. Semelhante ao painel do checklist semanal.
+ *
+ * Escopo: empresa (Tenantable) + OBRA selecionada. A obra ativa do veículo é
+ * a locação corrente — veiculos_locacaos.data_fim IS NULL, id_obraDestino =
+ * obra selecionada. Sem obra selecionada (Matriz), vê toda a frota da empresa.
  *
  * "Realizado no dia X" = existe um diário do veículo com data_cadastro em X.
  */
@@ -33,6 +38,16 @@ class DiarioBordoGerenteController extends Controller
 
         // Frota ativa (o gerente acompanha os veículos em operação)
         $veiculosQ = Veiculo::query()->where('situacao', 'Ativo')->orderBy('prefixo');
+
+        // Obra selecionada → só veículos com locação ATIVA nessa obra
+        // (data_fim IS NULL, id_obraDestino = obra). Matriz (sem obra) = todos.
+        $obraId = ObraContext::id();
+        if ($obraId) {
+            $veiculosQ->whereHas('locacoes', function ($q) use ($obraId) {
+                $q->whereNull('data_fim')->where('id_obraDestino', $obraId);
+            });
+        }
+
         if ($termo !== '') {
             $like = '%' . $termo . '%';
             $veiculosQ->where(function ($q) use ($like) {
@@ -88,8 +103,9 @@ class DiarioBordoGerenteController extends Controller
                 'pendentes_hoje'  => $total - $nReal,
                 'cumprimento'     => $total > 0 ? round($nReal / $total * 100, 1) : 0.0,
             ],
-            'filtros' => ['q' => $termo],
-            'agora'   => now()->format('d/m/Y H:i:s'),
+            'filtros'    => ['q' => $termo],
+            'obra_atual' => ObraContext::current()?->nome_fantasia,
+            'agora'      => now()->format('d/m/Y H:i:s'),
         ]);
     }
 }
