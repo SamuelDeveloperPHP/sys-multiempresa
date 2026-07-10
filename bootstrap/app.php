@@ -9,6 +9,8 @@ use App\Http\Middleware\UpdateLastSeen;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 // middlewares de rota
 use Illuminate\Auth\Middleware\Authenticate;
@@ -69,5 +71,13 @@ return Application::configure(basePath: dirname(__DIR__))
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // 419 (CSRF/sessão expirada): em vez de erro cru, volta para a página
+        // anterior com um aviso. O redirect renova o cookie XSRF-TOKEN, então
+        // a nova tentativa passa. Padrão recomendado do Inertia.
+        $exceptions->respond(function (Response $response, Throwable $exception, Request $request) {
+            if ($response->getStatusCode() === 419) {
+                return back()->with('message', 'Sua sessão expirou. Tente novamente.');
+            }
+            return $response;
+        });
     })->create();
