@@ -35,7 +35,10 @@ export default function DiarioIndex({ dias = [], realizados = [], pendentes = []
       <div className="p-4 md:p-6 w-full">
         <header className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-bold">Diário de bordo</h1>
-          <span className="text-sm text-gray-400">Registros enviados pelo app mobile</span>
+          <div className="flex items-center gap-3 text-sm">
+            <Link href={route('admin.frota.checklist-execucoes.index')} className="text-gray-600 hover:underline">Checklists preenchidos →</Link>
+            <span className="text-gray-400">Registros enviados pelo app mobile</span>
+          </div>
         </header>
         <p className="text-sm text-gray-500 mb-4"><strong>Data atual:</strong> {agora}</p>
 

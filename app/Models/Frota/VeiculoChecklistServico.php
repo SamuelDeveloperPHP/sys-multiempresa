@@ -3,6 +3,7 @@
 namespace App\Models\Frota;
 
 use App\Models\Obra;
+use App\Models\User;
 use App\Models\Traits\Syncable;
 use App\Models\Traits\Tenantable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -42,6 +43,7 @@ class VeiculoChecklistServico extends Model
     public function veiculo() { return $this->belongsTo(Veiculo::class, 'id_veiculo'); }
     public function obra() { return $this->belongsTo(Obra::class, 'id_obra'); }
     public function checklist() { return $this->belongsTo(VeiculoChecklist::class, 'id_checklist'); }
+    public function user() { return $this->belongsTo(User::class, 'id_user'); }
     public function itensRealizados() { return $this->hasMany(VeiculoChecklistRealizado::class, 'id_checklist_realizado', 'id_local'); }
     public function horimetro() { return $this->belongsTo(VeiculoHorimetro::class, 'id_horimetro'); }
     public function quilometragem() { return $this->belongsTo(VeiculoQuilometragem::class, 'id_quilometragem'); }
