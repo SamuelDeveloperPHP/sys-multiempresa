@@ -25,7 +25,7 @@ export default function CategoriasIndex({ categorias, filtros = {} }) {
   return (
     <AuthenticatedLayout>
       <Head title="Categorias de Veículo" />
-      <div className="p-4 md:p-6 w-full max-w-5xl">
+      <div className="p-4 md:p-6 w-full">
         <header className="mb-1">
           <h1 className="text-2xl font-bold">Categorias de Veículo</h1>
           <p className="text-sm text-gray-500">Classificação principal (ex.: Carros, Caminhões, Máquinas)</p>

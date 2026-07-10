@@ -25,7 +25,7 @@ export default function TiposIndex({ tipos, filtros = {} }) {
   return (
     <AuthenticatedLayout>
       <Head title="Tipos de Veículo" />
-      <div className="p-4 md:p-6 w-full max-w-5xl">
+      <div className="p-4 md:p-6 w-full">
         <header className="mb-1">
           <h1 className="text-2xl font-bold">Tipos de Veículo</h1>
           <p className="text-sm text-gray-500">Catálogo de tipos (carro/moto/caminhão/máquina)</p>
