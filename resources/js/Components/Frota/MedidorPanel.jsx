@@ -2,6 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import SearchableSelect from '@/Components/SearchableSelect';
+import Accordion from '@/Components/Accordion';
 
 const fmtNum  = (v) => Number(v ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 const fmtData = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : '—');
@@ -62,14 +63,19 @@ export default function MedidorPanel({
           <button type="button" onClick={limpar} className="px-5 py-2 bg-rise-600 text-white rounded-lg text-sm font-medium hover:bg-rise-700">Limpar</button>
         </div>
 
-        {/* Leituras inconsistentes (limpeza) */}
+        {/* Leituras inconsistentes (limpeza) — accordion aberto */}
         {inconsistencias.length > 0 && (
-          <div className="bg-white rounded-lg border border-rose-200 overflow-hidden mb-6">
-            <div className="px-4 py-3 border-b border-rose-200 bg-rose-50 flex items-center gap-2">
+          <div className="mb-6">
+          <Accordion
+            defaultOpen
+            className="border-rose-200"
+            headerClass="bg-rose-50 border-rose-200"
+            header={<>
               <h3 className="font-semibold text-rose-800">⚠ Leituras inconsistentes</h3>
               <span className="text-xs bg-rose-200 text-rose-900 px-2 py-0.5 rounded-full font-semibold">{inconsistencias.length}</span>
               <span className="text-xs text-rose-700">— corrompem a medição atual (eficiência, ciclos de preventiva). Exclua as erradas.</span>
-            </div>
+            </>}
+          >
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-white text-left text-xs text-gray-500 border-b">
@@ -95,14 +101,18 @@ export default function MedidorPanel({
                 </tbody>
               </table>
             </div>
+          </Accordion>
           </div>
         )}
 
-        {/* Resumo por veículo */}
-        <div className="bg-white rounded-lg border overflow-hidden">
-          <div className="px-4 py-3 border-b border-purple-200 bg-purple-50">
-            <h3 className="font-semibold text-purple-900">Situação por veículo</h3>
-          </div>
+        {/* Resumo por veículo — accordion fechado por padrão (só abre sozinho
+            quando não há inconsistências, para não deixar a tela vazia) */}
+        <Accordion
+          defaultOpen={inconsistencias.length === 0}
+          className="border-purple-200"
+          headerClass="bg-purple-50 border-purple-200"
+          header={<h3 className="font-semibold text-purple-900">Situação por veículo <span className="text-xs font-normal text-gray-500">({veiculos.length})</span></h3>}
+        >
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left">
@@ -148,7 +158,7 @@ export default function MedidorPanel({
               </tbody>
             </table>
           </div>
-        </div>
+        </Accordion>
       </div>
     </AuthenticatedLayout>
   );
