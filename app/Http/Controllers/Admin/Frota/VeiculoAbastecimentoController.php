@@ -26,6 +26,7 @@ class VeiculoAbastecimentoController extends Controller
     {
         $termo  = trim((string) $request->input('q', ''));
         $obraId = (int) $request->input('obra_id') ?: null;
+        $ano    = (int) $request->input('ano') ?: null; // período (ano); null = todos
 
         // Conjunto de veículos considerado (para o filtro de busca/obra).
         // Sem filtro, todos; a agregação restringe naturalmente aos com dados.
@@ -48,12 +49,20 @@ class VeiculoAbastecimentoController extends Controller
 
         // Agregação por (veículo, combustível): litros/gasto/CO₂ dependem do fator.
         $combById = Combustivel::all()->keyBy('id');
-        $agg = VeiculoAbastecimento::query()
-            ->whereNotNull('veiculo_id')
-            ->when($restringir !== null, fn ($q) => $q->whereIn('veiculo_id', $restringir ?: [0]))
+        $baseAgg = fn () => VeiculoAbastecimento::query()->whereNotNull('veiculo_id')
+            ->when($ano, fn ($q) => $q->whereYear('data_abastecimento', $ano))
+            ->when($restringir !== null, fn ($q) => $q->whereIn('veiculo_id', $restringir ?: [0]));
+
+        $agg = $baseAgg()
             ->selectRaw('veiculo_id, id_combustivel, combustivel, SUM(quantidade) litros, SUM(valor_total) gasto, COUNT(*) n')
             ->groupBy('veiculo_id', 'id_combustivel', 'combustivel')
             ->get();
+
+        // Distância percorrida no período = span do odômetro/horímetro
+        // (MAX - MIN). Robusto a km_anterior=0; a sanidade filtra leituras absurdas.
+        $spans = $baseAgg()
+            ->selectRaw('veiculo_id, MAX(km_atual) - MIN(NULLIF(km_atual,0)) span_km, MAX(hr_atual) - MIN(NULLIF(hr_atual,0)) span_hr')
+            ->groupBy('veiculo_id')->get()->keyBy('veiculo_id');
 
         $porVeic = [];
         foreach ($agg as $r) {
@@ -68,20 +77,48 @@ class VeiculoAbastecimentoController extends Controller
         }
 
         $infos = Veiculo::whereIn('id', array_keys($porVeic) ?: [0])
-            ->get(['id', 'prefixo', 'placa', 'marca', 'modelo', 'veiculo', 'nun_serie_chassi'])->keyBy('id');
+            ->get(['id', 'prefixo', 'placa', 'marca', 'modelo', 'veiculo', 'nun_serie_chassi', 'tipo_hr'])->keyBy('id');
 
-        $veiculos = collect($porVeic)->map(function ($v, $id) use ($infos) {
-            $inf = $infos->get($id);
+        $veiculos = collect($porVeic)->map(function ($v, $id) use ($infos, $spans) {
+            $inf    = $infos->get($id);
+            $tipoHr = (bool) ($inf?->tipo_hr);
+            $co2    = round($v['co2_fossil'], 2);
+            $gasto  = round($v['gasto'], 2);
+            $litros = $v['litros'];
+            $dist   = (float) ($tipoHr ? ($spans[$id]->span_hr ?? 0) : ($spans[$id]->span_km ?? 0));
+
+            // Eficiência só quando a distância dá um consumo plausível (senão dado ruim).
+            $consumo = $consumoUn = $co2PorDist = $gastoPorDist = null;
+            if ($dist > 0 && $litros > 0) {
+                if ($tipoHr) {
+                    $lph = $litros / $dist;                 // L por hora
+                    if ($lph >= 0.5 && $lph <= 300) { $consumo = round($lph, 2); $consumoUn = 'L/hr'; }
+                } else {
+                    $kmpl = $dist / $litros;                // km por litro
+                    if ($kmpl >= 0.3 && $kmpl <= 60) { $consumo = round($kmpl, 2); $consumoUn = 'km/L'; }
+                }
+                if ($consumo !== null) {
+                    $co2PorDist   = round($co2 / $dist, 3);
+                    $gastoPorDist = round($gasto / $dist, 2);
+                }
+            }
+
             return [
-                'id'           => (int) $id,
-                'prefixo'      => $inf?->prefixo ?? '—',
-                'veiculo'      => $inf?->veiculo ?: (trim(($inf?->marca ?? '') . ' ' . ($inf?->modelo ?? '')) ?: '—'),
-                'placa_chassi' => $inf?->placa ?: ($inf?->nun_serie_chassi ?: '—'),
-                'litros'       => round($v['litros'], 2),
-                'gasto'        => round($v['gasto'], 2),
+                'id'             => (int) $id,
+                'prefixo'        => $inf?->prefixo ?? '—',
+                'veiculo'        => $inf?->veiculo ?: (trim(($inf?->marca ?? '') . ' ' . ($inf?->modelo ?? '')) ?: '—'),
+                'placa_chassi'   => $inf?->placa ?: ($inf?->nun_serie_chassi ?: '—'),
+                'litros'         => round($litros, 2),
+                'gasto'          => $gasto,
                 'abastecimentos' => $v['n'],
-                'co2_fossil'   => round($v['co2_fossil'], 2),
-                'co2_bio'      => round($v['co2_bio'], 2),
+                'co2_fossil'     => $co2,
+                'co2_bio'        => round($v['co2_bio'], 2),
+                'unidade'        => $tipoHr ? 'hr' : 'km',
+                'distancia'      => $co2PorDist !== null ? round($dist, 0) : null,
+                'consumo'        => $consumo,
+                'consumo_unidade'=> $consumoUn,
+                'co2_por_dist'   => $co2PorDist,   // kg CO₂ por km/hr
+                'gasto_por_dist' => $gastoPorDist, // R$ por km/hr
             ];
         })->values();
 
@@ -94,11 +131,15 @@ class VeiculoAbastecimentoController extends Controller
             'registros'  => (int) $veiculos->sum('abastecimentos'),
         ];
 
+        $anos = VeiculoAbastecimento::whereNotNull('data_abastecimento')
+            ->selectRaw('DISTINCT YEAR(data_abastecimento) ano')->orderByDesc('ano')->pluck('ano');
+
         return Inertia::render('Admin/Frota/Abastecimentos/Index', [
             'veiculos' => $veiculos,
             'totais'   => $totais,
             'obras'    => Obra::orderBy('nome_fantasia')->get(['id', 'nome_fantasia', 'code']),
-            'filtros'  => ['q' => $termo, 'obra_id' => $obraId],
+            'anos'     => $anos,
+            'filtros'  => ['q' => $termo, 'obra_id' => $obraId, 'ano' => $ano],
             'agora'    => now()->format('d/m/Y H:i:s'),
         ]);
     }
