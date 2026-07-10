@@ -26,6 +26,11 @@ export default function ChecklistsIndex({ checklists, filtros = {} }) {
     router.delete(route('admin.frota.checklists.destroy', c.id), { preserveScroll: true });
   };
 
+  const duplicar = (c) => {
+    if (!confirm(`Duplicar o checklist "${c.nome_checklist}"?`)) return;
+    router.post(route('admin.frota.checklists.duplicar', c.id), {}, { preserveScroll: true });
+  };
+
   const agora = new Date().toLocaleString('pt-BR');
 
   return (
@@ -80,6 +85,7 @@ export default function ChecklistsIndex({ checklists, filtros = {} }) {
                   <td className="px-3 py-2 text-right space-x-1 whitespace-nowrap">
                     <Link href={route('admin.frota.checklists.itens.index', c.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">Itens ({c.itens_count})</Link>
                     <Link href={route('admin.frota.checklists.edit', c.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</Link>
+                    <button onClick={() => duplicar(c)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100 transition">Duplicar</button>
                     <button onClick={() => excluir(c)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
                 </tr>

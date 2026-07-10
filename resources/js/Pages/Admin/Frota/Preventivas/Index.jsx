@@ -33,6 +33,11 @@ export default function PreventivasIndex({ preventivas, veiculos = [], filtros =
     router.delete(route('admin.frota.preventivas.destroy', p.id), { preserveScroll: true });
   };
 
+  const duplicar = (p) => {
+    if (!confirm(`Duplicar "${p.nome_preventiva}"?`)) return;
+    router.post(route('admin.frota.preventivas.duplicar', p.id), {}, { preserveScroll: true });
+  };
+
   const agora = new Date().toLocaleString('pt-BR');
 
   return (
@@ -69,8 +74,7 @@ export default function PreventivasIndex({ preventivas, veiculos = [], filtros =
               <tr>
                 <th className="px-3 py-2">Nome</th>
                 <th className="px-3 py-2">Veículo</th>
-                <th className="px-3 py-2">Tipo</th>
-                <th className="px-3 py-2 text-right">Período</th>
+                <th className="px-3 py-2 text-right">Serviços</th>
                 <th className="px-3 py-2 text-right">Histórico</th>
                 <th className="px-3 py-2">Situação</th>
                 <th className="px-3 py-2 text-right">Ações</th>
@@ -78,13 +82,14 @@ export default function PreventivasIndex({ preventivas, veiculos = [], filtros =
             </thead>
             <tbody className="divide-y">
               {preventivas.data.length === 0 ? (
-                <tr><td colSpan={7} className="text-center text-gray-500 py-8">Nenhuma preventiva cadastrada.</td></tr>
+                <tr><td colSpan={6} className="text-center text-gray-500 py-8">Nenhuma preventiva cadastrada.</td></tr>
               ) : preventivas.data.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium text-gray-800">{p.nome_preventiva}</td>
                   <td className="px-3 py-2 text-gray-600">{p.veiculo?.prefixo ?? '—'}</td>
-                  <td className="px-3 py-2">{p.tipo ?? '—'}</td>
-                  <td className="px-3 py-2 text-right">{p.periodo ?? '—'}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Link href={route('admin.frota.preventivas.show', p.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition">{p.itens_count} serviços</Link>
+                  </td>
                   <td className="px-3 py-2 text-right">
                     <Link href={route('admin.frota.preventivas.show', p.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">{p.itens_realizados_count} execuções</Link>
                   </td>
@@ -93,6 +98,7 @@ export default function PreventivasIndex({ preventivas, veiculos = [], filtros =
                   </td>
                   <td className="px-3 py-2 text-right space-x-1 whitespace-nowrap">
                     <Link href={route('admin.frota.preventivas.edit', p.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</Link>
+                    <button onClick={() => duplicar(p)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100 transition">Duplicar</button>
                     <button onClick={() => excluir(p)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
                   </td>
                 </tr>

@@ -13,6 +13,7 @@ use App\Models\Frota\TiposVeiculo;
 use App\Models\Frota\Veiculo;
 use App\Models\Frota\VeiculoAbastecimento;
 use App\Models\Frota\VeiculoCategoria;
+use App\Models\Frota\VeiculoDepreciacao;
 use App\Models\Frota\VeiculoDocLegal;
 use App\Models\Frota\VeiculoDocTecnico;
 use App\Models\Frota\VeiculoHorimetro;
@@ -26,6 +27,10 @@ use App\Models\Frota\VeiculoPreventivaItemServico;
 use App\Models\Frota\VeiculoQuilometragem;
 use App\Models\Frota\VeiculoSeguro;
 use App\Models\Frota\VeiculoSubCategoria;
+use App\Models\Frota\VeiculoTacografo;
+use App\Models\Frota\Pneu;
+use App\Models\Frota\PneuMovimentacao;
+use App\Services\Frota\CalculadorDepreciacao;
 use App\Models\Obra;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -1240,6 +1245,282 @@ class VeiculoController extends Controller
         return back()->with('success', 'Seguro removido.');
     }
 
+    public function storeDepreciacao(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $this->validarDepreciacao($request);
+        $data['veiculo_id']  = $veiculo->id;
+        $data['origem']      = 'manual';
+        $data['metodo']      = 'manual';
+        $data['user_create'] = Auth::user()?->email;
+        VeiculoDepreciacao::create($data);
+        return back()->with('success', 'Depreciação cadastrada.');
+    }
+
+    public function updateDepreciacao(Request $request, VeiculoDepreciacao $depreciacao): RedirectResponse
+    {
+        $data = $this->validarDepreciacao($request);
+        // Editar a mao converte o registro em override manual (o job nao mexe mais).
+        $data['origem']    = 'manual';
+        $data['metodo']    = 'manual';
+        $data['user_edit'] = Auth::user()?->email;
+        $depreciacao->update($data);
+        return back()->with('success', 'Depreciação atualizada.');
+    }
+
+    public function destroyDepreciacao(VeiculoDepreciacao $depreciacao): RedirectResponse
+    {
+        $depreciacao->delete();
+        return back()->with('success', 'Depreciação removida.');
+    }
+
+    /** Estimativa ao vivo (nao grava) + parametros atuais do ativo, para o painel da aba. */
+    public function estimativaDepreciacao(Veiculo $veiculo, CalculadorDepreciacao $calc): JsonResponse
+    {
+        return response()->json([
+            'estimativa' => $calc->calcular($veiculo),
+            'parametros' => [
+                'metodo_depreciacao' => $veiculo->metodo_depreciacao,
+                'valor_aquisicao'    => $veiculo->valor_aquisicao,
+                'valor_residual'     => $veiculo->valor_residual,
+                'vida_util_anos'     => $veiculo->vida_util_anos,
+                'vida_util_horas'    => $veiculo->vida_util_horas,
+                'data_aquisicao'     => optional($veiculo->data_aquisicao)->toDateString(),
+                'tipo_hr'            => (bool) $veiculo->tipo_hr,
+                'valor_fipe'         => $veiculo->valor_fipe,
+                'valor_mercado'      => $veiculo->valor_mercado,
+            ],
+        ]);
+    }
+
+    /** Salva os parametros de depreciacao do ativo (metodo, vida util, residual...). */
+    public function salvarParametrosDepreciacao(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $request->validate([
+            'metodo_depreciacao' => 'nullable|in:horimetro,linear,saldo_decrescente,mercado',
+            'valor_aquisicao'    => 'nullable|numeric|min:0|max:999999999999.99',
+            'valor_residual'     => 'nullable|numeric|min:0|max:999999999999.99',
+            'vida_util_anos'     => 'nullable|integer|min:1|max:100',
+            'vida_util_horas'    => 'nullable|integer|min:1|max:1000000',
+            'data_aquisicao'     => 'nullable|date',
+        ]);
+        $data['user_edit'] = Auth::user()?->email;
+        $veiculo->update($data);
+        return back()->with('success', 'Parâmetros de depreciação salvos.');
+    }
+
+    /** Recalcula e grava o snapshot do mes de referencia (nao sobrescreve manual). */
+    public function recalcularDepreciacao(Request $request, Veiculo $veiculo, CalculadorDepreciacao $calc): RedirectResponse
+    {
+        $ref = $request->filled('mes') && $request->filled('ano')
+            ? \Carbon\Carbon::create((int) $request->input('ano'), (int) $request->input('mes'), 1)->endOfMonth()
+            : \Carbon\Carbon::now()->endOfMonth();
+
+        $res = $calc->calcular($veiculo, $ref);
+        if (! $res['ok']) {
+            return back()->with('error', 'Não foi possível calcular: ' . $res['aviso']);
+        }
+
+        $mesNome = $calc->referenciaMes($ref);
+        $ano     = (string) $ref->year;
+
+        $existente = VeiculoDepreciacao::where('veiculo_id', $veiculo->id)
+            ->where('referencia_mes', $mesNome)
+            ->where('referencia_ano', $ano)
+            ->first();
+
+        if ($existente && $existente->origem === 'manual') {
+            return back()->with('error', 'Já existe um lançamento manual para este mês; não foi sobrescrito.');
+        }
+
+        $payload = [
+            'company_id'            => $veiculo->company_id,
+            'veiculo_id'            => $veiculo->id,
+            'valor_atual'           => $res['valor_atual'],
+            'referencia_mes'        => $mesNome,
+            'referencia_ano'        => $ano,
+            'origem'                => 'calculado',
+            'metodo'                => $res['metodo'],
+            'valor_base'            => $res['valor_base'],
+            'depreciacao_acumulada' => $res['depreciacao_acumulada'],
+            'memoria_calculo'       => $res['memoria'],
+            'user_edit'             => Auth::user()?->email,
+        ];
+
+        $existente
+            ? $existente->update($payload)
+            : VeiculoDepreciacao::create($payload + ['user_create' => Auth::user()?->email]);
+
+        return back()->with('success', 'Depreciação recalculada para ' . ucfirst($mesNome) . '/' . $ano . '.');
+    }
+
+    public function storeTacografo(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $this->validarTacografo($request);
+        $data['veiculo_id']  = $veiculo->id;
+        $data['user_create'] = Auth::user()?->email;
+        VeiculoTacografo::create($data);
+        return back()->with('success', 'Tacógrafo cadastrado.');
+    }
+
+    public function updateTacografo(Request $request, VeiculoTacografo $tacografo): RedirectResponse
+    {
+        $data = $this->validarTacografo($request);
+        $data['user_edit'] = Auth::user()?->email;
+        $tacografo->update($data);
+        return back()->with('success', 'Tacógrafo atualizado.');
+    }
+
+    public function destroyTacografo(VeiculoTacografo $tacografo): RedirectResponse
+    {
+        $tacografo->delete();
+        return back()->with('success', 'Tacógrafo removido.');
+    }
+
+    // ---------------------------------------------------------------- Pneus (aba)
+
+    /** Mapa de posições do veículo + pneus montados + estoque disponível. */
+    public function listPneusVeiculo(Veiculo $veiculo): JsonResponse
+    {
+        $layouts = collect(config('frota_pneus.layouts', []))
+            ->map(fn ($l, $slug) => ['slug' => $slug, 'label' => $l['label']])->values();
+        $layout = $veiculo->config_pneus ? config("frota_pneus.layouts.{$veiculo->config_pneus}") : null;
+
+        $montados = [];
+        if ($layout) {
+            $pneus = Pneu::where('situacao', 'montado')
+                ->whereHas('movimentacoes', fn ($q) => $q->where('veiculo_id', $veiculo->id)->whereIn('tipo', ['montagem', 'rodizio']))
+                ->with('ultimaInspecao')->get();
+            foreach ($pneus as $p) {
+                if (($pos = $this->posicaoAtualPneu($veiculo, $p))) {
+                    $montados[$pos] = [
+                        'id' => $p->id, 'numero_fogo' => $p->numero_fogo, 'marca' => $p->marca,
+                        'medida' => $p->medida, 'vida_atual' => $p->vida_atual,
+                        'sulco' => optional($p->ultimaInspecao)->sulco_mm,
+                    ];
+                }
+            }
+        }
+
+        $disponiveis = Pneu::where('situacao', 'estoque')->orderBy('numero_fogo')
+            ->get(['id', 'numero_fogo', 'marca', 'medida', 'vida_atual']);
+
+        [$medicao, $medicaoTipo] = $this->medicaoAtualPneu($veiculo);
+
+        return response()->json([
+            'config_pneus'  => $veiculo->config_pneus,
+            'layout'        => $layout ? ['label' => $layout['label'], 'posicoes' => $layout['posicoes']] : null,
+            'layouts'       => $layouts,
+            'montados'      => $montados,
+            'disponiveis'   => $disponiveis,
+            'medicao_atual' => $medicao,
+            'medicao_tipo'  => $medicaoTipo,
+            'sulco_minimo'  => (float) config('frota_pneus.sulco.minimo_legal'),
+            'sulco_alerta'  => (float) config('frota_pneus.sulco.alerta'),
+        ]);
+    }
+
+    public function salvarConfigPneus(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $slugs = array_keys(config('frota_pneus.layouts', []));
+        $data = $request->validate(['config_pneus' => 'nullable|in:' . implode(',', $slugs)]);
+        $veiculo->update(['config_pneus' => $data['config_pneus'] ?? null]);
+        return back()->with('success', 'Layout de pneus definido.');
+    }
+
+    public function montarPneu(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $request->validate([
+            'pneu_id' => 'required|exists:pneus,id',
+            'posicao' => 'required|string|max:12',
+            'medicao' => 'nullable|integer|min:0',
+            'data'    => 'required|date',
+        ]);
+        $pneu = Pneu::findOrFail($data['pneu_id']);
+        if ($pneu->situacao !== 'estoque') return back()->with('error', 'Só é possível montar um pneu que está em estoque.');
+        if ($this->posicaoOcupada($veiculo, $data['posicao'])) return back()->with('error', 'Posição já ocupada.');
+
+        [$medAuto, $tipo] = $this->medicaoAtualPneu($veiculo);
+        PneuMovimentacao::create([
+            'pneu_id' => $pneu->id, 'tipo' => 'montagem', 'veiculo_id' => $veiculo->id,
+            'posicao' => $data['posicao'], 'medicao' => $data['medicao'] ?? $medAuto,
+            'medicao_tipo' => $tipo, 'data' => $data['data'], 'user_create' => Auth::user()?->email,
+        ]);
+        $pneu->update(['situacao' => 'montado', 'user_edit' => Auth::user()?->email]);
+        return back()->with('success', "Pneu {$pneu->numero_fogo} montado em {$data['posicao']}.");
+    }
+
+    public function desmontarPneu(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $request->validate([
+            'pneu_id' => 'required|exists:pneus,id',
+            'medicao' => 'nullable|integer|min:0',
+            'data'    => 'required|date',
+            'destino' => 'nullable|in:estoque,conserto,recapadora',
+        ]);
+        $pneu = Pneu::findOrFail($data['pneu_id']);
+        if ($pneu->situacao !== 'montado' || ! $this->posicaoAtualPneu($veiculo, $pneu)) {
+            return back()->with('error', 'Este pneu não está montado neste veículo.');
+        }
+        [$medAuto, $tipo] = $this->medicaoAtualPneu($veiculo);
+        PneuMovimentacao::create([
+            'pneu_id' => $pneu->id, 'tipo' => 'desmontagem', 'veiculo_id' => $veiculo->id,
+            'posicao' => $this->posicaoAtualPneu($veiculo, $pneu), 'medicao' => $data['medicao'] ?? $medAuto,
+            'medicao_tipo' => $tipo, 'data' => $data['data'], 'user_create' => Auth::user()?->email,
+        ]);
+        $pneu->update(['situacao' => $data['destino'] ?? 'estoque', 'user_edit' => Auth::user()?->email]);
+        return back()->with('success', "Pneu {$pneu->numero_fogo} desmontado.");
+    }
+
+    public function rodiziarPneu(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $request->validate([
+            'pneu_id'      => 'required|exists:pneus,id',
+            'nova_posicao' => 'required|string|max:12',
+            'medicao'      => 'nullable|integer|min:0',
+            'data'         => 'required|date',
+        ]);
+        $pneu = Pneu::findOrFail($data['pneu_id']);
+        if ($this->posicaoOcupada($veiculo, $data['nova_posicao'])) return back()->with('error', 'Posição de destino já ocupada.');
+        $posAtual = $this->posicaoAtualPneu($veiculo, $pneu);
+
+        [$medAuto, $tipo] = $this->medicaoAtualPneu($veiculo);
+        PneuMovimentacao::create([
+            'pneu_id' => $pneu->id, 'tipo' => 'rodizio', 'veiculo_id' => $veiculo->id,
+            'posicao' => $data['nova_posicao'], 'posicao_anterior' => $posAtual,
+            'medicao' => $data['medicao'] ?? $medAuto, 'medicao_tipo' => $tipo,
+            'data' => $data['data'], 'user_create' => Auth::user()?->email,
+        ]);
+        return back()->with('success', "Rodízio: {$posAtual} → {$data['nova_posicao']}.");
+    }
+
+    /** Medição atual do veículo (max km/hr) + unidade. */
+    private function medicaoAtualPneu(Veiculo $veiculo): array
+    {
+        $hr = (bool) $veiculo->tipo_hr;
+        $val = $hr ? $veiculo->horimetros()->max('horimetro_novo')
+                   : $veiculo->quilometragens()->max('quilometragem_nova');
+        return [$val === null ? null : (int) $val, $hr ? 'hr' : 'km'];
+    }
+
+    /** Posição em que o pneu está montado neste veículo (última montagem/rodízio). */
+    private function posicaoAtualPneu(Veiculo $veiculo, Pneu $pneu): ?string
+    {
+        return $pneu->movimentacoes()->where('veiculo_id', $veiculo->id)
+            ->whereIn('tipo', ['montagem', 'rodizio'])
+            ->orderByDesc('data')->orderByDesc('id')->value('posicao');
+    }
+
+    private function posicaoOcupada(Veiculo $veiculo, string $posicao): bool
+    {
+        $pneus = Pneu::where('situacao', 'montado')
+            ->whereHas('movimentacoes', fn ($q) => $q->where('veiculo_id', $veiculo->id)->whereIn('tipo', ['montagem', 'rodizio']))
+            ->get();
+        foreach ($pneus as $p) {
+            if ($this->posicaoAtualPneu($veiculo, $p) === $posicao) return true;
+        }
+        return false;
+    }
+
     public function storeDocLegal(Request $request, Veiculo $veiculo): RedirectResponse
     {
         $data = $this->validarDoc($request);
@@ -1373,6 +1654,25 @@ class VeiculoController extends Controller
             'valor'            => 'nullable|numeric|min:0',
             // Apólice: PDF ou imagem
             'arquivo'          => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ]);
+    }
+
+    protected function validarDepreciacao(Request $request): array
+    {
+        return $request->validate([
+            'valor_atual'    => 'nullable|numeric|min:0|max:999999999999.99',
+            'referencia_mes' => 'nullable|string|max:20',
+            'referencia_ano' => 'nullable|string|max:10',
+        ]);
+    }
+
+    protected function validarTacografo(Request $request): array
+    {
+        return $request->validate([
+            'descricao'          => 'required|string|max:191',
+            'data_da_emissao'    => 'nullable|date',
+            'data_do_vencimento' => 'nullable|date|after_or_equal:data_da_emissao',
+            'observacao'         => 'nullable|string',
         ]);
     }
 
@@ -1549,6 +1849,45 @@ class VeiculoController extends Controller
             'data_de_pagamento'  => optional($i->data_de_pagamento)->toDateString(),
             'data_de_vencimento' => optional($i->data_de_vencimento)->toDateString(),
             'tem_anexo'          => !empty($i->nome_anexo_ipva),
+        ]);
+        return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
+    }
+
+    public function listDepreciacoes(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        $termo = trim((string) $request->query('q', ''));
+        $q = $veiculo->depreciacoes();
+        if ($termo !== '') {
+            $like = '%' . $termo . '%';
+            $q->where(fn ($w) => $w->where('referencia_ano', 'like', $like)->orWhere('referencia_mes', 'like', $like));
+        }
+        $pagina = $q->orderByDesc('referencia_ano')->orderByDesc('id')->paginate(10)->withQueryString();
+        $pagina->getCollection()->transform(fn ($d) => [
+            'id'                    => $d->id,
+            'valor_atual'           => $d->valor_atual,
+            'referencia_mes'        => $d->referencia_mes,
+            'referencia_ano'        => $d->referencia_ano,
+            'origem'                => $d->origem,
+            'metodo'                => $d->metodo,
+            'depreciacao_acumulada' => $d->depreciacao_acumulada,
+        ]);
+        return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
+    }
+
+    public function listTacografos(Veiculo $veiculo, Request $request): JsonResponse
+    {
+        $termo = trim((string) $request->query('q', ''));
+        $q = $veiculo->tacografos();
+        if ($termo !== '') {
+            $q->where('descricao', 'like', '%' . $termo . '%');
+        }
+        $pagina = $q->orderByDesc('data_do_vencimento')->orderByDesc('id')->paginate(10)->withQueryString();
+        $pagina->getCollection()->transform(fn ($t) => [
+            'id'                 => $t->id,
+            'descricao'          => $t->descricao,
+            'data_da_emissao'    => optional($t->data_da_emissao)->toDateString(),
+            'data_do_vencimento' => optional($t->data_do_vencimento)->toDateString(),
+            'observacao'         => $t->observacao,
         ]);
         return response()->json(['data' => $pagina->items(), 'meta' => $this->metaPaginacao($pagina)]);
     }
