@@ -20,16 +20,21 @@ trait ResumoMedidor
      * @param  string  $cAtual/$cNovo/$cData  nomes das colunas
      * @param  string  $unidade    'hr' | 'km'
      * @param  int     $saltoMax   salto (novo-atual) acima disso = inconsistente
+     * @param  string  $tipoCol    'tipo_hr' | 'tipo_km' — só veículos desse medidor
      */
-    protected function dadosPainelMedidor(Request $request, string $model, string $cAtual, string $cNovo, string $cData, string $unidade, int $saltoMax): array
+    protected function dadosPainelMedidor(Request $request, string $model, string $cAtual, string $cNovo, string $cData, string $unidade, int $saltoMax, string $tipoCol): array
     {
         $termo  = trim((string) $request->input('q', ''));
         $obraId = (int) $request->input('obra_id') ?: null;
 
-        // Veículos considerados (filtro busca/obra). null = todos com leitura.
-        $restringir = null;
+        // O medidor do veículo é definido por veiculos.tipo_hr / tipo_km — então
+        // SEMPRE restringe aos veículos desse tipo (ignora leituras avulsas na
+        // tabela "errada", ex.: um veículo de horímetro com km solto).
+        $restringir = Veiculo::where($tipoCol, 1)->pluck('id')->all();
+
+        // Filtro adicional de busca/obra (intersecção).
         if ($termo !== '' || $obraId) {
-            $vq = Veiculo::query();
+            $vq = Veiculo::query()->where($tipoCol, 1);
             if ($obraId) {
                 $vq->whereHas('locacoes', fn ($q) => $q->whereNull('data_fim')->where('id_obraDestino', $obraId));
             }
@@ -48,13 +53,13 @@ trait ResumoMedidor
 
         // Estatísticas por veículo: nº leituras, última data, inconsistências.
         $stats = $model::query()->whereNotNull('veiculo_id')
-            ->when($restringir !== null, fn ($q) => $q->whereIn('veiculo_id', $restringir ?: [0]))
+            ->whereIn('veiculo_id', $restringir ?: [0])
             ->selectRaw("veiculo_id, COUNT(*) n, MAX({$cData}) ultima_data, SUM(CASE WHEN {$incRaw} THEN 1 ELSE 0 END) inconsist")
             ->groupBy('veiculo_id')->get()->keyBy('veiculo_id');
 
         // Última leitura (valor) por veículo — linha de maior id.
         $maxIds = $model::query()->whereNotNull('veiculo_id')
-            ->when($restringir !== null, fn ($q) => $q->whereIn('veiculo_id', $restringir ?: [0]))
+            ->whereIn('veiculo_id', $restringir ?: [0])
             ->selectRaw('MAX(id) id')->groupBy('veiculo_id')->pluck('id');
         $ultimas = $model::whereIn('id', $maxIds)->get(['veiculo_id', $cNovo, 'user_create'])->keyBy('veiculo_id');
 
@@ -84,7 +89,7 @@ trait ResumoMedidor
         // Lista das leituras inconsistentes (para excluir).
         $inconsistencias = $model::query()->whereNotNull('veiculo_id')
             ->with('veiculo:id,prefixo,placa')
-            ->when($restringir !== null, fn ($q) => $q->whereIn('veiculo_id', $restringir ?: [0]))
+            ->whereIn('veiculo_id', $restringir ?: [0])
             ->whereRaw($incRaw)
             ->orderByDesc($cData)->limit(200)
             ->get(['id', 'veiculo_id', $cAtual, $cNovo, $cData])

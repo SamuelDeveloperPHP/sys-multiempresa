@@ -16,7 +16,7 @@ class VeiculoQuilometragemController extends Controller
     public function index(Request $request): InertiaResponse
     {
         return Inertia::render('Admin/Frota/Quilometragem/Index', $this->dadosPainelMedidor(
-            $request, VeiculoQuilometragem::class, 'quilometragem_atual', 'quilometragem_nova', 'data_quilometragem', 'km', 20000,
+            $request, VeiculoQuilometragem::class, 'quilometragem_atual', 'quilometragem_nova', 'data_quilometragem', 'km', 20000, 'tipo_km',
         ));
     }
 

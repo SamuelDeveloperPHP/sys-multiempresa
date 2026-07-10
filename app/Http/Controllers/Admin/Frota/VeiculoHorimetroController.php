@@ -20,7 +20,7 @@ class VeiculoHorimetroController extends Controller
     public function index(Request $request): InertiaResponse
     {
         return Inertia::render('Admin/Frota/Horimetros/Index', $this->dadosPainelMedidor(
-            $request, VeiculoHorimetro::class, 'horimetro_atual', 'horimetro_novo', 'data_horimetro', 'hr', 2000,
+            $request, VeiculoHorimetro::class, 'horimetro_atual', 'horimetro_novo', 'data_horimetro', 'hr', 2000, 'tipo_hr',
         ));
     }
 
