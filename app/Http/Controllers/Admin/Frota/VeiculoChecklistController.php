@@ -7,6 +7,8 @@ use App\Models\Frota\Veiculo;
 use App\Models\Frota\VeiculoChecklist;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
@@ -64,6 +66,32 @@ class VeiculoChecklistController extends Controller
     {
         $checklist->delete();
         return redirect()->route('admin.frota.checklists.index')->with('success', 'Checklist removido.');
+    }
+
+    /**
+     * Duplica o modelo de checklist (cabecalho + itens) com sufixo "_copia".
+     */
+    public function duplicar(VeiculoChecklist $checklist): RedirectResponse
+    {
+        DB::transaction(function () use ($checklist) {
+            $checklist->loadMissing('itens');
+
+            $novo = $checklist->replicate(['user_edit', 'data_sincronizacao']);
+            $novo->nome_checklist = $checklist->nome_checklist . '_copia';
+            $novo->situacao       = 'Ativo';
+            $novo->sync_status    = 0;
+            $novo->user_create    = Auth::user()?->email;
+            $novo->save();
+
+            foreach ($checklist->itens as $item) {
+                $novoItem = $item->replicate(['user_edit']);
+                $novoItem->id_checklist = $novo->id;
+                $novoItem->user_create  = Auth::user()?->email;
+                $novoItem->save();
+            }
+        });
+
+        return redirect()->route('admin.frota.checklists.index')->with('success', 'Checklist duplicado.');
     }
 
     protected function validar(Request $request): array

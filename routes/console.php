@@ -14,3 +14,17 @@ Schedule::command('frota:alertar-preventivas')
     ->timezone('America/Sao_Paulo')
     ->withoutOverlapping()
     ->runInBackground();
+
+// Snapshot mensal de depreciacao da frota (dia 1, 03:00, hora de SP)
+Schedule::command('frota:calcular-depreciacao')
+    ->monthlyOn(1, '03:00')
+    ->timezone('America/Sao_Paulo')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+// Alerta semanal de pneus com sulco critico (segunda, 07:00, hora de SP)
+Schedule::command('frota:alertar-pneus')
+    ->weeklyOn(1, '07:00')
+    ->timezone('America/Sao_Paulo')
+    ->withoutOverlapping()
+    ->runInBackground();

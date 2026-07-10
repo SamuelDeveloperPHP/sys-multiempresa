@@ -5,7 +5,14 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 /* ============ helpers de formatação ============ */
 const fmtMoney = (v) => v != null ? Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—';
 const fmtNum   = (v, dec = 0) => v != null ? Number(v).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—';
-const fmtData  = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+// Datas "YYYY-MM-DD" (date-only) precisam ser lidas como hora LOCAL; new Date(s)
+// as interpreta como UTC e, em fuso -03, exibe o dia anterior (off-by-one).
+const fmtData  = (d) => {
+  if (!d) return '—';
+  const s = String(d);
+  const dt = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T00:00:00') : new Date(s);
+  return dt.toLocaleDateString('pt-BR');
+};
 
 const situacaoCorretiva = {
   1: { label: 'Pendente',     cor: 'bg-amber-100 text-amber-800' },
@@ -42,16 +49,19 @@ const statusVencimento = (dias) => {
 };
 
 const TABS = [
-  { id: 'detalhes',       label: 'Detalhes' },
-  { id: 'galeria',        label: 'Biblioteca' },
-  { id: 'docs_tecnicos',  label: "Doc's Técnicos" },
-  { id: 'docs_legais',    label: "Doc's Legais" },
-  { id: 'corretivas',     label: 'Corretivas' },
-  { id: 'preventivas',    label: 'Preventivas' },
-  { id: 'seguros',        label: 'Seguros' },
-  { id: 'ipvas',          label: "IPVA's" },
-  { id: 'abastecimentos', label: 'Abastecimentos' },
-  { id: 'medicoes',       label: 'Hodômetro/Horímetro' },
+  { id: 'detalhes',       label: 'Detalhes',            icon: 'fa-circle-info' },
+  { id: 'galeria',        label: 'Biblioteca',          icon: 'fa-images' },
+  { id: 'docs_tecnicos',  label: "Doc's Técnicos",      icon: 'fa-file-lines' },
+  { id: 'docs_legais',    label: "Doc's Legais",        icon: 'fa-file-contract' },
+  { id: 'corretivas',     label: 'Corretivas',          icon: 'fa-screwdriver-wrench' },
+  { id: 'preventivas',    label: 'Preventivas',         icon: 'fa-wrench' },
+  { id: 'seguros',        label: 'Seguros',             icon: 'fa-shield-halved' },
+  { id: 'ipvas',          label: "IPVA's",              icon: 'fa-file-invoice-dollar' },
+  { id: 'depreciacao',    label: 'Depreciação',         icon: 'fa-arrow-trend-down' },
+  { id: 'tacografo',      label: 'Tacógrafo',           icon: 'fa-stopwatch' },
+  { id: 'pneus',          label: 'Pneus',               icon: 'fa-life-ring' },
+  { id: 'abastecimentos', label: 'Abastecimentos',      icon: 'fa-gas-pump' },
+  { id: 'medicoes',       label: 'Hodômetro/Horímetro', icon: 'fa-gauge-high' },
 ];
 
 /* ============================================================
@@ -194,6 +204,7 @@ export default function VeiculoShow({
                     : 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                 }`}
               >
+                <i className={`fa-solid ${t.icon} mr-2 text-[13px] ${tab === t.id ? 'text-rise-600' : 'text-gray-400'}`} />
                 {t.label}
               </button>
             ))}
@@ -219,6 +230,9 @@ export default function VeiculoShow({
           {tab === 'preventivas'    && <TabPreventivas registros={preventivas} dashboard={dashboardCiclos} veiculo={veiculo} fornecedores={fornecedores} obras={obras} funcionarios={funcionarios} />}
           {tab === 'seguros'        && <TabSeguros veiculo={veiculo} />}
           {tab === 'ipvas'          && <TabIpvas veiculo={veiculo} />}
+          {tab === 'depreciacao'    && <TabDepreciacao veiculo={veiculo} />}
+          {tab === 'tacografo'      && <TabTacografo veiculo={veiculo} />}
+          {tab === 'pneus'          && <TabPneus veiculo={veiculo} />}
           {tab === 'abastecimentos' && <TabAbastecimentos veiculo={veiculo} obras={obras} funcionarios={funcionarios} combustiveis={combustiveis} />}
           {tab === 'medicoes'       && <TabMedicoes veiculo={veiculo} obras={obras} funcionarios={funcionarios} />}
         </div>
@@ -2367,6 +2381,477 @@ function ModalIpva({ veiculo, ipva, onClose, onSaved }) {
         <ModalFooter onClose={onClose} processing={processing} editando={editando} />
       </form>
     </ModalShell>
+  );
+}
+
+/* ============ TAB: Depreciação ============ */
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
+
+const METODOS_DEP = [
+  { value: '', label: '— automático —' },
+  { value: 'horimetro', label: 'Por horímetro (linha amarela)' },
+  { value: 'linear', label: 'Linear (cota constante)' },
+  { value: 'saldo_decrescente', label: 'Saldo decrescente (acelerado)' },
+  { value: 'mercado', label: 'Valor de mercado / FIPE' },
+];
+const METODO_LABEL = { horimetro: 'Horímetro', linear: 'Linear', saldo_decrescente: 'Saldo decr.', mercado: 'Mercado', manual: 'Manual' };
+
+function TabDepreciacao({ veiculo }) {
+  const [editando, setEditando] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [est, setEst] = useState(null);
+  const [showMemoria, setShowMemoria] = useState(false);
+  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage, reload } =
+    useServerList('admin.frota.veiculos.depreciacoes.list', veiculo.id);
+
+  const carregarEstimativa = useCallback(async () => {
+    try {
+      const { data } = await window.axios.get(route('admin.frota.veiculos.depreciacao.estimativa', veiculo.id));
+      setEst(data);
+    } catch (e) { console.error('[estimativa depreciacao]', e); }
+  }, [veiculo.id]);
+  useEffect(() => { carregarEstimativa(); }, [carregarEstimativa]);
+
+  const abrirNovo = () => { setEditando(null); setShowForm(true); };
+  const abrirEdit = (d) => { setEditando(d); setShowForm(true); };
+  const onSaved = () => { setShowForm(false); reload(); carregarEstimativa(); };
+  const excluir = (d) => {
+    if (!confirm('Remover este registro de depreciação?')) return;
+    router.delete(route('admin.frota.depreciacoes.destroy', d.id), { preserveScroll: true, onSuccess: () => { reload(); carregarEstimativa(); } });
+  };
+  const recalcular = () => {
+    router.post(route('admin.frota.veiculos.depreciacao.recalcular', veiculo.id), {}, {
+      preserveScroll: true, onSuccess: () => { reload(); carregarEstimativa(); },
+    });
+  };
+
+  const e = est?.estimativa;
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 className="text-lg font-semibold">Depreciação</h2>
+        <div className="flex items-center gap-2">
+          <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar mês/ano…" />
+          <button onClick={recalcular} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700">↻ Recalcular mês</button>
+          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700">+ Lançamento manual</button>
+        </div>
+      </div>
+
+      {/* Estimativa ao vivo + parâmetros */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-lg border p-4 lg:col-span-1">
+          <p className="text-xs uppercase text-gray-500">Valor atual estimado</p>
+          {e?.ok ? (
+            <>
+              <p className="text-2xl font-bold mt-1">{fmtMoney(e.valor_atual)}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                <span className="inline-block px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 mr-2">{METODO_LABEL[e.metodo] ?? e.metodo}</span>
+                {e.percentual_depreciado}% depreciado
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Base {fmtMoney(e.valor_base)} · residual {fmtMoney(e.valor_residual)} · acum. {fmtMoney(e.depreciacao_acumulada)}</p>
+              {e.aviso && <p className="text-xs text-amber-600 mt-1">⚠ {e.aviso}</p>}
+              <button onClick={() => setShowMemoria((v) => !v)} className="text-xs text-indigo-600 hover:underline mt-2">{showMemoria ? 'ocultar' : 'ver'} memória de cálculo</button>
+              {showMemoria && (
+                <pre className="text-[11px] bg-gray-50 border rounded p-2 mt-1 overflow-x-auto">{JSON.stringify(e.memoria, null, 2)}</pre>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 mt-2">{e?.aviso ?? 'Preencha os parâmetros para estimar.'}</p>
+          )}
+        </div>
+
+        {est && <ParametrosDepreciacao veiculo={veiculo} parametros={est.parametros} onSaved={carregarEstimativa} />}
+      </div>
+
+      {showForm && (
+        <ModalDepreciacao veiculo={veiculo} depreciacao={editando} onClose={() => setShowForm(false)} onSaved={onSaved} />
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left">
+            <tr>
+              <th className="px-3 py-2">Mês/Ano</th>
+              <th className="px-3 py-2 text-right">Valor atual</th>
+              <th className="px-3 py-2 text-right">Dep. acumulada</th>
+              <th className="px-3 py-2">Método</th>
+              <th className="px-3 py-2">Origem</th>
+              <th className="px-3 py-2 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {loading ? (
+              <tr><td colSpan={6} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={6} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhuma depreciação registrada.'}</td></tr>
+            ) : rows.map((d) => (
+              <tr key={d.id} className="hover:bg-gray-50">
+                <td className="px-3 py-2">{capitalize(d.referencia_mes)}/{d.referencia_ano || '—'}</td>
+                <td className="px-3 py-2 text-right font-medium">{fmtMoney(d.valor_atual)}</td>
+                <td className="px-3 py-2 text-right text-gray-600">{d.depreciacao_acumulada != null ? fmtMoney(d.depreciacao_acumulada) : '—'}</td>
+                <td className="px-3 py-2">{METODO_LABEL[d.metodo] ?? '—'}</td>
+                <td className="px-3 py-2">
+                  <span className={`px-2 py-0.5 rounded text-xs ${d.origem === 'manual' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{d.origem === 'manual' ? 'Manual' : 'Calculado'}</span>
+                </td>
+                <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
+                  <button onClick={() => abrirEdit(d)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
+                  <button onClick={() => excluir(d)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Paginacao meta={meta} loading={loading} onPage={setPage} />
+    </div>
+  );
+}
+
+function ParametrosDepreciacao({ veiculo, parametros, onSaved }) {
+  const { data, setData, put, processing, errors } = useForm({
+    metodo_depreciacao: parametros.metodo_depreciacao ?? '',
+    valor_aquisicao:    parametros.valor_aquisicao ?? '',
+    valor_residual:     parametros.valor_residual ?? '',
+    vida_util_anos:     parametros.vida_util_anos ?? '',
+    vida_util_horas:    parametros.vida_util_horas ?? '',
+    data_aquisicao:     parametros.data_aquisicao ?? '',
+  });
+  const submit = (ev) => {
+    ev.preventDefault();
+    put(route('admin.frota.veiculos.depreciacao.parametros', veiculo.id), {
+      preserveScroll: true, onSuccess: () => onSaved && onSaved(),
+    });
+  };
+  const isHr = parametros.tipo_hr;
+  return (
+    <form onSubmit={submit} className="bg-white rounded-lg border p-4 lg:col-span-2">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs uppercase text-gray-500">Parâmetros de depreciação</p>
+        <span className="text-[11px] text-gray-400">{isHr ? 'ativo horimetrado' : 'ativo rodoviário'}</span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <label className="text-sm md:col-span-2">
+          <span className="block text-xs font-semibold text-gray-700 mb-1">Método</span>
+          <select value={data.metodo_depreciacao} onChange={(ev) => setData('metodo_depreciacao', ev.target.value)}
+                  className="w-full border border-gray-300 rounded px-2 py-1.5">
+            {METODOS_DEP.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </label>
+        <ParamF label="Valor de aquisição (R$)" name="valor_aquisicao" type="number" step="0.01" data={data} setData={setData} errors={errors} />
+        <ParamF label="Valor residual (R$)" name="valor_residual" type="number" step="0.01" data={data} setData={setData} errors={errors} />
+        <ParamF label="Vida útil (anos)" name="vida_util_anos" type="number" data={data} setData={setData} errors={errors} />
+        <ParamF label="Vida útil (horas)" name="vida_util_horas" type="number" data={data} setData={setData} errors={errors} />
+        <ParamF label="Data de aquisição" name="data_aquisicao" type="date" data={data} setData={setData} errors={errors} />
+      </div>
+      <div className="mt-3 flex justify-end">
+        <button type="submit" disabled={processing} className="px-4 py-1.5 bg-rise-600 text-white rounded text-sm font-medium hover:bg-rise-700 disabled:opacity-50">
+          {processing ? 'Salvando…' : 'Salvar parâmetros'}
+        </button>
+      </div>
+      <p className="text-[11px] text-gray-400 mt-2">Deixe em branco para usar o padrão ({isHr ? 'vida útil 10.000 h, residual 20%' : 'vida útil 5 anos, residual 10%'}).</p>
+    </form>
+  );
+}
+
+function ParamF({ label, name, type = 'text', step, data, setData, errors }) {
+  return (
+    <label className="text-sm">
+      <span className="block text-xs font-semibold text-gray-700 mb-1">{label}</span>
+      <input type={type} step={step} value={data[name]} onChange={(e) => setData(name, e.target.value)}
+             className="w-full border border-gray-300 rounded px-2 py-1.5" />
+      {errors[name] && <p className="text-red-600 text-xs mt-1">{errors[name]}</p>}
+    </label>
+  );
+}
+
+function ModalDepreciacao({ veiculo, depreciacao, onClose, onSaved }) {
+  const editando = !!depreciacao?.id;
+  const { data, setData, post, processing, errors } = useForm({
+    valor_atual:    depreciacao?.valor_atual ?? '',
+    referencia_mes: depreciacao?.referencia_mes ?? '',
+    referencia_ano: depreciacao?.referencia_ano ?? new Date().getFullYear().toString(),
+    _method:        editando ? 'put' : 'post',
+  });
+
+  const submit = (e) => {
+    e.preventDefault();
+    const url = editando
+      ? route('admin.frota.depreciacoes.update', depreciacao.id)
+      : route('admin.frota.veiculos.depreciacoes.store', veiculo.id);
+    post(url, { preserveScroll: true, onSuccess: () => (onSaved ? onSaved() : onClose()) });
+  };
+
+  return (
+    <ModalShell title={editando ? `Editar depreciação #${depreciacao.id}` : 'Nova depreciação'} onClose={onClose}>
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <F label="Valor atual (R$)" name="valor_atual" type="number" step="0.01" data={data} setData={setData} errors={errors} className="md:col-span-2" />
+        <F label="Mês de referência" name="referencia_mes" data={data} setData={setData} errors={errors}>
+          <select value={data.referencia_mes} onChange={(e) => setData('referencia_mes', e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2">
+            <option value="">Selecione</option>
+            {MESES.map((m) => <option key={m} value={m}>{capitalize(m)}</option>)}
+          </select>
+        </F>
+        <F label="Ano de referência" name="referencia_ano" data={data} setData={setData} errors={errors} />
+        <ModalFooter onClose={onClose} processing={processing} editando={editando} />
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ============ TAB: Tacógrafo ============ */
+function TabTacografo({ veiculo }) {
+  const [editando, setEditando] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const { rows, meta, loading, busca, setBusca, buscaDebounced, setPage, reload } =
+    useServerList('admin.frota.veiculos.tacografos.list', veiculo.id);
+
+  const abrirNovo = () => { setEditando(null); setShowForm(true); };
+  const abrirEdit = (t) => { setEditando(t); setShowForm(true); };
+  const onSaved = () => { setShowForm(false); reload(); };
+  const excluir = (t) => {
+    if (!confirm('Remover este tacógrafo?')) return;
+    router.delete(route('admin.frota.tacografos.destroy', t.id), { preserveScroll: true, onSuccess: reload });
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 className="text-lg font-semibold">Tacógrafo</h2>
+        <div className="flex items-center gap-2">
+          <BuscaField value={busca} onChange={setBusca} placeholder="Pesquisar descrição…" />
+          <button onClick={abrirNovo} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700">+ Novo tacógrafo</button>
+        </div>
+      </div>
+
+      {showForm && (
+        <ModalTacografo veiculo={veiculo} tacografo={editando} onClose={() => setShowForm(false)} onSaved={onSaved} />
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-left">
+            <tr>
+              <th className="px-3 py-2 w-16">ID</th>
+              <th className="px-3 py-2">Descrição</th>
+              <th className="px-3 py-2">Emissão</th>
+              <th className="px-3 py-2">Vencimento</th>
+              <th className="px-3 py-2 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {loading ? (
+              <tr><td colSpan={5} className="text-center text-gray-400 py-8">Carregando…</td></tr>
+            ) : rows.length === 0 ? (
+              <tr><td colSpan={5} className="text-center text-gray-500 py-6">{buscaDebounced ? `Nada encontrado para "${buscaDebounced}".` : 'Nenhum tacógrafo cadastrado.'}</td></tr>
+            ) : rows.map((t) => (
+              <tr key={t.id} className="hover:bg-gray-50">
+                <td className="px-3 py-2 text-gray-500">#{t.id}</td>
+                <td className="px-3 py-2 font-medium">{t.descricao || '—'}</td>
+                <td className="px-3 py-2">{fmtData(t.data_da_emissao)}</td>
+                <td className="px-3 py-2">{fmtData(t.data_do_vencimento)}</td>
+                <td className="px-3 py-2 text-right space-x-2 whitespace-nowrap">
+                  <button onClick={() => abrirEdit(t)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
+                  <button onClick={() => excluir(t)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition">Excluir</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Paginacao meta={meta} loading={loading} onPage={setPage} />
+    </div>
+  );
+}
+
+function ModalTacografo({ veiculo, tacografo, onClose, onSaved }) {
+  const editando = !!tacografo?.id;
+  const { data, setData, post, processing, errors } = useForm({
+    descricao:          tacografo?.descricao ?? '',
+    data_da_emissao:    tacografo?.data_da_emissao?.substring(0, 10) ?? '',
+    data_do_vencimento: tacografo?.data_do_vencimento?.substring(0, 10) ?? '',
+    observacao:         tacografo?.observacao ?? '',
+    _method:            editando ? 'put' : 'post',
+  });
+
+  const submit = (e) => {
+    e.preventDefault();
+    const url = editando
+      ? route('admin.frota.tacografos.update', tacografo.id)
+      : route('admin.frota.veiculos.tacografos.store', veiculo.id);
+    post(url, { preserveScroll: true, onSuccess: () => (onSaved ? onSaved() : onClose()) });
+  };
+
+  return (
+    <ModalShell title={editando ? `Editar tacógrafo #${tacografo.id}` : 'Novo tacógrafo'} onClose={onClose}>
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <F label="Descrição *" name="descricao" data={data} setData={setData} errors={errors} className="md:col-span-2" />
+        <F label="Data de emissão" name="data_da_emissao" type="date" data={data} setData={setData} errors={errors} />
+        <F label="Data de vencimento" name="data_do_vencimento" type="date" data={data} setData={setData} errors={errors} />
+        <F label="Observações" name="observacao" data={data} setData={setData} errors={errors} className="md:col-span-2">
+          <textarea value={data.observacao} onChange={(e) => setData('observacao', e.target.value)} rows={4}
+                    className="w-full border border-gray-300 rounded px-3 py-2" />
+        </F>
+        <ModalFooter onClose={onClose} processing={processing} editando={editando} />
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ============ TAB: Pneus ============ */
+function TabPneus({ veiculo }) {
+  const [dados, setDados] = useState(null);
+  const [modal, setModal] = useState(null);
+
+  const carregar = useCallback(async () => {
+    try {
+      const { data } = await window.axios.get(route('admin.frota.veiculos.pneus.list', veiculo.id));
+      setDados(data);
+    } catch (e) { console.error('[pneus]', e); }
+  }, [veiculo.id]);
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const definirLayout = (slug) => router.put(route('admin.frota.veiculos.pneus.config', veiculo.id),
+    { config_pneus: slug }, { preserveScroll: true, onSuccess: carregar });
+  const onSaved = () => { setModal(null); carregar(); };
+
+  if (!dados) return <div className="text-gray-400 py-8 text-center">Carregando…</div>;
+
+  if (!dados.layout) {
+    return (
+      <div className="max-w-md">
+        <h2 className="text-lg font-semibold mb-2">Configuração de eixos</h2>
+        <p className="text-sm text-gray-500 mb-3">Escolha o layout de posições deste veículo para habilitar a montagem de pneus.</p>
+        <select onChange={(e) => e.target.value && definirLayout(e.target.value)} defaultValue=""
+          className="w-full border border-gray-300 rounded px-3 py-2">
+          <option value="" disabled>— selecione o layout —</option>
+          {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
+        </select>
+      </div>
+    );
+  }
+
+  const posicoesLivres = dados.layout.posicoes.filter((p) => !dados.montados[p.codigo]).map((p) => p.codigo);
+  const corSulco = (s) => s == null ? 'text-gray-400' : (s < dados.sulco_minimo ? 'text-red-600' : (s < dados.sulco_alerta ? 'text-amber-600' : 'text-green-600'));
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-semibold">Pneus — {dados.layout.label}</h2>
+          <p className="text-xs text-gray-500">
+            Medição atual: {dados.medicao_atual != null ? `${Number(dados.medicao_atual).toLocaleString('pt-BR')} ${dados.medicao_tipo}` : '—'} · sulco mín. legal {dados.sulco_minimo} mm
+          </p>
+        </div>
+        <select value={dados.config_pneus ?? ''} onChange={(e) => definirLayout(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
+          {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {dados.layout.posicoes.map((pos) => {
+          const m = dados.montados[pos.codigo];
+          return (
+            <div key={pos.codigo} className={`rounded-lg border p-3 ${m ? 'bg-white' : 'bg-gray-50 border-dashed'}`}>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-800">{pos.codigo}</span>
+                <span className="text-xs text-gray-400">{pos.label}</span>
+              </div>
+              {m ? (
+                <div className="mt-2 text-sm">
+                  <p className="font-medium">{m.numero_fogo}</p>
+                  <p className="text-xs text-gray-500">{[m.marca, m.medida].filter(Boolean).join(' · ')} · {m.vida_atual > 0 ? `${m.vida_atual}ª vida` : 'Novo'}</p>
+                  <p className="text-xs mt-1">Sulco: <span className={`font-semibold ${corSulco(m.sulco)}`}>{m.sulco != null ? `${m.sulco} mm` : '—'}</span></p>
+                  <div className="mt-2 flex gap-1">
+                    <button onClick={() => setModal({ tipo: 'rodiziar', pneu: m })} className="px-2 py-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100">Rodízio</button>
+                    <button onClick={() => setModal({ tipo: 'desmontar', pneu: m })} className="px-2 py-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100">Desmontar</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setModal({ tipo: 'montar', posicao: pos.codigo })} className="mt-3 w-full px-2 py-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100">+ Montar pneu</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {modal && <ModalPneuAcao veiculo={veiculo} contexto={modal} dados={dados} posicoesLivres={posicoesLivres} onClose={() => setModal(null)} onSaved={onSaved} />}
+    </div>
+  );
+}
+
+function ModalPneuAcao({ veiculo, contexto, dados, posicoesLivres, onClose, onSaved }) {
+  const { tipo, posicao, pneu } = contexto;
+  const { data, setData, post, processing, errors } = useForm({
+    pneu_id: pneu?.id ?? '', posicao: posicao ?? '', nova_posicao: '', destino: 'estoque',
+    medicao: dados.medicao_atual ?? '', data: new Date().toLocaleDateString('en-CA'),
+  });
+  const rotas = {
+    montar: 'admin.frota.veiculos.pneus.montar',
+    desmontar: 'admin.frota.veiculos.pneus.desmontar',
+    rodiziar: 'admin.frota.veiculos.pneus.rodiziar',
+  };
+  const submit = (e) => { e.preventDefault(); post(route(rotas[tipo], veiculo.id), { preserveScroll: true, onSuccess: onSaved }); };
+  const titulo = { montar: `Montar pneu em ${posicao}`, desmontar: `Desmontar ${pneu?.numero_fogo}`, rodiziar: `Rodízio de ${pneu?.numero_fogo}` }[tipo];
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">{titulo}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          {tipo === 'montar' && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Pneu (do estoque) *</label>
+              <select value={data.pneu_id} onChange={(e) => setData('pneu_id', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2">
+                <option value="">— selecione —</option>
+                {dados.disponiveis.map((p) => <option key={p.id} value={p.id}>{p.numero_fogo} — {[p.marca, p.medida].filter(Boolean).join(' ')} {p.vida_atual > 0 ? `(${p.vida_atual}ª vida)` : '(novo)'}</option>)}
+              </select>
+              {errors.pneu_id && <p className="text-red-600 text-xs mt-1">{errors.pneu_id}</p>}
+              {dados.disponiveis.length === 0 && <p className="text-amber-600 text-xs mt-1">Nenhum pneu em estoque — cadastre no catálogo de Pneus.</p>}
+            </div>
+          )}
+          {tipo === 'rodiziar' && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Nova posição *</label>
+              <select value={data.nova_posicao} onChange={(e) => setData('nova_posicao', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2">
+                <option value="">— selecione —</option>
+                {posicoesLivres.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {errors.nova_posicao && <p className="text-red-600 text-xs mt-1">{errors.nova_posicao}</p>}
+            </div>
+          )}
+          {tipo === 'desmontar' && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Destino</label>
+              <select value={data.destino} onChange={(e) => setData('destino', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2">
+                <option value="estoque">Estoque</option>
+                <option value="conserto">Conserto</option>
+                <option value="recapadora">Recapadora</option>
+              </select>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Data *</label>
+              <input type="date" value={data.data} onChange={(e) => setData('data', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Medição ({dados.medicao_tipo})</label>
+              <input type="number" value={data.medicao} onChange={(e) => setData('medicao', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="px-4 py-2 border rounded hover:bg-gray-50">Cancelar</button>
+            <button type="submit" disabled={processing} className="px-4 py-2 bg-rise-600 text-white rounded hover:bg-rise-700 disabled:opacity-50">{processing ? 'Salvando...' : 'Confirmar'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 

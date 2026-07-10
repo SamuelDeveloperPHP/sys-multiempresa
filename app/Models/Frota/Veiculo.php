@@ -21,6 +21,8 @@ class Veiculo extends Model
         'tipo_km', 'tipo_hr', 'tipo_tempo', 'id_combustivel_padrao',
         'veiculo',
         'valor_fipe', 'valor_aquisicao', 'valor_mercado',
+        'metodo_depreciacao', 'valor_residual', 'vida_util_anos', 'vida_util_horas', 'data_aquisicao',
+        'config_pneus',
         'codigo_fipe', 'fipe_mes_referencia', 'mes_aquisicao',
         'nun_serie_chassi', 'renavam',
         'horimetro_inicial', 'quilometragem_inicial',
@@ -36,6 +38,10 @@ class Veiculo extends Model
         'valor_fipe'          => 'decimal:2',
         'valor_aquisicao'     => 'decimal:2',
         'valor_mercado'       => 'decimal:2',
+        'valor_residual'      => 'decimal:2',
+        'vida_util_anos'      => 'integer',
+        'vida_util_horas'     => 'integer',
+        'data_aquisicao'      => 'date',
         'data_sincronizacao'  => 'datetime',
     ];
 
@@ -61,6 +67,9 @@ class Veiculo extends Model
     public function seguros()       { return $this->hasMany(VeiculoSeguro::class, 'veiculo_id'); }
     public function docsLegais()    { return $this->hasMany(VeiculoDocLegal::class, 'id_veiculo'); }
     public function docsTecnicos()  { return $this->hasMany(VeiculoDocTecnico::class, 'id_veiculo'); }
+    public function depreciacoes()  { return $this->hasMany(VeiculoDepreciacao::class, 'veiculo_id'); }
+    public function tacografos()    { return $this->hasMany(VeiculoTacografo::class, 'veiculo_id'); }
+    public function pneuMovimentacoes() { return $this->hasMany(PneuMovimentacao::class, 'veiculo_id'); }
 
     public function locacaoAtual()
     {
