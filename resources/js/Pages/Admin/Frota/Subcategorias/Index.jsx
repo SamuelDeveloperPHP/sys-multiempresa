@@ -34,7 +34,7 @@ export default function SubcategoriasIndex({ subcategorias, categorias = [], fil
   return (
     <AuthenticatedLayout>
       <Head title="Subcategorias de Veículo" />
-      <div className="p-4 md:p-6 w-full max-w-5xl">
+      <div className="p-4 md:p-6 w-full">
         <header className="mb-1">
           <h1 className="text-2xl font-bold">Subcategorias de Veículo</h1>
           <p className="text-sm text-gray-500">Detalhamento por categoria (ex.: Carro/Sedã, Caminhão/3 eixos)</p>

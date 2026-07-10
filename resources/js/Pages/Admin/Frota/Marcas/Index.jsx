@@ -25,7 +25,7 @@ export default function MarcasIndex({ marcas, filtros = {} }) {
   return (
     <AuthenticatedLayout>
       <Head title="Marcas" />
-      <div className="p-4 md:p-6 w-full max-w-5xl">
+      <div className="p-4 md:p-6 w-full">
         <header className="mb-1">
           <h1 className="text-2xl font-bold">Marcas (Veículo / Máquina)</h1>
           <p className="text-sm text-gray-500">Sugestões de marca usadas no cadastro de veículo</p>

@@ -34,7 +34,7 @@ export default function ModelosIndex({ modelos, marcas = [], filtros = {} }) {
   return (
     <AuthenticatedLayout>
       <Head title="Modelos" />
-      <div className="p-4 md:p-6 w-full max-w-5xl">
+      <div className="p-4 md:p-6 w-full">
         <header className="mb-1">
           <h1 className="text-2xl font-bold">Modelos (Veículo / Máquina)</h1>
           <p className="text-sm text-gray-500">Sugestões de modelo (opcional: vincular a uma marca)</p>
