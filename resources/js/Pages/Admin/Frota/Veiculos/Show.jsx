@@ -2767,59 +2767,83 @@ function classeSulcoStroke(s, min, alerta) {
 }
 
 /* Diagrama técnico (vista de topo) desenhado a partir da geometria do layout
-   (eixos + lanes) — vale para todos os tipos de veículo. Rodas clicáveis. */
-const LANE_CX = { EE: 34, EI: 94, E: 64, D: 216, DI: 186, DE: 246 };
-const RAIL_L = 112, RAIL_R = 168, WW = 20, WH = 42, AX0 = 92, AXD = 72;
+   (eixos + lanes) — vale para todos os tipos de veículo. Rodas grandes e
+   clicáveis; estrado/cabine/eixos dão a leitura de chassi. */
+const LANE_CX = { EE: 74, EI: 116, E: 108, D: 252, DI: 244, DE: 286 };
+const FRAME_L = 138, FRAME_R = 222, RAIL1 = 156, RAIL2 = 204;
+const WW = 36, WH = 66, AX0 = 168, AXD = 108, CAB_BOT = 96;
 
 function ChassiSVG({ eixos, estepe, montados, sel, onSelect, sulcoMin, sulcoAlerta }) {
   const n = eixos.length;
-  const yBot = AX0 + (n - 1) * AXD + 6;
-  const estepeY = yBot + 30;
-  const H = (estepe.length ? estepeY : yBot) + WH / 2 + 16;
+  const lastY = AX0 + (n - 1) * AXD;
+  const frameBottom = lastY + 48;
+  const estepeY = frameBottom + 50;
+  const H = (estepe.length ? estepeY + WW / 2 + 22 : frameBottom + 20);
 
-  const Wheel = ({ code, lane, y }) => {
+  const Wheel = ({ code, lane, cy, cx, horizontal, noLabel }) => {
     const m = montados[code];
-    const cx = LANE_CX[lane] ?? 64;
-    const x = cx - WW / 2, yy = y - WH / 2;
+    const CX = cx ?? (LANE_CX[lane] ?? 108);
+    const w = horizontal ? WH : WW, h = horizontal ? WW : WH;
+    const x = CX - w / 2, y = cy - h / 2;
     const cls = m ? classeSulcoStroke(m.sulco, sulcoMin, sulcoAlerta) : 'text-gray-300';
     const ativo = sel === code;
+    const treads = [0, 1, 2, 3].map((i) => (horizontal
+      ? <line key={i} x1={x + 12 + i * 11} y1={y + 5} x2={x + 12 + i * 11} y2={y + h - 5} stroke="currentColor" strokeWidth={1.4} className="text-gray-300" />
+      : <line key={i} x1={x + 5} y1={y + 13 + i * 12} x2={x + w - 5} y2={y + 13 + i * 12} stroke="currentColor" strokeWidth={1.4} className="text-gray-300" />));
     return (
       <g style={{ cursor: 'pointer' }} onClick={() => onSelect(code)}>
-        {ativo && <rect x={x - 3} y={yy - 3} width={WW + 6} height={WH + 6} rx={6} fill="none" stroke="currentColor" strokeWidth={2} className="text-rise-600" />}
-        <rect x={x} y={yy} width={WW} height={WH} rx={4} fill={m ? 'white' : 'none'} stroke="currentColor" strokeWidth={2.6} strokeDasharray={m ? undefined : '4 3'} className={cls} />
-        {m
-          ? [0, 1, 2].map((i) => <line key={i} x1={x + 4} y1={yy + 12 + i * 9} x2={x + WW - 4} y2={yy + 12 + i * 9} stroke="currentColor" strokeWidth={1} className="text-gray-300" />)
-          : <text x={cx} y={y + 4} textAnchor="middle" fontSize={13} className="fill-gray-400" style={{ pointerEvents: 'none' }}>+</text>}
-        <text x={cx} y={y + WH / 2 + 11} textAnchor="middle" fontSize={8.5} className="fill-gray-500" style={{ pointerEvents: 'none' }}>{code}</text>
+        {ativo && <rect x={x - 4} y={y - 4} width={w + 8} height={h + 8} rx={10} fill="none" stroke="currentColor" strokeWidth={2.5} className="text-rise-600" />}
+        <rect x={x} y={y} width={w} height={h} rx={7} fill={m ? 'white' : 'none'} stroke="currentColor" strokeWidth={3} strokeDasharray={m ? undefined : '5 4'} className={cls} />
+        {m ? treads : <text x={CX} y={cy + 6} textAnchor="middle" fontSize={18} className="fill-gray-400" style={{ pointerEvents: 'none' }}>+</text>}
+        {!noLabel && <text x={CX} y={cy + h / 2 + 15} textAnchor="middle" fontSize={11} fontWeight="500" className="fill-gray-600" style={{ pointerEvents: 'none' }}>{code}</text>}
       </g>
     );
   };
 
   return (
-    <svg viewBox={`0 0 280 ${H}`} className="w-full h-auto">
-      <rect x={84} y={12} width={112} height={44} rx={9} fill="white" stroke="currentColor" strokeWidth={1.4} className="text-gray-500" />
-      <rect x={100} y={22} width={80} height={16} rx={3} fill="none" stroke="currentColor" strokeWidth={1} className="text-gray-300" />
-      <rect x={RAIL_L} y={58} width={6} height={yBot - 58} rx={2} fill="white" stroke="currentColor" strokeWidth={1.3} className="text-gray-400" />
-      <rect x={RAIL_R - 6} y={58} width={6} height={yBot - 58} rx={2} fill="white" stroke="currentColor" strokeWidth={1.3} className="text-gray-400" />
+    <svg viewBox={`0 0 360 ${H}`} className="w-full h-auto">
+      {/* eixos (sob o estrado) */}
       {eixos.map((e, i) => {
         const y = AX0 + i * AXD;
-        const cxs = [...e.esq, ...e.dir].map((p) => LANE_CX[p.lane] ?? 64);
-        const minx = Math.min(...cxs), maxx = Math.max(...cxs);
+        const cxs = [...e.esq, ...e.dir].map((p) => LANE_CX[p.lane] ?? 108);
+        return <line key={`ax${e.eixo}`} x1={Math.min(...cxs)} y1={y} x2={Math.max(...cxs)} y2={y} stroke="currentColor" strokeWidth={5} strokeLinecap="round" className="text-gray-400" />;
+      })}
+
+      {/* cabine + para-brisa + espelhos */}
+      <rect x={128} y={26} width={104} height={70} rx={12} fill="white" stroke="currentColor" strokeWidth={1.8} className="text-gray-500" />
+      <rect x={146} y={38} width={68} height={20} rx={4} fill="none" stroke="currentColor" strokeWidth={1.3} className="text-gray-300" />
+      <rect x={118} y={58} width={9} height={16} rx={2} fill="white" stroke="currentColor" strokeWidth={1.3} className="text-gray-400" />
+      <rect x={233} y={58} width={9} height={16} rx={2} fill="white" stroke="currentColor" strokeWidth={1.3} className="text-gray-400" />
+
+      {/* estrado / chassi */}
+      <rect x={FRAME_L} y={CAB_BOT} width={FRAME_R - FRAME_L} height={frameBottom - CAB_BOT} rx={10} fill="white" stroke="currentColor" strokeWidth={1.8} className="text-gray-400" />
+      <line x1={RAIL1} y1={CAB_BOT + 6} x2={RAIL1} y2={frameBottom - 6} stroke="currentColor" strokeWidth={1.6} className="text-gray-300" />
+      <line x1={RAIL2} y1={CAB_BOT + 6} x2={RAIL2} y2={frameBottom - 6} stroke="currentColor" strokeWidth={1.6} className="text-gray-300" />
+
+      {/* travessas + rótulo do eixo + rodas */}
+      {eixos.map((e, i) => {
+        const y = AX0 + i * AXD;
         return (
           <g key={e.eixo}>
-            <line x1={minx - 2} y1={y} x2={maxx + 2} y2={y} stroke="currentColor" strokeWidth={3} className="text-gray-400" />
-            <line x1={RAIL_L} y1={y} x2={RAIL_R - 6} y2={y} stroke="currentColor" strokeWidth={2} className="text-gray-300" />
-            <text x={140} y={y - WH / 2 - 4} textAnchor="middle" fontSize={8} className="fill-gray-400" style={{ pointerEvents: 'none' }}>eixo {e.eixo}</text>
-            {e.esq.map((p) => <Wheel key={p.codigo} code={p.codigo} lane={p.lane} y={y} />)}
-            {e.dir.map((p) => <Wheel key={p.codigo} code={p.codigo} lane={p.lane} y={y} />)}
+            <line x1={RAIL1} y1={y} x2={RAIL2} y2={y} stroke="currentColor" strokeWidth={2.4} className="text-gray-300" />
+            <text x={180} y={y - WH / 2 - 8} textAnchor="middle" fontSize={9} className="fill-gray-400" style={{ pointerEvents: 'none' }}>eixo {e.eixo}</text>
+            {e.esq.map((p) => <Wheel key={p.codigo} code={p.codigo} lane={p.lane} cy={y} />)}
+            {e.dir.map((p) => <Wheel key={p.codigo} code={p.codigo} lane={p.lane} cy={y} />)}
           </g>
         );
       })}
+
+      {/* estepe (deitado, separado, preso ao estrado) */}
       {estepe.length > 0 && (
         <g>
-          <line x1={40} y1={estepeY} x2={60} y2={estepeY} stroke="currentColor" strokeWidth={2} className="text-gray-300" />
-          <text x={16} y={estepeY + 4} fontSize={8.5} className="fill-gray-400" style={{ pointerEvents: 'none' }}>estepe</text>
-          {estepe.map((p) => <Wheel key={p.codigo} code={p.codigo} lane="E" y={estepeY} />)}
+          <line x1={180} y1={frameBottom} x2={180} y2={estepeY - WW / 2} stroke="currentColor" strokeWidth={1.4} strokeDasharray="4 3" className="text-gray-300" />
+          <text x={180} y={estepeY - WW / 2 - 8} textAnchor="middle" fontSize={9} className="fill-gray-400" style={{ pointerEvents: 'none' }}>estepe</text>
+          {estepe.map((p) => (
+            <g key={p.codigo}>
+              <Wheel code={p.codigo} cx={180} cy={estepeY} horizontal noLabel />
+              <text x={180} y={estepeY + WW / 2 + 15} textAnchor="middle" fontSize={11} fontWeight="500" className="fill-gray-600" style={{ pointerEvents: 'none' }}>{p.codigo}</text>
+            </g>
+          ))}
         </g>
       )}
     </svg>
@@ -2886,16 +2910,16 @@ function TabPneus({ veiculo }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
         {/* Diagrama técnico (SVG, gerado da geometria do layout) */}
-        <div className="bg-gray-50 rounded-xl p-4 flex justify-center">
-          <div className="w-full max-w-[300px]">
+        <div className="lg:col-span-3 bg-gray-50 rounded-xl p-4 flex justify-center">
+          <div className="w-full max-w-[440px]">
             <ChassiSVG eixos={eixos} estepe={estepe} montados={montados} sel={sel} onSelect={setSel} sulcoMin={dados.sulco_minimo} sulcoAlerta={dados.sulco_alerta} />
           </div>
         </div>
 
         {/* Painel de ações */}
-        <div className="bg-white border rounded-xl p-4 min-h-[280px]">
+        <div className="lg:col-span-2 bg-white border rounded-xl p-4 min-h-[280px]">
           {!sel ? (
             <div className="text-gray-400 text-sm text-center pt-20">
               <i className="fa-solid fa-hand-pointer text-xl block mb-2" />
