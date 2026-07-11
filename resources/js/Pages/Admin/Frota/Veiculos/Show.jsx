@@ -2758,6 +2758,74 @@ function PainelPneu({ pos, m, corSulco, onAcao }) {
   );
 }
 
+/* Classe de cor (stroke via currentColor) da roda pela profundidade de sulco. */
+function classeSulcoStroke(s, min, alerta) {
+  if (s == null) return 'text-gray-300';
+  if (s < min) return 'text-red-500';
+  if (s < alerta) return 'text-amber-500';
+  return 'text-green-500';
+}
+
+/* Diagrama técnico (vista de topo) desenhado a partir da geometria do layout
+   (eixos + lanes) — vale para todos os tipos de veículo. Rodas clicáveis. */
+const LANE_CX = { EE: 34, EI: 94, E: 64, D: 216, DI: 186, DE: 246 };
+const RAIL_L = 112, RAIL_R = 168, WW = 20, WH = 42, AX0 = 92, AXD = 72;
+
+function ChassiSVG({ eixos, estepe, montados, sel, onSelect, sulcoMin, sulcoAlerta }) {
+  const n = eixos.length;
+  const yBot = AX0 + (n - 1) * AXD + 6;
+  const estepeY = yBot + 30;
+  const H = (estepe.length ? estepeY : yBot) + WH / 2 + 16;
+
+  const Wheel = ({ code, lane, y }) => {
+    const m = montados[code];
+    const cx = LANE_CX[lane] ?? 64;
+    const x = cx - WW / 2, yy = y - WH / 2;
+    const cls = m ? classeSulcoStroke(m.sulco, sulcoMin, sulcoAlerta) : 'text-gray-300';
+    const ativo = sel === code;
+    return (
+      <g style={{ cursor: 'pointer' }} onClick={() => onSelect(code)}>
+        {ativo && <rect x={x - 3} y={yy - 3} width={WW + 6} height={WH + 6} rx={6} fill="none" stroke="currentColor" strokeWidth={2} className="text-rise-600" />}
+        <rect x={x} y={yy} width={WW} height={WH} rx={4} fill={m ? 'white' : 'none'} stroke="currentColor" strokeWidth={2.6} strokeDasharray={m ? undefined : '4 3'} className={cls} />
+        {m
+          ? [0, 1, 2].map((i) => <line key={i} x1={x + 4} y1={yy + 12 + i * 9} x2={x + WW - 4} y2={yy + 12 + i * 9} stroke="currentColor" strokeWidth={1} className="text-gray-300" />)
+          : <text x={cx} y={y + 4} textAnchor="middle" fontSize={13} className="fill-gray-400" style={{ pointerEvents: 'none' }}>+</text>}
+        <text x={cx} y={y + WH / 2 + 11} textAnchor="middle" fontSize={8.5} className="fill-gray-500" style={{ pointerEvents: 'none' }}>{code}</text>
+      </g>
+    );
+  };
+
+  return (
+    <svg viewBox={`0 0 280 ${H}`} className="w-full h-auto">
+      <rect x={84} y={12} width={112} height={44} rx={9} fill="white" stroke="currentColor" strokeWidth={1.4} className="text-gray-500" />
+      <rect x={100} y={22} width={80} height={16} rx={3} fill="none" stroke="currentColor" strokeWidth={1} className="text-gray-300" />
+      <rect x={RAIL_L} y={58} width={6} height={yBot - 58} rx={2} fill="white" stroke="currentColor" strokeWidth={1.3} className="text-gray-400" />
+      <rect x={RAIL_R - 6} y={58} width={6} height={yBot - 58} rx={2} fill="white" stroke="currentColor" strokeWidth={1.3} className="text-gray-400" />
+      {eixos.map((e, i) => {
+        const y = AX0 + i * AXD;
+        const cxs = [...e.esq, ...e.dir].map((p) => LANE_CX[p.lane] ?? 64);
+        const minx = Math.min(...cxs), maxx = Math.max(...cxs);
+        return (
+          <g key={e.eixo}>
+            <line x1={minx - 2} y1={y} x2={maxx + 2} y2={y} stroke="currentColor" strokeWidth={3} className="text-gray-400" />
+            <line x1={RAIL_L} y1={y} x2={RAIL_R - 6} y2={y} stroke="currentColor" strokeWidth={2} className="text-gray-300" />
+            <text x={140} y={y - WH / 2 - 4} textAnchor="middle" fontSize={8} className="fill-gray-400" style={{ pointerEvents: 'none' }}>eixo {e.eixo}</text>
+            {e.esq.map((p) => <Wheel key={p.codigo} code={p.codigo} lane={p.lane} y={y} />)}
+            {e.dir.map((p) => <Wheel key={p.codigo} code={p.codigo} lane={p.lane} y={y} />)}
+          </g>
+        );
+      })}
+      {estepe.length > 0 && (
+        <g>
+          <line x1={40} y1={estepeY} x2={60} y2={estepeY} stroke="currentColor" strokeWidth={2} className="text-gray-300" />
+          <text x={16} y={estepeY + 4} fontSize={8.5} className="fill-gray-400" style={{ pointerEvents: 'none' }}>estepe</text>
+          {estepe.map((p) => <Wheel key={p.codigo} code={p.codigo} lane="E" y={estepeY} />)}
+        </g>
+      )}
+    </svg>
+  );
+}
+
 function TabPneus({ veiculo }) {
   const [dados, setDados] = useState(null);
   const [sel, setSel] = useState(null);       // posição selecionada (código)
@@ -2794,22 +2862,8 @@ function TabPneus({ veiculo }) {
   const montados = dados.montados;
   const posicoesLivres = dados.layout.posicoes.filter((p) => !montados[p.codigo]).map((p) => p.codigo);
   const corSulco = (s) => s == null ? 'text-gray-400' : (s < dados.sulco_minimo ? 'text-red-600' : (s < dados.sulco_alerta ? 'text-amber-600' : 'text-green-600'));
-  const bordaSulco = (s) => s == null ? 'border-gray-300' : (s < dados.sulco_minimo ? 'border-red-500' : (s < dados.sulco_alerta ? 'border-amber-500' : 'border-green-500'));
   const { eixos, estepe } = mapaEixos(dados.layout.posicoes);
   const selPneu = sel ? montados[sel] : null;
-
-  const Tire = ({ pos }) => {
-    const m = montados[pos.codigo];
-    const ativo = sel === pos.codigo;
-    return (
-      <button type="button" onClick={() => setSel(pos.codigo)} title={pos.label}
-        className={`w-9 h-14 rounded-md border-2 flex items-center justify-center text-[10px] font-semibold transition
-          ${m ? `bg-white ${bordaSulco(m.sulco)} text-gray-800` : 'border-dashed border-gray-300 text-gray-400 bg-gray-50'}
-          ${ativo ? 'ring-2 ring-rise-500 ring-offset-1' : ''}`}>
-        {m ? pos.codigo : '+'}
-      </button>
-    );
-  };
 
   return (
     <div>
@@ -2833,27 +2887,11 @@ function TabPneus({ veiculo }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        {/* Mapa do chassi */}
-        <div className="bg-gray-50 rounded-xl p-4 flex flex-col items-center gap-1.5">
-          <div className="w-40 h-9 rounded-t-xl rounded-b bg-blue-50 text-blue-700 flex items-center justify-center text-xs gap-1.5">
-            <i className="fa-solid fa-truck-front" /> cabine
+        {/* Diagrama técnico (SVG, gerado da geometria do layout) */}
+        <div className="bg-gray-50 rounded-xl p-4 flex justify-center">
+          <div className="w-full max-w-[300px]">
+            <ChassiSVG eixos={eixos} estepe={estepe} montados={montados} sel={sel} onSelect={setSel} sulcoMin={dados.sulco_minimo} sulcoAlerta={dados.sulco_alerta} />
           </div>
-          {eixos.map((e) => (
-            <div key={e.eixo}>
-              <div className="flex items-center gap-1.5 justify-center">
-                {e.esq.map((p) => <Tire key={p.codigo} pos={p} />)}
-                <div className="w-7 h-3.5 bg-gray-300 rounded-sm" />
-                {e.dir.map((p) => <Tire key={p.codigo} pos={p} />)}
-              </div>
-              <div className="text-[10px] text-gray-400 text-center mt-0.5 mb-1">Eixo {e.eixo}</div>
-            </div>
-          ))}
-          {estepe.length > 0 && (
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[10px] text-gray-400">estepe</span>
-              {estepe.map((p) => <Tire key={p.codigo} pos={p} />)}
-            </div>
-          )}
         </div>
 
         {/* Painel de ações */}
