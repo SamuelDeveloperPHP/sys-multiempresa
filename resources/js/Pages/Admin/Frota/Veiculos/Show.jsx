@@ -2701,8 +2701,66 @@ function ModalTacografo({ veiculo, tacografo, onClose, onSaved }) {
 }
 
 /* ============ TAB: Pneus ============ */
+/* Agrupa as posições por eixo (frente→trás) e lado, ordenando as lanes
+   externo→interno à esquerda e interno→externo à direita, p/ o mapa do chassi. */
+function mapaEixos(posicoes) {
+  const grupos = {};
+  posicoes.forEach((p) => { if (p.lane !== 'ESTEPE') (grupos[p.eixo] ||= []).push(p); });
+  const ordem = { EE: 0, EI: 1, E: 1, D: 2, DI: 2, DE: 3 };
+  const eixos = Object.keys(grupos).map(Number).sort((a, b) => a - b).map((eixo) => {
+    const arr = grupos[eixo];
+    const esq = arr.filter((p) => ['EE', 'EI', 'E'].includes(p.lane)).sort((a, b) => ordem[a.lane] - ordem[b.lane]);
+    const dir = arr.filter((p) => ['DI', 'DE', 'D'].includes(p.lane)).sort((a, b) => ordem[a.lane] - ordem[b.lane]);
+    return { eixo, esq, dir };
+  });
+  return { eixos, estepe: posicoes.filter((p) => p.lane === 'ESTEPE') };
+}
+
+/* Painel lateral da posição selecionada: ficha resumida + ações (tudo grava no
+   ledger, auditável). onAcao(tipo) abre o modal correspondente. */
+function PainelPneu({ pos, m, corSulco, onAcao }) {
+  const A = ({ icon, txt, tipo, tone }) => {
+    const t = tone === 'danger' ? 'text-red-700 bg-red-50 border-red-200 hover:bg-red-100'
+      : tone === 'accent' ? 'text-rise-700 bg-rise-50 border-rise-200 hover:bg-rise-100'
+      : 'text-gray-700 bg-gray-50 border-gray-200 hover:bg-gray-100';
+    return <button onClick={() => onAcao(tipo)} className={`flex items-center justify-center gap-1.5 px-2.5 py-2 text-sm border rounded ${t}`}><i className={`fa-solid ${icon}`} /> {txt}</button>;
+  };
+  const stat = (l, v, c) => (
+    <div className="bg-gray-50 rounded px-3 py-2">
+      <div className="text-[11px] text-gray-500">{l}</div>
+      <div className={`text-sm font-semibold ${c ?? ''}`}>{v}</div>
+    </div>
+  );
+  const cpk = m.cpk != null ? `R$ ${Number(m.cpk).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 4 })}` : '—';
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2 mb-0.5">
+        <div className="text-base font-semibold">{m.numero_fogo}</div>
+        <span className="text-[11px] px-2 py-0.5 rounded-full bg-rise-50 text-rise-700">pos. {pos}</span>
+      </div>
+      <div className="text-sm text-gray-500 mb-3">{[m.marca, m.medida].filter(Boolean).join(' · ')} · {m.vida_atual > 0 ? `${m.vida_atual}ª vida` : 'novo'}</div>
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        {stat('Sulco', m.sulco != null ? `${m.sulco} mm` : '—', corSulco(m.sulco))}
+        {stat('CPK', cpk)}
+        {stat('Rodado', m.rodado ? `${Number(m.rodado).toLocaleString('pt-BR')} ${m.unidade ?? ''}` : '—')}
+        {stat('Vida', m.vida_atual > 0 ? `${m.vida_atual}ª recap` : 'novo')}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <A icon="fa-rotate" txt="Rodízio" tipo="rodiziar" />
+        <A icon="fa-right-left" txt="Trocar" tipo="trocar" tone="accent" />
+        <A icon="fa-ruler" txt="Inspecionar" tipo="inspecionar" />
+        <A icon="fa-arrow-up-from-bracket" txt="Desmontar" tipo="desmontar" tone="danger" />
+      </div>
+      <Link href={route('admin.frota.pneus.show', m.id)} className="mt-2 flex items-center justify-center gap-1.5 px-2.5 py-2 text-sm border rounded text-purple-700 bg-purple-50 border-purple-200 hover:bg-purple-100">
+        <i className="fa-solid fa-file-lines" /> Ver ficha completa
+      </Link>
+    </div>
+  );
+}
+
 function TabPneus({ veiculo }) {
   const [dados, setDados] = useState(null);
+  const [sel, setSel] = useState(null);       // posição selecionada (código)
   const [modal, setModal] = useState(null);
 
   const carregar = useCallback(async () => {
@@ -2714,8 +2772,8 @@ function TabPneus({ veiculo }) {
   useEffect(() => { carregar(); }, [carregar]);
 
   const definirLayout = (slug) => router.put(route('admin.frota.veiculos.pneus.config', veiculo.id),
-    { config_pneus: slug }, { preserveScroll: true, onSuccess: carregar });
-  const onSaved = () => { setModal(null); carregar(); };
+    { config_pneus: slug }, { preserveScroll: true, onSuccess: () => { setSel(null); carregar(); } });
+  const onSaved = () => { setModal(null); setSel(null); carregar(); };
 
   if (!dados) return <div className="text-gray-400 py-8 text-center">Carregando…</div>;
 
@@ -2733,8 +2791,25 @@ function TabPneus({ veiculo }) {
     );
   }
 
-  const posicoesLivres = dados.layout.posicoes.filter((p) => !dados.montados[p.codigo]).map((p) => p.codigo);
+  const montados = dados.montados;
+  const posicoesLivres = dados.layout.posicoes.filter((p) => !montados[p.codigo]).map((p) => p.codigo);
   const corSulco = (s) => s == null ? 'text-gray-400' : (s < dados.sulco_minimo ? 'text-red-600' : (s < dados.sulco_alerta ? 'text-amber-600' : 'text-green-600'));
+  const bordaSulco = (s) => s == null ? 'border-gray-300' : (s < dados.sulco_minimo ? 'border-red-500' : (s < dados.sulco_alerta ? 'border-amber-500' : 'border-green-500'));
+  const { eixos, estepe } = mapaEixos(dados.layout.posicoes);
+  const selPneu = sel ? montados[sel] : null;
+
+  const Tire = ({ pos }) => {
+    const m = montados[pos.codigo];
+    const ativo = sel === pos.codigo;
+    return (
+      <button type="button" onClick={() => setSel(pos.codigo)} title={pos.label}
+        className={`w-9 h-14 rounded-md border-2 flex items-center justify-center text-[10px] font-semibold transition
+          ${m ? `bg-white ${bordaSulco(m.sulco)} text-gray-800` : 'border-dashed border-gray-300 text-gray-400 bg-gray-50'}
+          ${ativo ? 'ring-2 ring-rise-500 ring-offset-1' : ''}`}>
+        {m ? pos.codigo : '+'}
+      </button>
+    );
+  };
 
   return (
     <div>
@@ -2745,36 +2820,62 @@ function TabPneus({ veiculo }) {
             Medição atual: {dados.medicao_atual != null ? `${Number(dados.medicao_atual).toLocaleString('pt-BR')} ${dados.medicao_tipo}` : '—'} · sulco mín. legal {dados.sulco_minimo} mm
           </p>
         </div>
-        <select value={dados.config_pneus ?? ''} onChange={(e) => definirLayout(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
-          {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
-        </select>
+        <div className="flex items-center gap-3">
+          <span className="hidden sm:flex items-center gap-2 text-[11px] text-gray-500">
+            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500" /> ok</span>
+            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> &lt;3mm</span>
+            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> &lt;1,6mm</span>
+          </span>
+          <select value={dados.config_pneus ?? ''} onChange={(e) => definirLayout(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
+            {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
+          </select>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {dados.layout.posicoes.map((pos) => {
-          const m = dados.montados[pos.codigo];
-          return (
-            <div key={pos.codigo} className={`rounded-lg border p-3 ${m ? 'bg-white' : 'bg-gray-50 border-dashed'}`}>
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-gray-800">{pos.codigo}</span>
-                <span className="text-xs text-gray-400">{pos.label}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        {/* Mapa do chassi */}
+        <div className="bg-gray-50 rounded-xl p-4 flex flex-col items-center gap-1.5">
+          <div className="w-40 h-9 rounded-t-xl rounded-b bg-blue-50 text-blue-700 flex items-center justify-center text-xs gap-1.5">
+            <i className="fa-solid fa-truck-front" /> cabine
+          </div>
+          {eixos.map((e) => (
+            <div key={e.eixo}>
+              <div className="flex items-center gap-1.5 justify-center">
+                {e.esq.map((p) => <Tire key={p.codigo} pos={p} />)}
+                <div className="w-7 h-3.5 bg-gray-300 rounded-sm" />
+                {e.dir.map((p) => <Tire key={p.codigo} pos={p} />)}
               </div>
-              {m ? (
-                <div className="mt-2 text-sm">
-                  <p className="font-medium">{m.numero_fogo}</p>
-                  <p className="text-xs text-gray-500">{[m.marca, m.medida].filter(Boolean).join(' · ')} · {m.vida_atual > 0 ? `${m.vida_atual}ª vida` : 'Novo'}</p>
-                  <p className="text-xs mt-1">Sulco: <span className={`font-semibold ${corSulco(m.sulco)}`}>{m.sulco != null ? `${m.sulco} mm` : '—'}</span></p>
-                  <div className="mt-2 flex gap-1">
-                    <button onClick={() => setModal({ tipo: 'rodiziar', pneu: m })} className="px-2 py-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100">Rodízio</button>
-                    <button onClick={() => setModal({ tipo: 'desmontar', pneu: m })} className="px-2 py-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100">Desmontar</button>
-                  </div>
-                </div>
-              ) : (
-                <button onClick={() => setModal({ tipo: 'montar', posicao: pos.codigo })} className="mt-3 w-full px-2 py-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100">+ Montar pneu</button>
-              )}
+              <div className="text-[10px] text-gray-400 text-center mt-0.5 mb-1">Eixo {e.eixo}</div>
             </div>
-          );
-        })}
+          ))}
+          {estepe.length > 0 && (
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] text-gray-400">estepe</span>
+              {estepe.map((p) => <Tire key={p.codigo} pos={p} />)}
+            </div>
+          )}
+        </div>
+
+        {/* Painel de ações */}
+        <div className="bg-white border rounded-xl p-4 min-h-[280px]">
+          {!sel ? (
+            <div className="text-gray-400 text-sm text-center pt-20">
+              <i className="fa-solid fa-hand-pointer text-xl block mb-2" />
+              Clique em uma posição do chassi
+            </div>
+          ) : selPneu ? (
+            <PainelPneu pos={sel} m={selPneu} corSulco={corSulco}
+              onAcao={(tipo) => setModal({ tipo, pneu: selPneu, posicao: sel })} />
+          ) : (
+            <div>
+              <div className="text-base font-semibold mb-0.5">Posição {sel}</div>
+              <p className="text-sm text-gray-500 mb-4">Vazia — sem pneu montado.</p>
+              <button onClick={() => setModal({ tipo: 'montar', posicao: sel })} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100">
+                <i className="fa-solid fa-arrow-down-to-bracket" /> Montar pneu
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {modal && <ModalPneuAcao veiculo={veiculo} contexto={modal} dados={dados} posicoesLivres={posicoesLivres} onClose={() => setModal(null)} onSaved={onSaved} />}
@@ -2785,16 +2886,34 @@ function TabPneus({ veiculo }) {
 function ModalPneuAcao({ veiculo, contexto, dados, posicoesLivres, onClose, onSaved }) {
   const { tipo, posicao, pneu } = contexto;
   const { data, setData, post, processing, errors } = useForm({
-    pneu_id: pneu?.id ?? '', posicao: posicao ?? '', nova_posicao: '', destino: 'estoque',
+    pneu_id: tipo === 'trocar' ? '' : (pneu?.id ?? ''), posicao: posicao ?? '', nova_posicao: '', destino: 'estoque',
+    sulco_mm: '', pressao_psi: '', observacao: '',
     medicao: dados.medicao_atual ?? '', data: new Date().toLocaleDateString('en-CA'),
   });
   const rotas = {
     montar: 'admin.frota.veiculos.pneus.montar',
     desmontar: 'admin.frota.veiculos.pneus.desmontar',
     rodiziar: 'admin.frota.veiculos.pneus.rodiziar',
+    trocar: 'admin.frota.veiculos.pneus.trocar',
   };
-  const submit = (e) => { e.preventDefault(); post(route(rotas[tipo], veiculo.id), { preserveScroll: true, onSuccess: onSaved }); };
-  const titulo = { montar: `Montar pneu em ${posicao}`, desmontar: `Desmontar ${pneu?.numero_fogo}`, rodiziar: `Rodízio de ${pneu?.numero_fogo}` }[tipo];
+  const submit = (e) => {
+    e.preventDefault();
+    if (tipo === 'inspecionar') post(route('admin.frota.pneus.inspecionar', pneu.id), { preserveScroll: true, onSuccess: onSaved });
+    else post(route(rotas[tipo], veiculo.id), { preserveScroll: true, onSuccess: onSaved });
+  };
+  const titulo = {
+    montar: `Montar pneu em ${posicao}`,
+    desmontar: `Desmontar ${pneu?.numero_fogo}`,
+    rodiziar: `Rodízio de ${pneu?.numero_fogo}`,
+    trocar: `Trocar pneu em ${posicao}`,
+    inspecionar: `Inspecionar ${pneu?.numero_fogo}`,
+  }[tipo];
+  const optEstoque = (extra) => (
+    <>
+      <option value="">— selecione —</option>
+      {dados.disponiveis.map((p) => <option key={p.id} value={p.id}>{p.numero_fogo} — {[p.marca, p.medida].filter(Boolean).join(' ')} {p.vida_atual > 0 ? `(${p.vida_atual}ª vida)` : '(novo)'}</option>)}
+    </>
+  );
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -2804,12 +2923,12 @@ function ModalPneuAcao({ veiculo, contexto, dados, posicoesLivres, onClose, onSa
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
         </div>
         <form onSubmit={submit} className="space-y-3">
-          {tipo === 'montar' && (
+          {(tipo === 'montar' || tipo === 'trocar') && (
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Pneu (do estoque) *</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">{tipo === 'trocar' ? 'Pneu que entra (do estoque) *' : 'Pneu (do estoque) *'}</label>
+              {tipo === 'trocar' && <p className="text-xs text-gray-500 mb-1">Sai: <span className="font-medium">{pneu?.numero_fogo}</span></p>}
               <select value={data.pneu_id} onChange={(e) => setData('pneu_id', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2">
-                <option value="">— selecione —</option>
-                {dados.disponiveis.map((p) => <option key={p.id} value={p.id}>{p.numero_fogo} — {[p.marca, p.medida].filter(Boolean).join(' ')} {p.vida_atual > 0 ? `(${p.vida_atual}ª vida)` : '(novo)'}</option>)}
+                {optEstoque()}
               </select>
               {errors.pneu_id && <p className="text-red-600 text-xs mt-1">{errors.pneu_id}</p>}
               {dados.disponiveis.length === 0 && <p className="text-amber-600 text-xs mt-1">Nenhum pneu em estoque — cadastre no catálogo de Pneus.</p>}
@@ -2825,14 +2944,26 @@ function ModalPneuAcao({ veiculo, contexto, dados, posicoesLivres, onClose, onSa
               {errors.nova_posicao && <p className="text-red-600 text-xs mt-1">{errors.nova_posicao}</p>}
             </div>
           )}
-          {tipo === 'desmontar' && (
+          {(tipo === 'desmontar' || tipo === 'trocar') && (
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Destino</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">{tipo === 'trocar' ? 'Destino do pneu que sai' : 'Destino'}</label>
               <select value={data.destino} onChange={(e) => setData('destino', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2">
                 <option value="estoque">Estoque</option>
                 <option value="conserto">Conserto</option>
                 <option value="recapadora">Recapadora</option>
               </select>
+            </div>
+          )}
+          {tipo === 'inspecionar' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Sulco (mm)</label>
+                <input type="number" step="0.1" value={data.sulco_mm} onChange={(e) => setData('sulco_mm', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Pressão (psi)</label>
+                <input type="number" step="1" value={data.pressao_psi} onChange={(e) => setData('pressao_psi', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2" />
+              </div>
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -2845,6 +2976,12 @@ function ModalPneuAcao({ veiculo, contexto, dados, posicoesLivres, onClose, onSa
               <input type="number" value={data.medicao} onChange={(e) => setData('medicao', e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2" />
             </div>
           </div>
+          {(tipo === 'inspecionar' || tipo === 'desmontar' || tipo === 'trocar') && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase">Observação</label>
+              <textarea value={data.observacao} onChange={(e) => setData('observacao', e.target.value)} rows={2} className="w-full border border-gray-300 rounded px-3 py-2" />
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 border rounded hover:bg-gray-50">Cancelar</button>
             <button type="submit" disabled={processing} className="px-4 py-2 bg-rise-600 text-white rounded hover:bg-rise-700 disabled:opacity-50">{processing ? 'Salvando...' : 'Confirmar'}</button>
