@@ -2793,7 +2793,7 @@ function ChassiSVG({ eixos, estepe, montados, sel, onSelect, sulcoMin, sulcoAler
     return (
       <g style={{ cursor: 'pointer' }} onClick={() => onSelect(code)}>
         {ativo && <rect x={x - 4} y={y - 4} width={w + 8} height={h + 8} rx={10} fill="none" stroke="currentColor" strokeWidth={2.5} className="text-rise-600" />}
-        <rect x={x} y={y} width={w} height={h} rx={7} fill={m ? 'white' : 'none'} stroke="currentColor" strokeWidth={3} strokeDasharray={m ? undefined : '5 4'} className={cls} />
+        <rect x={x} y={y} width={w} height={h} rx={7} fill={m ? 'white' : 'transparent'} stroke="currentColor" strokeWidth={3} strokeDasharray={m ? undefined : '5 4'} style={{ pointerEvents: 'all' }} className={cls} />
         {m ? treads : <text x={CX} y={cy + 6} textAnchor="middle" fontSize={18} className="fill-gray-400" style={{ pointerEvents: 'none' }}>+</text>}
         {!noLabel && <text x={CX} y={cy + h / 2 + 15} textAnchor="middle" fontSize={11} fontWeight="500" className="fill-gray-600" style={{ pointerEvents: 'none' }}>{code}</text>}
       </g>
