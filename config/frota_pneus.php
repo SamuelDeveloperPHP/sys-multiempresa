@@ -100,6 +100,46 @@ return [
                 ['codigo' => 'ESTEPE', 'label' => 'Estepe', 'eixo' => 99, 'lane' => 'ESTEPE'],
             ],
         ],
+        'caminhao_6x2' => [
+            'label'    => 'Caminhão 6x2 (trativo duplo + eixo simples)',
+            'posicoes' => [
+                ['codigo' => '1E',  'label' => 'Dianteiro Esq.',        'eixo' => 1, 'lane' => 'E'],
+                ['codigo' => '1D',  'label' => 'Dianteiro Dir.',        'eixo' => 1, 'lane' => 'D'],
+                ['codigo' => '2EE', 'label' => 'Trativo Esq. Externo',  'eixo' => 2, 'lane' => 'EE'],
+                ['codigo' => '2EI', 'label' => 'Trativo Esq. Interno',  'eixo' => 2, 'lane' => 'EI'],
+                ['codigo' => '2DI', 'label' => 'Trativo Dir. Interno',  'eixo' => 2, 'lane' => 'DI'],
+                ['codigo' => '2DE', 'label' => 'Trativo Dir. Externo',  'eixo' => 2, 'lane' => 'DE'],
+                ['codigo' => '3E',  'label' => 'Eixo simples Esq.',     'eixo' => 3, 'lane' => 'E'],
+                ['codigo' => '3D',  'label' => 'Eixo simples Dir.',     'eixo' => 3, 'lane' => 'D'],
+                ['codigo' => 'ESTEPE', 'label' => 'Estepe', 'eixo' => 99, 'lane' => 'ESTEPE'],
+            ],
+        ],
+        'motoniveladora' => [
+            'label'    => 'Motoniveladora (2 dianteiros + 4 traseiros)',
+            'posicoes' => [
+                ['codigo' => '1E', 'label' => 'Dianteiro Esq.',  'eixo' => 1, 'lane' => 'E'],
+                ['codigo' => '1D', 'label' => 'Dianteiro Dir.',  'eixo' => 1, 'lane' => 'D'],
+                ['codigo' => '2E', 'label' => 'Traseiro 1 Esq.', 'eixo' => 2, 'lane' => 'E'],
+                ['codigo' => '2D', 'label' => 'Traseiro 1 Dir.', 'eixo' => 2, 'lane' => 'D'],
+                ['codigo' => '3E', 'label' => 'Traseiro 2 Esq.', 'eixo' => 3, 'lane' => 'E'],
+                ['codigo' => '3D', 'label' => 'Traseiro 2 Dir.', 'eixo' => 3, 'lane' => 'D'],
+            ],
+        ],
+        // Aproximação: rolo pneumático tem os pneus em fila ao longo da largura;
+        // aqui modelamos 4 dianteiros + 4 traseiros (slots clicáveis para o CPK).
+        'rolo_pneumatico' => [
+            'label'    => 'Rolo Pneumático (pneus lisos)',
+            'posicoes' => [
+                ['codigo' => '1EE', 'label' => 'Dianteiro Esq. Ext.', 'eixo' => 1, 'lane' => 'EE'],
+                ['codigo' => '1EI', 'label' => 'Dianteiro Esq. Int.', 'eixo' => 1, 'lane' => 'EI'],
+                ['codigo' => '1DI', 'label' => 'Dianteiro Dir. Int.', 'eixo' => 1, 'lane' => 'DI'],
+                ['codigo' => '1DE', 'label' => 'Dianteiro Dir. Ext.', 'eixo' => 1, 'lane' => 'DE'],
+                ['codigo' => '2EE', 'label' => 'Traseiro Esq. Ext.',  'eixo' => 2, 'lane' => 'EE'],
+                ['codigo' => '2EI', 'label' => 'Traseiro Esq. Int.',  'eixo' => 2, 'lane' => 'EI'],
+                ['codigo' => '2DI', 'label' => 'Traseiro Dir. Int.',  'eixo' => 2, 'lane' => 'DI'],
+                ['codigo' => '2DE', 'label' => 'Traseiro Dir. Ext.',  'eixo' => 2, 'lane' => 'DE'],
+            ],
+        ],
     ],
 
     // Estados do pneu

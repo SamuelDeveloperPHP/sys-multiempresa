@@ -8,6 +8,7 @@ use App\Http\Requests\Admin\Frota\StoreVeiculoRequest;
 use App\Http\Requests\Admin\Frota\UpdateVeiculoRequest;
 use App\Services\Frota\CalculadorCiclosPreventiva;
 use App\Services\Frota\CalculadorCpkPneu;
+use App\Services\Frota\SugeridorLayoutPneu;
 use App\Models\Frota\MarcaMaquina;
 use App\Models\Frota\ModeloMaquina;
 use App\Models\Frota\TiposVeiculo;
@@ -1381,11 +1382,15 @@ class VeiculoController extends Controller
     // ---------------------------------------------------------------- Pneus (aba)
 
     /** Mapa de posições do veículo + pneus montados + estoque disponível. */
-    public function listPneusVeiculo(Veiculo $veiculo, CalculadorCpkPneu $cpk): JsonResponse
+    public function listPneusVeiculo(Veiculo $veiculo, CalculadorCpkPneu $cpk, SugeridorLayoutPneu $sugeridor): JsonResponse
     {
         $layouts = collect(config('frota_pneus.layouts', []))
             ->map(fn ($l, $slug) => ['slug' => $slug, 'label' => $l['label']])->values();
         $layout = $veiculo->config_pneus ? config("frota_pneus.layouts.{$veiculo->config_pneus}") : null;
+
+        // Sugestao de layout (por palavra-chave de veiculo/modelo) qdo ainda sem config.
+        $sugestaoSlug  = $layout ? null : $sugeridor->sugerir($veiculo->veiculo, $veiculo->modelo);
+        $sugestaoLabel = $sugestaoSlug ? config("frota_pneus.layouts.{$sugestaoSlug}.label") : null;
 
         $montados = [];
         if ($layout) {
@@ -1411,9 +1416,11 @@ class VeiculoController extends Controller
         [$medicao, $medicaoTipo] = $this->medicaoAtualPneu($veiculo);
 
         return response()->json([
-            'config_pneus'  => $veiculo->config_pneus,
-            'layout'        => $layout ? ['label' => $layout['label'], 'posicoes' => $layout['posicoes']] : null,
-            'layouts'       => $layouts,
+            'config_pneus'    => $veiculo->config_pneus,
+            'layout'          => $layout ? ['label' => $layout['label'], 'posicoes' => $layout['posicoes']] : null,
+            'layouts'         => $layouts,
+            'sugestao_slug'   => $sugestaoSlug,
+            'sugestao_label'  => $sugestaoLabel,
             'montados'      => $montados,
             'disponiveis'   => $disponiveis,
             'medicao_atual' => $medicao,

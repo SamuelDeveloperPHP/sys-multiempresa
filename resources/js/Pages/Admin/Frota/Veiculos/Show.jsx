@@ -2874,7 +2874,15 @@ function TabPneus({ veiculo }) {
       <div className="max-w-md">
         <h2 className="text-lg font-semibold mb-2">Configuração de eixos</h2>
         <p className="text-sm text-gray-500 mb-3">Escolha o layout de posições deste veículo para habilitar a montagem de pneus.</p>
-        <select onChange={(e) => e.target.value && definirLayout(e.target.value)} defaultValue=""
+        {dados.sugestao_slug && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 bg-rise-50 border border-rise-200 rounded-lg p-3">
+            <span className="text-sm text-rise-800">
+              Sugestão pelo modelo: <strong>{dados.sugestao_label}</strong>
+            </span>
+            <button onClick={() => definirLayout(dados.sugestao_slug)} className="ml-auto px-3 py-1.5 bg-rise-600 text-white rounded-lg text-sm font-medium hover:bg-rise-700">Usar sugestão</button>
+          </div>
+        )}
+        <select onChange={(e) => e.target.value && definirLayout(e.target.value)} defaultValue={dados.sugestao_slug ?? ''}
           className="w-full border border-gray-300 rounded px-3 py-2">
           <option value="" disabled>— selecione o layout —</option>
           {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
