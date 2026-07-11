@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Frota\StoreVeiculoRequest;
 use App\Http\Requests\Admin\Frota\UpdateVeiculoRequest;
 use App\Services\Frota\CalculadorCiclosPreventiva;
+use App\Services\Frota\CalculadorCpkPneu;
 use App\Models\Frota\MarcaMaquina;
 use App\Models\Frota\ModeloMaquina;
 use App\Models\Frota\TiposVeiculo;
@@ -37,6 +38,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -1379,7 +1381,7 @@ class VeiculoController extends Controller
     // ---------------------------------------------------------------- Pneus (aba)
 
     /** Mapa de posições do veículo + pneus montados + estoque disponível. */
-    public function listPneusVeiculo(Veiculo $veiculo): JsonResponse
+    public function listPneusVeiculo(Veiculo $veiculo, CalculadorCpkPneu $cpk): JsonResponse
     {
         $layouts = collect(config('frota_pneus.layouts', []))
             ->map(fn ($l, $slug) => ['slug' => $slug, 'label' => $l['label']])->values();
@@ -1392,10 +1394,12 @@ class VeiculoController extends Controller
                 ->with('ultimaInspecao')->get();
             foreach ($pneus as $p) {
                 if (($pos = $this->posicaoAtualPneu($veiculo, $p))) {
+                    $c = $cpk->calcular($p);
                     $montados[$pos] = [
                         'id' => $p->id, 'numero_fogo' => $p->numero_fogo, 'marca' => $p->marca,
                         'medida' => $p->medida, 'vida_atual' => $p->vida_atual,
                         'sulco' => optional($p->ultimaInspecao)->sulco_mm,
+                        'cpk' => $c['cpk'], 'rodado' => $c['rodado'], 'unidade' => $c['unidade'],
                     ];
                 }
             }
@@ -1452,10 +1456,11 @@ class VeiculoController extends Controller
     public function desmontarPneu(Request $request, Veiculo $veiculo): RedirectResponse
     {
         $data = $request->validate([
-            'pneu_id' => 'required|exists:pneus,id',
-            'medicao' => 'nullable|integer|min:0',
-            'data'    => 'required|date',
-            'destino' => 'nullable|in:estoque,conserto,recapadora',
+            'pneu_id'    => 'required|exists:pneus,id',
+            'medicao'    => 'nullable|integer|min:0',
+            'data'       => 'required|date',
+            'destino'    => 'nullable|in:estoque,conserto,recapadora',
+            'observacao' => 'nullable|string',
         ]);
         $pneu = Pneu::findOrFail($data['pneu_id']);
         if ($pneu->situacao !== 'montado' || ! $this->posicaoAtualPneu($veiculo, $pneu)) {
@@ -1465,7 +1470,8 @@ class VeiculoController extends Controller
         PneuMovimentacao::create([
             'pneu_id' => $pneu->id, 'tipo' => 'desmontagem', 'veiculo_id' => $veiculo->id,
             'posicao' => $this->posicaoAtualPneu($veiculo, $pneu), 'medicao' => $data['medicao'] ?? $medAuto,
-            'medicao_tipo' => $tipo, 'data' => $data['data'], 'user_create' => Auth::user()?->email,
+            'medicao_tipo' => $tipo, 'data' => $data['data'], 'observacao' => $data['observacao'] ?? null,
+            'user_create' => Auth::user()?->email,
         ]);
         $pneu->update(['situacao' => $data['destino'] ?? 'estoque', 'user_edit' => Auth::user()?->email]);
         return back()->with('success', "Pneu {$pneu->numero_fogo} desmontado.");
@@ -1491,6 +1497,62 @@ class VeiculoController extends Controller
             'data' => $data['data'], 'user_create' => Auth::user()?->email,
         ]);
         return back()->with('success', "Rodízio: {$posAtual} → {$data['nova_posicao']}.");
+    }
+
+    /**
+     * Troca na posição: desmonta o pneu atual e monta outro (do estoque) na
+     * mesma posição, numa única transação — os dois eventos ficam no ledger.
+     */
+    public function trocarPneu(Request $request, Veiculo $veiculo): RedirectResponse
+    {
+        $data = $request->validate([
+            'posicao' => 'required|string|max:12',
+            'pneu_id' => 'required|exists:pneus,id',            // novo, do estoque
+            'medicao' => 'nullable|integer|min:0',
+            'data'    => 'required|date',
+            'destino' => 'nullable|in:estoque,conserto,recapadora', // do que sai
+            'observacao' => 'nullable|string',
+        ]);
+        $novo = Pneu::findOrFail($data['pneu_id']);
+        if ($novo->situacao !== 'estoque') return back()->with('error', 'O pneu que entra precisa estar em estoque.');
+
+        $saindo = $this->pneuNaPosicao($veiculo, $data['posicao']);
+        if (! $saindo)                 return back()->with('error', 'Não há pneu montado nessa posição.');
+        if ($saindo->id === $novo->id) return back()->with('error', 'Selecione um pneu diferente do que está montado.');
+
+        [$medAuto, $tipo] = $this->medicaoAtualPneu($veiculo);
+        $medicao = $data['medicao'] ?? $medAuto;
+        $email   = Auth::user()?->email;
+
+        DB::transaction(function () use ($veiculo, $novo, $saindo, $data, $medicao, $tipo, $email) {
+            PneuMovimentacao::create([
+                'pneu_id' => $saindo->id, 'tipo' => 'desmontagem', 'veiculo_id' => $veiculo->id,
+                'posicao' => $data['posicao'], 'medicao' => $medicao, 'medicao_tipo' => $tipo,
+                'data' => $data['data'], 'observacao' => $data['observacao'] ?? 'Troca (saída)', 'user_create' => $email,
+            ]);
+            $saindo->update(['situacao' => $data['destino'] ?? 'estoque', 'user_edit' => $email]);
+
+            PneuMovimentacao::create([
+                'pneu_id' => $novo->id, 'tipo' => 'montagem', 'veiculo_id' => $veiculo->id,
+                'posicao' => $data['posicao'], 'medicao' => $medicao, 'medicao_tipo' => $tipo,
+                'data' => $data['data'], 'observacao' => 'Troca (entrada)', 'user_create' => $email,
+            ]);
+            $novo->update(['situacao' => 'montado', 'user_edit' => $email]);
+        });
+
+        return back()->with('success', "Troca em {$data['posicao']}: {$saindo->numero_fogo} → {$novo->numero_fogo}.");
+    }
+
+    /** Pneu montado atualmente na posição informada (ou null). */
+    private function pneuNaPosicao(Veiculo $veiculo, string $posicao): ?Pneu
+    {
+        $pneus = Pneu::where('situacao', 'montado')
+            ->whereHas('movimentacoes', fn ($q) => $q->where('veiculo_id', $veiculo->id)->whereIn('tipo', ['montagem', 'rodizio']))
+            ->get();
+        foreach ($pneus as $p) {
+            if ($this->posicaoAtualPneu($veiculo, $p) === $posicao) return $p;
+        }
+        return null;
     }
 
     /** Medição atual do veículo (max km/hr) + unidade. */

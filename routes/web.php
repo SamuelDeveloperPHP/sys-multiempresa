@@ -706,6 +706,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('veiculos.pneus.desmontar');
                 Route::post('veiculos/{veiculo}/pneus/rodiziar', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'rodiziarPneu'])
                     ->name('veiculos.pneus.rodiziar');
+                Route::post('veiculos/{veiculo}/pneus/trocar', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'trocarPneu'])
+                    ->name('veiculos.pneus.trocar');
 
                 // Listagem paginada (GET JSON): busca as-you-type + filtro obsoletos
                 Route::get('veiculos/{veiculo}/docs-legais/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listDocsLegais'])
