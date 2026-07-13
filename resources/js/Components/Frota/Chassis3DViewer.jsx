@@ -7,9 +7,9 @@ import { useEffect, useRef, useState } from 'react';
  * É VISUALIZAÇÃO rica — a gestão de pneus (montar/trocar/status) fica no mapa 2D.
  */
 const MAT = {
-  chassis_dark: '#26262b', rubber_tire: '#141416', axle_metal: '#6b7280',
-  cab_paint: '#e5e7eb', windshield: '#3b82f6', tank_silver: '#9ca3af',
-  accent_magenta: '#d946ef', accent_green: '#10b981', default: '#4b5563',
+  chassis_dark: '#3f4653', rubber_tire: '#1f2430', axle_metal: '#94a3b8',
+  cab_paint: '#cbd5e1', windshield: '#3b82f6', tank_silver: '#b6c0cd',
+  accent_magenta: '#d946ef', accent_green: '#10b981', default: '#64748b',
 };
 
 export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj', zoom = 3, height = 480 }) {
@@ -75,7 +75,7 @@ export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj
         const sorted = model.faces.map((fc) => { let s = 0; for (const i of fc.verts) s += proj[i]?.z || 0; return { fc, z: s / fc.verts.length }; }).sort((m, n) => m.z - n.z);
         for (const { fc } of sorted) {
           ctx.fillStyle = MAT[fc.mat] || MAT.default;
-          ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 0.5;
+          ctx.strokeStyle = 'rgba(15,23,42,0.22)'; ctx.lineWidth = 0.5;
           ctx.beginPath();
           fc.verts.forEach((vi, i) => { const pt = proj[vi]; if (pt) { if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y); } });
           ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -116,13 +116,13 @@ export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj
     rot.current = { x: P[v][0], y: P[v][1] };
   };
 
-  const btn = 'px-3 py-1.5 text-xs font-medium rounded-md bg-white/5 border border-white/10 text-gray-200 hover:bg-white/10 hover:border-blue-500 transition';
+  const btn = 'px-3 py-1.5 text-xs font-medium rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-blue-500 transition';
 
   return (
-    <div className="rounded-xl overflow-hidden border border-white/10" style={{ background: 'radial-gradient(circle at 50% 40%, #17171c 0%, #0e0e11 100%)' }}>
+    <div className="rounded-xl overflow-hidden border border-gray-200" style={{ background: 'radial-gradient(circle at 50% 30%, #ffffff 0%, #e8ecf1 100%)' }}>
       <div ref={wrapRef} className="relative w-full" style={{ height }}>
-        {loading && <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">Carregando modelo 3D…</div>}
-        {error && <div className="absolute inset-0 flex items-center justify-center text-red-300 text-sm px-4 text-center">⚠️ {error}</div>}
+        {loading && <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">Carregando modelo 3D…</div>}
+        {error && <div className="absolute inset-0 flex items-center justify-center text-red-600 text-sm px-4 text-center">⚠️ {error}</div>}
         {!loading && !error && (
           <canvas
             ref={canvasRef}
@@ -137,17 +137,17 @@ export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj
           />
         )}
         {!loading && !error && (
-          <span className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/60 text-gray-300 text-[11px] uppercase tracking-wide px-3 py-1 rounded-full border border-white/10 pointer-events-none">Arraste para girar</span>
+          <span className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/85 text-gray-600 text-[11px] uppercase tracking-wide px-3 py-1 rounded-full border border-gray-200 pointer-events-none">Arraste para girar</span>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-2 p-3 bg-black/30 border-t border-white/10">
+      <div className="flex flex-wrap items-center gap-2 p-3 bg-white/70 border-t border-gray-200">
         <button type="button" onClick={() => preset('perspectiva')} className={btn}>Perspectiva</button>
         <button type="button" onClick={() => preset('frontal')} className={btn}>Frontal</button>
         <button type="button" onClick={() => preset('lateral_dir')} className={btn}>Lateral Dir.</button>
         <button type="button" onClick={() => preset('lateral_esq')} className={btn}>Lateral Esq.</button>
         <button type="button" onClick={() => preset('superior')} className={btn}>Superior</button>
         <button type="button" onClick={() => preset('inferior')} className={btn}>Inferior</button>
-        <label className="ml-auto flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+        <label className="ml-auto flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
           <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className="accent-blue-500" />
           Girar automaticamente
         </label>
