@@ -2,10 +2,8 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useMemo, useRef, useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
-// Visualizador 3D (canvas) carregado sob demanda — só quando o gestor abre a view 3D.
+// Visualizador 3D (canvas) carregado sob demanda.
 const Chassis3DViewer = lazy(() => import('@/Components/Frota/Chassis3DViewer'));
-// Layouts em que o modelo 3D (caminhão VM270) é uma representação válida.
-const LAYOUTS_3D = ['caminhao_truck', 'caminhao_6x2', 'caminhao_toco', 'onibus'];
 
 /* ============ helpers de formatação ============ */
 const fmtMoney = (v) => v != null ? Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—';
@@ -2857,9 +2855,6 @@ function ChassiSVG({ eixos, estepe, montados, sel, onSelect, sulcoMin, sulcoAler
 
 function TabPneus({ veiculo }) {
   const [dados, setDados] = useState(null);
-  const [sel, setSel] = useState(null);       // posição selecionada (código)
-  const [modal, setModal] = useState(null);
-  const [view, setView] = useState('2d');     // '2d' (gestão, padrão) | '3d' (visualização)
 
   const carregar = useCallback(async () => {
     try {
@@ -2870,107 +2865,26 @@ function TabPneus({ veiculo }) {
   useEffect(() => { carregar(); }, [carregar]);
 
   const definirLayout = (slug) => router.put(route('admin.frota.veiculos.pneus.config', veiculo.id),
-    { config_pneus: slug }, { preserveScroll: true, onSuccess: () => { setSel(null); carregar(); } });
-  const onSaved = () => { setModal(null); setSel(null); carregar(); };
+    { config_pneus: slug }, { preserveScroll: true, onSuccess: carregar });
 
   if (!dados) return <div className="text-gray-400 py-8 text-center">Carregando…</div>;
-
-  if (!dados.layout) {
-    return (
-      <div className="max-w-md">
-        <h2 className="text-lg font-semibold mb-2">Configuração de eixos</h2>
-        <p className="text-sm text-gray-500 mb-3">Escolha o layout de posições deste veículo para habilitar a montagem de pneus.</p>
-        {dados.sugestao_slug && (
-          <div className="mb-3 flex flex-wrap items-center gap-2 bg-rise-50 border border-rise-200 rounded-lg p-3">
-            <span className="text-sm text-rise-800">
-              Sugestão pelo modelo: <strong>{dados.sugestao_label}</strong>
-            </span>
-            <button onClick={() => definirLayout(dados.sugestao_slug)} className="ml-auto px-3 py-1.5 bg-rise-600 text-white rounded-lg text-sm font-medium hover:bg-rise-700">Usar sugestão</button>
-          </div>
-        )}
-        <select onChange={(e) => e.target.value && definirLayout(e.target.value)} defaultValue={dados.sugestao_slug ?? ''}
-          className="w-full border border-gray-300 rounded px-3 py-2">
-          <option value="" disabled>— selecione o layout —</option>
-          {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
-        </select>
-      </div>
-    );
-  }
-
-  const montados = dados.montados;
-  const posicoesLivres = dados.layout.posicoes.filter((p) => !montados[p.codigo]).map((p) => p.codigo);
-  const corSulco = (s) => s == null ? 'text-gray-400' : (s < dados.sulco_minimo ? 'text-red-600' : (s < dados.sulco_alerta ? 'text-amber-600' : 'text-green-600'));
-  const { eixos, estepe } = mapaEixos(dados.layout.posicoes);
-  const selPneu = sel ? montados[sel] : null;
-  const pode3D = LAYOUTS_3D.includes(dados.config_pneus);
-  const em3D = view === '3d' && pode3D;
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-lg font-semibold">Pneus — {dados.layout.label}</h2>
-          <p className="text-xs text-gray-500">
-            Medição atual: {dados.medicao_atual != null ? `${Number(dados.medicao_atual).toLocaleString('pt-BR')} ${dados.medicao_tipo}` : '—'} · sulco mín. legal {dados.sulco_minimo} mm
-          </p>
+          <h2 className="text-lg font-semibold">Chassi 3D{veiculo.prefixo ? ` — ${veiculo.prefixo}` : ''}</h2>
+          <p className="text-xs text-gray-500">Arraste para girar · use as vistas abaixo do modelo</p>
         </div>
-        <div className="flex items-center gap-3">
-          {pode3D && (
-            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-              <button type="button" onClick={() => setView('2d')} className={`px-3 py-1.5 ${view === '2d' ? 'bg-rise-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Mapa 2D</button>
-              <button type="button" onClick={() => setView('3d')} className={`px-3 py-1.5 border-l border-gray-300 ${view === '3d' ? 'bg-rise-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>3D</button>
-            </div>
-          )}
-          {!em3D && (
-            <span className="hidden sm:flex items-center gap-2 text-[11px] text-gray-500">
-              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500" /> ok</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> &lt;3mm</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> &lt;1,6mm</span>
-            </span>
-          )}
-          <select value={dados.config_pneus ?? ''} onChange={(e) => definirLayout(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
-            {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
-          </select>
-        </div>
+        <select value={dados.config_pneus ?? ''} onChange={(e) => e.target.value && definirLayout(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
+          <option value="">— layout de eixos —</option>
+          {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
+        </select>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
-        {/* Diagrama: 2D (gestão, padrão) ou 3D (visualização rica) */}
-        <div className={em3D ? 'lg:col-span-3' : 'lg:col-span-3 bg-gray-50 rounded-xl p-4 flex justify-center'}>
-          {em3D ? (
-            <Suspense fallback={<div className="h-[340px] flex items-center justify-center text-gray-400 text-sm">Carregando 3D…</div>}>
-              <Chassis3DViewer />
-            </Suspense>
-          ) : (
-            <div className="w-full max-w-[440px]">
-              <ChassiSVG eixos={eixos} estepe={estepe} montados={montados} sel={sel} onSelect={setSel} sulcoMin={dados.sulco_minimo} sulcoAlerta={dados.sulco_alerta} />
-            </div>
-          )}
-        </div>
-
-        {/* Painel de ações */}
-        <div className="lg:col-span-2 bg-white border rounded-xl p-4 min-h-[280px]">
-          {!sel ? (
-            <div className="text-gray-400 text-sm text-center pt-20">
-              <i className="fa-solid fa-hand-pointer text-xl block mb-2" />
-              Clique em uma posição do chassi
-            </div>
-          ) : selPneu ? (
-            <PainelPneu pos={sel} m={selPneu} corSulco={corSulco}
-              onAcao={(tipo) => setModal({ tipo, pneu: selPneu, posicao: sel })} />
-          ) : (
-            <div>
-              <div className="text-base font-semibold mb-0.5">Posição {sel}</div>
-              <p className="text-sm text-gray-500 mb-4">Vazia — sem pneu montado.</p>
-              <button onClick={() => setModal({ tipo: 'montar', posicao: sel })} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100">
-                <i className="fa-solid fa-arrow-down-to-bracket" /> Montar pneu
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {modal && <ModalPneuAcao veiculo={veiculo} contexto={modal} dados={dados} posicoesLivres={posicoesLivres} onClose={() => setModal(null)} onSaved={onSaved} />}
+      <Suspense fallback={<div className="h-[480px] flex items-center justify-center text-gray-400 text-sm">Carregando modelo 3D…</div>}>
+        <Chassis3DViewer />
+      </Suspense>
     </div>
   );
 }
