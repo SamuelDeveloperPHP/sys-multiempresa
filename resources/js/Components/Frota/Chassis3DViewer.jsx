@@ -51,6 +51,17 @@ export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj
         for (const v of verts) { a = Math.min(a, v[0]); b = Math.max(b, v[0]); c = Math.min(c, v[1]); d = Math.max(d, v[1]); e = Math.min(e, v[2]); f = Math.max(f, v[2]); }
         const cx = (a + b) / 2, cy = (c + d) / 2, cz = (e + f) / 2, size = Math.max(b - a, d - c, f - e) || 1;
         const nv = verts.map((v) => [(v[0] - cx) / size, (v[1] - cy) / size, (v[2] - cz) / size]);
+        // Alarga as rodas 30% (largura/z), só nos vértices exclusivos de pneu.
+        const tireV = new Set(); const otherV = new Set();
+        for (const fc of faces) { const s = fc.mat === 'rubber_tire' ? tireV : otherV; for (const i of fc.verts) s.add(i); }
+        const cl = [];
+        for (const i of tireV) {
+          if (otherV.has(i)) continue;
+          const v = nv[i]; let g = cl.find((q) => Math.abs(q.x - v[0]) < 0.12 && (q.z > 0) === (v[2] > 0));
+          if (!g) { g = { x: v[0], idx: [], sz: 0, n: 0, z: 0 }; cl.push(g); }
+          g.idx.push(i); g.sz += v[2]; g.n++; g.z = g.sz / g.n;
+        }
+        for (const g of cl) for (const i of g.idx) nv[i] = [nv[i][0], nv[i][1], g.z + (nv[i][2] - g.z) * 1.3];
         if (alive) { modelRef.current = { vertices: nv, faces }; setLoading(false); }
       })
       .catch((err) => { if (alive) { setError(err.message || 'Erro ao carregar o modelo 3D.'); setLoading(false); } });

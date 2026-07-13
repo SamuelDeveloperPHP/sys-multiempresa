@@ -54,23 +54,28 @@ export default function Chassis2DPlan({ src = '/models/volvo_vm270_chassis.obj',
     const PX = (x) => +(PAD + (x - mnX) * sc).toFixed(1);
     const PY = (z) => +(PAD + (mxZ - z) * sc).toFixed(1);
 
+    // Alarga a roda 30% na largura (z), em torno do centro do pneu.
+    const widenZ = (z) => { const zc = Math.sign(z) * 0.95; return zc + (z - zc) * 1.3; };
     const groups = {};
     for (const f of faces) (groups[f.m] ??= []).push(f);
     const polys = [];
     for (const m of ORDER) {
       const fs = groups[m]; if (!fs) continue;
-      for (const f of fs) { const pts = f.v.map((i) => verts[i]).filter(Boolean).map(([x, , z]) => `${PX(x)},${PY(z)}`).join(' '); if (pts) polys.push({ m, pts }); }
+      const tire = m === 'rubber_tire';
+      for (const f of fs) { const pts = f.v.map((i) => verts[i]).filter(Boolean).map(([x, , z]) => `${PX(x)},${PY(tire ? widenZ(z) : z)}`).join(' '); if (pts) polys.push({ m, pts }); }
     }
 
-    // Posições X reais dos eixos (clusters da borracha), da frente p/ trás.
+    // Bitola + posições X reais dos eixos (clusters da borracha), frente->trás.
     const tv = new Set();
     for (const f of faces) if (f.m === 'rubber_tire') for (const i of f.v) tv.add(i);
-    const tp = [...tv].map((i) => verts[i]).filter(Boolean).filter((v) => Math.abs(v[2]) > 0.5);
+    const tvp = [...tv].map((i) => verts[i]).filter(Boolean);
+    const track = Math.max(1.0, ...tvp.map((v) => Math.abs(v[2])));
+    const tp = tvp.filter((v) => Math.abs(v[2]) > 0.8); // exclui estepe/peças pequenas
     const axs = [];
     for (const [x] of tp) { let a = axs.find((q) => Math.abs(q.x - x) < 0.9); if (!a) { a = { x, n: 0, s: 0 }; axs.push(a); } a.n++; a.s += x; a.x = a.s / a.n; }
-    const axleX = axs.sort((a, b) => a.x - b.x).map((a) => a.x);
+    const axleX = axs.filter((a) => a.n >= 6).sort((a, b) => a.x - b.x).map((a) => a.x);
 
-    return { VW, VH, PX, PY, polys, axleX, mnX, mxZ };
+    return { VW, VH, PX, PY, polys, axleX, track, mnX, mxZ };
   }, [model]);
 
   const markers = useMemo(() => {
@@ -98,6 +103,10 @@ export default function Chassis2DPlan({ src = '/models/volvo_vm270_chassis.obj',
     <svg viewBox={`0 0 ${geo.VW} ${geo.VH}`} className="w-full h-auto">
       {geo.polys.map((p, i) => (
         <polygon key={i} points={p.pts} fill={MAT[p.m] || MAT.default} fillOpacity={0.95} stroke="rgba(15,23,42,0.16)" strokeWidth={0.4} />
+      ))}
+      {/* barras de eixo (liga as rodas de cada eixo — exibe os eixos traseiros) */}
+      {geo.axleX.map((x, i) => (
+        <line key={`ax${i}`} x1={geo.PX(x)} y1={geo.PY(geo.track)} x2={geo.PX(x)} y2={geo.PY(-geo.track)} stroke="#334155" strokeWidth={5} strokeLinecap="round" />
       ))}
       {markers.map((mk) => {
         const st = mk.m ? corSulco(mk.m.sulco, sulcoMin, sulcoAlerta) : '#e5e7eb';
