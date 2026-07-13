@@ -2,8 +2,9 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useMemo, useRef, useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
-// Visualizador 3D (canvas) carregado sob demanda.
+// Visualizador 3D (canvas) e plano 2D (SVG do OBJ) carregados sob demanda.
 const Chassis3DViewer = lazy(() => import('@/Components/Frota/Chassis3DViewer'));
+const Chassis2DPlan = lazy(() => import('@/Components/Frota/Chassis2DPlan'));
 
 /* ============ helpers de formatação ============ */
 const fmtMoney = (v) => v != null ? Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—';
@@ -2911,7 +2912,9 @@ function ModalGestaoPneus({ veiculo, dados, onClose, onChanged }) {
 
 function TabPneus({ veiculo }) {
   const [dados, setDados] = useState(null);
-  const [gerir, setGerir] = useState(false);
+  const [view, setView] = useState('2d');   // '2d' (plano/gestão) | '3d' (modelo)
+  const [sel, setSel] = useState(null);
+  const [acao, setAcao] = useState(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -2922,19 +2925,32 @@ function TabPneus({ veiculo }) {
   useEffect(() => { carregar(); }, [carregar]);
 
   const definirLayout = (slug) => router.put(route('admin.frota.veiculos.pneus.config', veiculo.id),
-    { config_pneus: slug }, { preserveScroll: true, onSuccess: carregar });
+    { config_pneus: slug }, { preserveScroll: true, onSuccess: () => { setSel(null); carregar(); } });
 
   if (!dados) return <div className="text-gray-400 py-8 text-center">Carregando…</div>;
+
+  const layout = dados.layout;
+  const montados = dados.montados || {};
+  const posicoes = layout?.posicoes ?? [];
+  const posicoesLivres = posicoes.filter((p) => !montados[p.codigo]).map((p) => p.codigo);
+  const corSulco = (s) => s == null ? 'text-gray-400' : (s < dados.sulco_minimo ? 'text-red-600' : (s < dados.sulco_alerta ? 'text-amber-600' : 'text-green-600'));
+  const selPneu = sel ? montados[sel] : null;
+  const onSaved = () => { setAcao(null); setSel(null); carregar(); };
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-lg font-semibold">Chassi 3D{veiculo.prefixo ? ` — ${veiculo.prefixo}` : ''}</h2>
-          <p className="text-xs text-gray-500">Arraste para girar · use as vistas abaixo do modelo</p>
+          <h2 className="text-lg font-semibold">Pneus{veiculo.prefixo ? ` — ${veiculo.prefixo}` : ''}</h2>
+          <p className="text-xs text-gray-500">
+            {layout ? layout.label : 'Sem layout'} · medição {dados.medicao_atual != null ? `${Number(dados.medicao_atual).toLocaleString('pt-BR')} ${dados.medicao_tipo}` : '—'} · sulco mín. {dados.sulco_minimo} mm
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setGerir(true)} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700 whitespace-nowrap">Gerenciar pneus</button>
+        <div className="flex items-center gap-3">
+          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+            <button type="button" onClick={() => setView('2d')} className={`px-3 py-1.5 ${view === '2d' ? 'bg-rise-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Plano 2D</button>
+            <button type="button" onClick={() => setView('3d')} className={`px-3 py-1.5 border-l border-gray-300 ${view === '3d' ? 'bg-rise-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Modelo 3D</button>
+          </div>
           <select value={dados.config_pneus ?? ''} onChange={(e) => e.target.value && definirLayout(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
             <option value="">— layout de eixos —</option>
             {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
@@ -2942,11 +2958,43 @@ function TabPneus({ veiculo }) {
         </div>
       </div>
 
-      <Suspense fallback={<div className="h-[480px] flex items-center justify-center text-gray-400 text-sm">Carregando modelo 3D…</div>}>
-        <Chassis3DViewer />
-      </Suspense>
+      {view === '3d' ? (
+        <Suspense fallback={<div className="h-[480px] flex items-center justify-center text-gray-400 text-sm">Carregando modelo 3D…</div>}>
+          <Chassis3DViewer />
+        </Suspense>
+      ) : !layout ? (
+        <div className="bg-gray-50 border rounded-xl p-8 text-center text-sm text-gray-500">Defina o layout de eixos (seletor acima) para gerenciar os pneus.</div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+          <div className="lg:col-span-3 bg-white border rounded-xl p-3">
+            <Suspense fallback={<div className="h-[300px] flex items-center justify-center text-gray-400 text-sm">Carregando chassi…</div>}>
+              <Chassis2DPlan posicoes={posicoes} montados={montados} sulcoMin={dados.sulco_minimo} sulcoAlerta={dados.sulco_alerta} sel={sel} onSelect={setSel} />
+            </Suspense>
+            <div className="flex flex-wrap items-center justify-center gap-4 mt-2 text-[11px] text-gray-500">
+              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500" /> ok</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> &lt;3mm</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> &lt;1,6mm</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-gray-200 border border-gray-400" /> vazio</span>
+            </div>
+          </div>
 
-      {gerir && <ModalGestaoPneus veiculo={veiculo} dados={dados} onClose={() => setGerir(false)} onChanged={carregar} />}
+          <div className="lg:col-span-2 bg-white border rounded-xl p-4 min-h-[260px]">
+            {!sel ? (
+              <div className="text-gray-400 text-sm text-center pt-16"><i className="fa-solid fa-hand-pointer text-xl block mb-2" />Clique numa roda do chassi</div>
+            ) : selPneu ? (
+              <PainelPneu pos={sel} m={selPneu} corSulco={corSulco} onAcao={(tipo) => setAcao({ tipo, pneu: selPneu, posicao: sel })} />
+            ) : (
+              <div>
+                <div className="text-base font-semibold mb-0.5">Posição {sel}</div>
+                <p className="text-sm text-gray-500 mb-4">Vazia — sem pneu montado.</p>
+                <button onClick={() => setAcao({ tipo: 'montar', posicao: sel })} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100"><i className="fa-solid fa-arrow-down-to-bracket" /> Montar pneu</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {acao && <ModalPneuAcao veiculo={veiculo} contexto={acao} dados={dados} posicoesLivres={posicoesLivres} onClose={() => setAcao(null)} onSaved={onSaved} />}
     </div>
   );
 }
