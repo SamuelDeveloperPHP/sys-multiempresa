@@ -2965,12 +2965,12 @@ function TabPneus({ veiculo }) {
       ) : !layout ? (
         <div className="bg-gray-50 border rounded-xl p-8 text-center text-sm text-gray-500">Defina o layout de eixos (seletor acima) para gerenciar os pneus.</div>
       ) : (
-        <div className="space-y-4">
-          <div className="bg-white border rounded-xl p-4">
-            <Suspense fallback={<div className="h-[360px] flex items-center justify-center text-gray-400 text-sm">Carregando chassi…</div>}>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-stretch">
+          <div className="lg:col-span-3 bg-white border rounded-xl p-3 flex flex-col justify-center min-h-[420px]">
+            <Suspense fallback={<div className="h-[300px] flex items-center justify-center text-gray-400 text-sm">Carregando chassi…</div>}>
               <Chassis2DPlan posicoes={posicoes} montados={montados} sulcoMin={dados.sulco_minimo} sulcoAlerta={dados.sulco_alerta} sel={sel} onSelect={setSel} />
             </Suspense>
-            <div className="flex flex-wrap items-center justify-center gap-4 mt-2 text-[11px] text-gray-500">
+            <div className="flex flex-wrap items-center justify-center gap-4 mt-3 text-[11px] text-gray-500">
               <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500" /> ok</span>
               <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> &lt;3mm</span>
               <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> &lt;1,6mm</span>
@@ -2978,9 +2978,9 @@ function TabPneus({ veiculo }) {
             </div>
           </div>
 
-          <div className="bg-white border rounded-xl p-4 min-h-[160px] max-w-2xl">
+          <div className="lg:col-span-2 bg-white border rounded-xl p-4 min-h-[420px]">
             {!sel ? (
-              <div className="text-gray-400 text-sm text-center py-6"><i className="fa-solid fa-hand-pointer text-lg mr-2" />Clique numa roda do chassi para gerenciar</div>
+              <div className="text-gray-400 text-sm text-center pt-24"><i className="fa-solid fa-hand-pointer text-xl block mb-2" />Clique numa roda do chassi para gerenciar</div>
             ) : selPneu ? (
               <PainelPneu pos={sel} m={selPneu} corSulco={corSulco} onAcao={(tipo) => setAcao({ tipo, pneu: selPneu, posicao: sel })} />
             ) : (
