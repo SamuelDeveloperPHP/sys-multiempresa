@@ -12,7 +12,7 @@ const MAT = {
   accent_magenta: '#d946ef', accent_green: '#10b981', default: '#4b5563',
 };
 
-export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj' }) {
+export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj', zoom = 3, height = 480 }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -63,7 +63,7 @@ export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj
         const ctx = canvas.getContext('2d'); const W = canvas.width; const H = canvas.height;
         if (autoRef.current && !drag.current) rot.current.y = (rot.current.y + 0.005) % (2 * Math.PI);
         ctx.clearRect(0, 0, W, H);
-        const CX = W / 2, CY = H / 2, scale = Math.min(W, H) * 1.5, cam = 2.2;
+        const CX = W / 2, CY = H / 2, scale = Math.min(W, H) * 1.5 * zoom, cam = 2.2;
         const cosY = Math.cos(rot.current.y), sinY = Math.sin(rot.current.y), cosX = Math.cos(rot.current.x), sinX = Math.sin(rot.current.x);
         const proj = model.vertices.map((v) => {
           const x = v[0], y = v[1], z = v[2];
@@ -105,7 +105,14 @@ export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj
   const end = () => { drag.current = null; };
   const preset = (v) => {
     setAuto(false); autoRef.current = false;
-    const P = { perspectiva: [-0.35, 0.6], lateral: [0, Math.PI / 2], superior: [-Math.PI / 2, 0.0001], frontal: [0, 0] };
+    const P = {
+      perspectiva: [-0.5, 0.7],
+      frontal: [0, -Math.PI / 2],
+      lateral_dir: [0, 0],
+      lateral_esq: [0, Math.PI],
+      superior: [Math.PI / 2, 0],
+      inferior: [-Math.PI / 2, 0],
+    };
     rot.current = { x: P[v][0], y: P[v][1] };
   };
 
@@ -113,7 +120,7 @@ export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj
 
   return (
     <div className="rounded-xl overflow-hidden border border-white/10" style={{ background: 'radial-gradient(circle at 50% 40%, #17171c 0%, #0e0e11 100%)' }}>
-      <div ref={wrapRef} className="relative w-full" style={{ height: 340 }}>
+      <div ref={wrapRef} className="relative w-full" style={{ height }}>
         {loading && <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">Carregando modelo 3D…</div>}
         {error && <div className="absolute inset-0 flex items-center justify-center text-red-300 text-sm px-4 text-center">⚠️ {error}</div>}
         {!loading && !error && (
@@ -135,9 +142,11 @@ export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj
       </div>
       <div className="flex flex-wrap items-center gap-2 p-3 bg-black/30 border-t border-white/10">
         <button type="button" onClick={() => preset('perspectiva')} className={btn}>Perspectiva</button>
-        <button type="button" onClick={() => preset('lateral')} className={btn}>Lateral</button>
-        <button type="button" onClick={() => preset('superior')} className={btn}>Superior</button>
         <button type="button" onClick={() => preset('frontal')} className={btn}>Frontal</button>
+        <button type="button" onClick={() => preset('lateral_dir')} className={btn}>Lateral Dir.</button>
+        <button type="button" onClick={() => preset('lateral_esq')} className={btn}>Lateral Esq.</button>
+        <button type="button" onClick={() => preset('superior')} className={btn}>Superior</button>
+        <button type="button" onClick={() => preset('inferior')} className={btn}>Inferior</button>
         <label className="ml-auto flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
           <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className="accent-blue-500" />
           Girar automaticamente
