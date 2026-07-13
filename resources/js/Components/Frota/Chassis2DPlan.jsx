@@ -70,7 +70,7 @@ export default function Chassis2DPlan({ src = '/models/volvo_vm270_chassis.obj',
     for (const [x] of tp) { let a = axs.find((q) => Math.abs(q.x - x) < 0.9); if (!a) { a = { x, n: 0, s: 0 }; axs.push(a); } a.n++; a.s += x; a.x = a.s / a.n; }
     const axleX = axs.sort((a, b) => a.x - b.x).map((a) => a.x);
 
-    return { VW, VH, PX, PY, axleX, mnX, mxZ };
+    return { VW, VH, PX, PY, polys, axleX, mnX, mxZ };
   }, [model]);
 
   const markers = useMemo(() => {
