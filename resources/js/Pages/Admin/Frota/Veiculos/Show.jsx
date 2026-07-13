@@ -1,6 +1,11 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { useMemo, useRef, useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+
+// Visualizador 3D (canvas) carregado sob demanda — só quando o gestor abre a view 3D.
+const Chassis3DViewer = lazy(() => import('@/Components/Frota/Chassis3DViewer'));
+// Layouts em que o modelo 3D (caminhão VM270) é uma representação válida.
+const LAYOUTS_3D = ['caminhao_truck', 'caminhao_6x2', 'caminhao_toco', 'onibus'];
 
 /* ============ helpers de formatação ============ */
 const fmtMoney = (v) => v != null ? Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—';
@@ -2854,6 +2859,7 @@ function TabPneus({ veiculo }) {
   const [dados, setDados] = useState(null);
   const [sel, setSel] = useState(null);       // posição selecionada (código)
   const [modal, setModal] = useState(null);
+  const [view, setView] = useState('2d');     // '2d' (gestão, padrão) | '3d' (visualização)
 
   const carregar = useCallback(async () => {
     try {
@@ -2896,6 +2902,8 @@ function TabPneus({ veiculo }) {
   const corSulco = (s) => s == null ? 'text-gray-400' : (s < dados.sulco_minimo ? 'text-red-600' : (s < dados.sulco_alerta ? 'text-amber-600' : 'text-green-600'));
   const { eixos, estepe } = mapaEixos(dados.layout.posicoes);
   const selPneu = sel ? montados[sel] : null;
+  const pode3D = LAYOUTS_3D.includes(dados.config_pneus);
+  const em3D = view === '3d' && pode3D;
 
   return (
     <div>
@@ -2907,11 +2915,19 @@ function TabPneus({ veiculo }) {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="hidden sm:flex items-center gap-2 text-[11px] text-gray-500">
-            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500" /> ok</span>
-            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> &lt;3mm</span>
-            <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> &lt;1,6mm</span>
-          </span>
+          {pode3D && (
+            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+              <button type="button" onClick={() => setView('2d')} className={`px-3 py-1.5 ${view === '2d' ? 'bg-rise-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Mapa 2D</button>
+              <button type="button" onClick={() => setView('3d')} className={`px-3 py-1.5 border-l border-gray-300 ${view === '3d' ? 'bg-rise-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>3D</button>
+            </div>
+          )}
+          {!em3D && (
+            <span className="hidden sm:flex items-center gap-2 text-[11px] text-gray-500">
+              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500" /> ok</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> &lt;3mm</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> &lt;1,6mm</span>
+            </span>
+          )}
           <select value={dados.config_pneus ?? ''} onChange={(e) => definirLayout(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
             {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
           </select>
@@ -2919,11 +2935,17 @@ function TabPneus({ veiculo }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
-        {/* Diagrama técnico (SVG, gerado da geometria do layout) */}
-        <div className="lg:col-span-3 bg-gray-50 rounded-xl p-4 flex justify-center">
-          <div className="w-full max-w-[440px]">
-            <ChassiSVG eixos={eixos} estepe={estepe} montados={montados} sel={sel} onSelect={setSel} sulcoMin={dados.sulco_minimo} sulcoAlerta={dados.sulco_alerta} />
-          </div>
+        {/* Diagrama: 2D (gestão, padrão) ou 3D (visualização rica) */}
+        <div className={em3D ? 'lg:col-span-3' : 'lg:col-span-3 bg-gray-50 rounded-xl p-4 flex justify-center'}>
+          {em3D ? (
+            <Suspense fallback={<div className="h-[340px] flex items-center justify-center text-gray-400 text-sm">Carregando 3D…</div>}>
+              <Chassis3DViewer />
+            </Suspense>
+          ) : (
+            <div className="w-full max-w-[440px]">
+              <ChassiSVG eixos={eixos} estepe={estepe} montados={montados} sel={sel} onSelect={setSel} sulcoMin={dados.sulco_minimo} sulcoAlerta={dados.sulco_alerta} />
+            </div>
+          )}
         </div>
 
         {/* Painel de ações */}
