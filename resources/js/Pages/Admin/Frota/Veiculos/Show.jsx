@@ -2853,8 +2853,65 @@ function ChassiSVG({ eixos, estepe, montados, sel, onSelect, sulcoMin, sulcoAler
   );
 }
 
+/* Modal de gestão: plano do chassi (vista inferior) com todas as rodas
+   clicáveis + painel de ações. Reaproveita ChassiSVG/PainelPneu/ModalPneuAcao. */
+function ModalGestaoPneus({ veiculo, dados, onClose, onChanged }) {
+  const [sel, setSel] = useState(null);
+  const [acao, setAcao] = useState(null);
+  const layout = dados.layout;
+  const montados = dados.montados || {};
+  const posicoesLivres = layout ? layout.posicoes.filter((p) => !montados[p.codigo]).map((p) => p.codigo) : [];
+  const corSulco = (s) => s == null ? 'text-gray-400' : (s < dados.sulco_minimo ? 'text-red-600' : (s < dados.sulco_alerta ? 'text-amber-600' : 'text-green-600'));
+  const eg = layout ? mapaEixos(layout.posicoes) : { eixos: [], estepe: [] };
+  const selPneu = sel ? montados[sel] : null;
+  const onSaved = () => { setAcao(null); setSel(null); onChanged(); };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-40 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl my-6" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-5 py-3 border-b">
+            <div>
+              <h3 className="text-lg font-bold">Gerenciar pneus{veiculo.prefixo ? ` — ${veiculo.prefixo}` : ''}</h3>
+              {layout && <p className="text-xs text-gray-500">{layout.label} · medição {dados.medicao_atual != null ? `${Number(dados.medicao_atual).toLocaleString('pt-BR')} ${dados.medicao_tipo}` : '—'} · clique numa roda</p>}
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+          </div>
+
+          {!layout ? (
+            <div className="p-8 text-center text-sm text-gray-500">Defina o layout de eixos deste veículo (seletor na aba) para gerenciar os pneus.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-5">
+              <div className="md:col-span-3 bg-gray-50 rounded-xl p-4 flex justify-center">
+                <div className="w-full max-w-[380px]">
+                  <ChassiSVG eixos={eg.eixos} estepe={eg.estepe} montados={montados} sel={sel} onSelect={setSel} sulcoMin={dados.sulco_minimo} sulcoAlerta={dados.sulco_alerta} />
+                </div>
+              </div>
+              <div className="md:col-span-2 border rounded-xl p-4 min-h-[240px]">
+                {!sel ? (
+                  <div className="text-gray-400 text-sm text-center pt-16"><i className="fa-solid fa-hand-pointer text-xl block mb-2" />Clique em uma roda do chassi</div>
+                ) : selPneu ? (
+                  <PainelPneu pos={sel} m={selPneu} corSulco={corSulco} onAcao={(tipo) => setAcao({ tipo, pneu: selPneu, posicao: sel })} />
+                ) : (
+                  <div>
+                    <div className="text-base font-semibold mb-0.5">Posição {sel}</div>
+                    <p className="text-sm text-gray-500 mb-4">Vazia — sem pneu montado.</p>
+                    <button onClick={() => setAcao({ tipo: 'montar', posicao: sel })} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100"><i className="fa-solid fa-arrow-down-to-bracket" /> Montar pneu</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {acao && <ModalPneuAcao veiculo={veiculo} contexto={acao} dados={dados} posicoesLivres={posicoesLivres} onClose={() => setAcao(null)} onSaved={onSaved} />}
+    </>
+  );
+}
+
 function TabPneus({ veiculo }) {
   const [dados, setDados] = useState(null);
+  const [gerir, setGerir] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
@@ -2876,15 +2933,20 @@ function TabPneus({ veiculo }) {
           <h2 className="text-lg font-semibold">Chassi 3D{veiculo.prefixo ? ` — ${veiculo.prefixo}` : ''}</h2>
           <p className="text-xs text-gray-500">Arraste para girar · use as vistas abaixo do modelo</p>
         </div>
-        <select value={dados.config_pneus ?? ''} onChange={(e) => e.target.value && definirLayout(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
-          <option value="">— layout de eixos —</option>
-          {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setGerir(true)} className="bg-rise-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-rise-700 whitespace-nowrap">Gerenciar pneus</button>
+          <select value={dados.config_pneus ?? ''} onChange={(e) => e.target.value && definirLayout(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm">
+            <option value="">— layout de eixos —</option>
+            {dados.layouts.map((l) => <option key={l.slug} value={l.slug}>{l.label}</option>)}
+          </select>
+        </div>
       </div>
 
       <Suspense fallback={<div className="h-[480px] flex items-center justify-center text-gray-400 text-sm">Carregando modelo 3D…</div>}>
         <Chassis3DViewer />
       </Suspense>
+
+      {gerir && <ModalGestaoPneus veiculo={veiculo} dados={dados} onClose={() => setGerir(false)} onChanged={carregar} />}
     </div>
   );
 }
