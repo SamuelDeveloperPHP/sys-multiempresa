@@ -11,6 +11,9 @@ const MAT = {
   cab_paint: '#e5e7eb', windshield: '#3b82f6', tank_silver: '#9ca3af',
   accent_magenta: '#d946ef', accent_green: '#10b981', default: '#4b5563',
 };
+// Realce das rodas (para o usuário visualizar melhor os pneus).
+const TIRE_HL = '#f59e0b';
+const TIRE_HL_STROKE = '#b45309';
 
 export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj', zoom = 3, height = 480 }) {
   const canvasRef = useRef(null);
@@ -74,8 +77,10 @@ export default function Chassis3DViewer({ src = '/models/volvo_vm270_chassis.obj
         });
         const sorted = model.faces.map((fc) => { let s = 0; for (const i of fc.verts) s += proj[i]?.z || 0; return { fc, z: s / fc.verts.length }; }).sort((m, n) => m.z - n.z);
         for (const { fc } of sorted) {
-          ctx.fillStyle = MAT[fc.mat] || MAT.default;
-          ctx.strokeStyle = 'rgba(15,23,42,0.22)'; ctx.lineWidth = 0.5;
+          const tire = fc.mat === 'rubber_tire';
+          ctx.fillStyle = tire ? TIRE_HL : (MAT[fc.mat] || MAT.default);
+          ctx.strokeStyle = tire ? TIRE_HL_STROKE : 'rgba(15,23,42,0.22)';
+          ctx.lineWidth = tire ? 0.9 : 0.5;
           ctx.beginPath();
           fc.verts.forEach((vi, i) => { const pt = proj[vi]; if (pt) { if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y); } });
           ctx.closePath(); ctx.fill(); ctx.stroke();
