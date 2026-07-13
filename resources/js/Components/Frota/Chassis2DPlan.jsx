@@ -111,11 +111,21 @@ export default function Chassis2DPlan({ src = '/models/volvo_vm270_chassis.obj',
         const wd = w.estepe ? EW : TW, ht = w.estepe ? EW : TH;
         return (
           <g key={w.codigo} style={{ cursor: 'pointer' }} onClick={() => onSelect(w.codigo)}>
+            <title>{w.m ? `${w.m.numero_fogo} · ${[w.m.marca, w.m.medida].filter(Boolean).join(' ')} · sulco ${w.m.sulco ?? '—'} mm · ${w.m.vida_atual > 0 ? w.m.vida_atual + 'ª vida' : 'novo'}` : `Posição ${w.codigo} — vazia`}</title>
             <rect x={w.cx - wd / 2} y={w.cy - ht / 2} width={wd} height={ht} rx={9}
               fill={w.m ? '#141416' : '#f1f5f9'} stroke={ativo ? '#2563eb' : st} strokeWidth={ativo ? 5 : 4}
               strokeDasharray={w.m ? '0' : '6 4'} />
-            {!w.m && <text x={w.cx} y={w.cy + 6} textAnchor="middle" fontSize={18} fill="#94a3b8" style={{ pointerEvents: 'none' }}>+</text>}
+            {/* código da posição (acima) */}
             <text x={w.cx} y={w.cy - ht / 2 - 6} textAnchor="middle" fontSize={12} fontWeight="700" fill="#0f172a" style={{ pointerEvents: 'none' }}>{w.codigo}</text>
+            {w.m ? (
+              <>
+                {/* sulco (dentro) + nº de fogo (abaixo) */}
+                <text x={w.cx} y={w.cy + 5} textAnchor="middle" fontSize={13} fontWeight="700" fill="#ffffff" style={{ pointerEvents: 'none' }}>{w.m.sulco != null ? `${w.m.sulco}` : '—'}</text>
+                <text x={w.cx} y={w.cy + ht / 2 + 13} textAnchor="middle" fontSize={9.5} fontWeight="600" fill="#334155" style={{ pointerEvents: 'none' }}>{w.m.numero_fogo}</text>
+              </>
+            ) : (
+              <text x={w.cx} y={w.cy + 6} textAnchor="middle" fontSize={18} fill="#94a3b8" style={{ pointerEvents: 'none' }}>+</text>
+            )}
           </g>
         );
       })}
