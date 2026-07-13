@@ -1,23 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 
 /**
- * Plano 2D do chassi (vista inferior) desenhado a partir do MESMO modelo OBJ do
- * visualizador 3D — projeta as faces (x=comprimento, z=largura) e pinta por
- * material, reproduzindo o desenho da imagem. Por cima, marcadores clicáveis por
- * posição do layout, coloridos pela profundidade de sulco (gestão dos pneus).
+ * Plano 2D do chassi (vista inferior): usa o MESMO OBJ do 3D como FUNDO (chassi,
+ * cabine, tanque, eixos — tudo menos os pneus) e desenha as RODAS por conta
+ * própria, exatamente nas posições do layout. Assim vale para qualquer layout
+ * (toco/truck/6x2/rolo…) sem descasamento com o nº de eixos do modelo.
+ * Cada roda é clicável e colorida pela profundidade de sulco.
  */
 const MAT = {
-  chassis_dark: '#26262b', rubber_tire: '#141416', axle_metal: '#6b7280',
-  cab_paint: '#e5e7eb', windshield: '#3b82f6', tank_silver: '#9ca3af',
-  accent_magenta: '#d946ef', accent_green: '#10b981', default: '#4b5563',
+  chassis_dark: '#26262b', axle_metal: '#6b7280', cab_paint: '#e5e7eb',
+  windshield: '#3b82f6', tank_silver: '#9ca3af', accent_magenta: '#d946ef',
+  accent_green: '#10b981', default: '#4b5563',
 };
-// Ordem de pintura (estrutura embaixo, rodas/acentos em cima).
-const ORDER = ['chassis_dark', 'axle_metal', 'tank_silver', 'windshield', 'cab_paint', 'accent_green', 'accent_magenta', 'rubber_tire', 'default'];
-// Deslocamento lateral (z) de cada lane, p/ posicionar o marcador na roda certa.
-const Z_LANE = { EE: -1.06, EI: -0.72, E: -0.95, D: 0.95, DI: 0.72, DE: 1.06 };
+// Fundo: tudo menos a borracha (as rodas são desenhadas por cima).
+const ORDER_BG = ['chassis_dark', 'axle_metal', 'tank_silver', 'windshield', 'cab_paint', 'accent_green', 'accent_magenta', 'default'];
+// Posição lateral (z) de cada lane.
+const Z_LANE = { EE: -1.12, EI: -0.56, E: -0.88, D: 0.88, DI: 0.56, DE: 1.12 };
 
 function corSulco(s, min, alerta) {
-  if (s == null) return '#9ca3af';
+  if (s == null) return '#cbd5e1';
   if (s < min) return '#ef4444';
   if (s < alerta) return '#f59e0b';
   return '#22c55e';
@@ -54,69 +55,67 @@ export default function Chassis2DPlan({ src = '/models/volvo_vm270_chassis.obj',
     const PX = (x) => +(PAD + (x - mnX) * sc).toFixed(1);
     const PY = (z) => +(PAD + (mxZ - z) * sc).toFixed(1);
 
-    // Alarga a roda 30% na largura (z), em torno do centro do pneu.
-    const widenZ = (z) => { const zc = Math.sign(z) * 0.95; return zc + (z - zc) * 1.3; };
     const groups = {};
     for (const f of faces) (groups[f.m] ??= []).push(f);
     const polys = [];
-    for (const m of ORDER) {
+    for (const m of ORDER_BG) {
       const fs = groups[m]; if (!fs) continue;
-      const tire = m === 'rubber_tire';
-      for (const f of fs) { const pts = f.v.map((i) => verts[i]).filter(Boolean).map(([x, , z]) => `${PX(x)},${PY(tire ? widenZ(z) : z)}`).join(' '); if (pts) polys.push({ m, pts }); }
+      for (const f of fs) { const pts = f.v.map((i) => verts[i]).filter(Boolean).map(([x, , z]) => `${PX(x)},${PY(z)}`).join(' '); if (pts) polys.push({ m, pts }); }
     }
 
-    // Bitola + posições X reais dos eixos (clusters da borracha), frente->trás.
+    // Eixos reais do modelo (x dos clusters da borracha; ignora estepe).
     const tv = new Set();
     for (const f of faces) if (f.m === 'rubber_tire') for (const i of f.v) tv.add(i);
-    const tvp = [...tv].map((i) => verts[i]).filter(Boolean);
-    const track = Math.max(1.0, ...tvp.map((v) => Math.abs(v[2])));
-    const tp = tvp.filter((v) => Math.abs(v[2]) > 0.8); // exclui estepe/peças pequenas
+    const tp = [...tv].map((i) => verts[i]).filter(Boolean).filter((v) => Math.abs(v[2]) > 0.8);
     const axs = [];
     for (const [x] of tp) { let a = axs.find((q) => Math.abs(q.x - x) < 0.9); if (!a) { a = { x, n: 0, s: 0 }; axs.push(a); } a.n++; a.s += x; a.x = a.s / a.n; }
-    const axleX = axs.filter((a) => a.n >= 6).sort((a, b) => a.x - b.x).map((a) => a.x);
+    const modelAxles = axs.filter((a) => a.n >= 6).sort((a, b) => a.x - b.x).map((a) => a.x);
 
-    return { VW, VH, PX, PY, polys, axleX, track, mnX, mxZ };
+    return { VW, VH, PX, PY, sc, polys, modelAxles, mnX, mxZ };
   }, [model]);
 
-  const markers = useMemo(() => {
-    if (!geo) return [];
-    const { PX, PY, axleX } = geo;
-    const eixosLayout = [...new Set(posicoes.filter((p) => p.lane !== 'ESTEPE').map((p) => p.eixo))].sort((a, b) => a - b);
-    const out = [];
+  const { wheels, beams } = useMemo(() => {
+    if (!geo) return { wheels: [], beams: [] };
+    const { PX, PY, modelAxles } = geo;
+    const eixos = [...new Set(posicoes.filter((p) => p.lane !== 'ESTEPE').map((p) => p.eixo))].sort((a, b) => a - b);
+    const N = eixos.length, M = modelAxles.length || 1;
+    const eixoX = {};
+    eixos.forEach((eixo, i) => { let mi = i === 0 ? 0 : (M - (N - 1) + (i - 1)); mi = Math.max(0, Math.min(M - 1, mi)); eixoX[eixo] = modelAxles[mi] ?? 0; });
+    const wheels = [];
     for (const p of posicoes) {
-      if (p.lane === 'ESTEPE') {
-        out.push({ codigo: p.codigo, cx: PX(geo.mnX) + 24, cy: geo.VH - 30, m: montados[p.codigo] });
-        continue;
-      }
-      const idx = eixosLayout.indexOf(p.eixo);
-      const x = axleX[Math.min(idx, axleX.length - 1)] ?? 0;
-      out.push({ codigo: p.codigo, cx: PX(x), cy: PY(Z_LANE[p.lane] ?? 0), m: montados[p.codigo] });
+      if (p.lane === 'ESTEPE') { wheels.push({ codigo: p.codigo, cx: PX(geo.mnX) + 34, cy: geo.VH - 36, m: montados[p.codigo], estepe: true }); continue; }
+      wheels.push({ codigo: p.codigo, cx: PX(eixoX[p.eixo] ?? 0), cy: PY(Z_LANE[p.lane] ?? 0), m: montados[p.codigo] });
     }
-    return out;
+    const beams = [...new Set(eixos.map((e) => eixoX[e]))].map((x) => PX(x));
+    return { wheels, beams };
   }, [geo, posicoes, montados]);
 
   if (err) return <div className="text-red-600 text-sm p-6 text-center">{err}</div>;
   if (!geo) return <div className="text-gray-400 text-sm p-6 text-center">Carregando chassi…</div>;
 
-  const R = 15;
+  const TW = geo.sc * 1.2, TH = geo.sc * 0.5;   // roda: comprida no X, largura no Z
+  const EW = geo.sc * 0.6;                        // estepe (quadrado)
   return (
     <svg viewBox={`0 0 ${geo.VW} ${geo.VH}`} className="w-full h-auto">
       {geo.polys.map((p, i) => (
         <polygon key={i} points={p.pts} fill={MAT[p.m] || MAT.default} fillOpacity={0.95} stroke="rgba(15,23,42,0.16)" strokeWidth={0.4} />
       ))}
-      {/* barras de eixo (liga as rodas de cada eixo — exibe os eixos traseiros) */}
-      {geo.axleX.map((x, i) => (
-        <line key={`ax${i}`} x1={geo.PX(x)} y1={geo.PY(geo.track)} x2={geo.PX(x)} y2={geo.PY(-geo.track)} stroke="#334155" strokeWidth={5} strokeLinecap="round" />
+      {/* barras de eixo (liga as rodas de cada eixo) */}
+      {beams.map((x, i) => (
+        <line key={`ax${i}`} x1={x} y1={geo.PY(1.2)} x2={x} y2={geo.PY(-1.2)} stroke="#334155" strokeWidth={6} strokeLinecap="round" />
       ))}
-      {markers.map((mk) => {
-        const st = mk.m ? corSulco(mk.m.sulco, sulcoMin, sulcoAlerta) : '#e5e7eb';
-        const ativo = sel === mk.codigo;
+      {/* rodas (desenhadas nas posições do layout) */}
+      {wheels.map((w) => {
+        const st = w.m ? corSulco(w.m.sulco, sulcoMin, sulcoAlerta) : '#cbd5e1';
+        const ativo = sel === w.codigo;
+        const wd = w.estepe ? EW : TW, ht = w.estepe ? EW : TH;
         return (
-          <g key={mk.codigo} style={{ cursor: 'pointer' }} onClick={() => onSelect(mk.codigo)}>
-            {ativo && <circle cx={mk.cx} cy={mk.cy} r={R + 4} fill="none" stroke="#2563eb" strokeWidth={3} />}
-            <circle cx={mk.cx} cy={mk.cy} r={R} fill={st} stroke="#0f172a" strokeWidth={1.6} />
-            {!mk.m && <text x={mk.cx} y={mk.cy + 5} textAnchor="middle" fontSize={16} fill="#64748b" style={{ pointerEvents: 'none' }}>+</text>}
-            <text x={mk.cx} y={mk.cy - R - 4} textAnchor="middle" fontSize={11} fontWeight="700" fill="#0f172a" style={{ pointerEvents: 'none' }}>{mk.codigo}</text>
+          <g key={w.codigo} style={{ cursor: 'pointer' }} onClick={() => onSelect(w.codigo)}>
+            <rect x={w.cx - wd / 2} y={w.cy - ht / 2} width={wd} height={ht} rx={9}
+              fill={w.m ? '#141416' : '#f1f5f9'} stroke={ativo ? '#2563eb' : st} strokeWidth={ativo ? 5 : 4}
+              strokeDasharray={w.m ? '0' : '6 4'} />
+            {!w.m && <text x={w.cx} y={w.cy + 6} textAnchor="middle" fontSize={18} fill="#94a3b8" style={{ pointerEvents: 'none' }}>+</text>}
+            <text x={w.cx} y={w.cy - ht / 2 - 6} textAnchor="middle" fontSize={12} fontWeight="700" fill="#0f172a" style={{ pointerEvents: 'none' }}>{w.codigo}</text>
           </g>
         );
       })}
