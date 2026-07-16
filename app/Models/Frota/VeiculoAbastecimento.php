@@ -28,6 +28,14 @@ class VeiculoAbastecimento extends Model
     ];
 
     protected $casts = [
+        // Sem cast, o tipo de veiculo_id é o que o driver PDO entrega, e isso
+        // varia por ambiente: o WAMP local devolve int, a hospedagem LiteSpeed
+        // devolve string. O Laravel converte a chave primária sozinho, mas não
+        // as estrangeiras — daí a API emitir {"id": 634, "veiculo_id": "11"}.
+        // Isso quebrava, SÓ em produção: o cache offline (Dexie indexa por
+        // veiculo_id e a chave "11" não bate com 11) e os abort_unless(===)
+        // de updateAbastecimento/destroyAbastecimento, que davam 404 sempre.
+        'veiculo_id' => 'integer',
         'data_abastecimento' => 'datetime',
         'data_sincronizacao' => 'datetime',
         'synced_at' => 'datetime',

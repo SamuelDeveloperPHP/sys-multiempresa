@@ -11,7 +11,6 @@
 //   - Validações do legado:
 //       * km_atual >= km_anterior
 //       * hr_atual >= hr_anterior
-//       * salto de horímetro não pode exceder 10h (regra de máquinas)
 //   - Hodômetro/horímetro anterior calculado do último abastecimento
 // -----------------------------------------------------------------------------
 
@@ -33,7 +32,6 @@ import {
 import { nowLocalDMYHM, nowLocalTimestamp } from '@/utils/datetime';
 
 const COMBUSTIVEIS = ['Diesel S10', 'Diesel S500', 'Gasolina', 'Etanol', 'GNV', 'Arla 32'];
-const SALTO_MAX_HORIMETRO = 10; // legado: máx 10h por abastecimento (regra de máquinas)
 
 export default function AbastecimentoCreate({ veiculoId }) {
     const id = veiculoId || window.location.pathname.split('/').reverse()[2];
@@ -145,9 +143,6 @@ export default function AbastecimentoCreate({ veiculoId }) {
             if (!hrAtual) return 'Informe o horímetro atual.';
             if (hrAtual < hrAnterior) {
                 return `Horímetro atual (${hrAtual}h) não pode ser menor que o anterior (${hrAnterior}h).`;
-            }
-            if (hrAtual > hrAnterior + SALTO_MAX_HORIMETRO) {
-                return `Salto de horímetro não pode exceder ${SALTO_MAX_HORIMETRO}h. Máximo permitido: ${hrAnterior + SALTO_MAX_HORIMETRO}h.`;
             }
         } else {
             const kmAtual = integerNumberValue(form.km_atual);
