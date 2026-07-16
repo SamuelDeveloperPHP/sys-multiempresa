@@ -138,11 +138,12 @@ JS;
         '$1/manifest.webmanifest$1',
         $content
     );
-    // NavigationRoute do Workbox agora aponta para "/offline.html" (configurado
-    // via navigateFallback no vite.config.js). Esse arquivo é precacheado
-    // automaticamente pelo globPatterns *.html, então a NavigationRoute funciona
-    // corretamente. NÃO removemos mais essa linha — ela é essencial para que
-    // navegações offline para URLs não-cacheadas tenham um fallback amigável.
+    // Não há mais NavigationRoute no sw.js gerado (navigateFallback: null no
+    // vite.config.js). Ela servia /offline.html em TODA navegação, direto do
+    // precache e sem tocar a rede — o que travava acesso direto/F5 em /mobile/*
+    // num loop de reload. As navegações agora caem no runtimeCaching
+    // (mobile-pages-v3, auth-shell), que tenta a rede primeiro.
+    // As reescritas acima bastam: /offline.html já é absoluto no manifest.
 
     return response($content, 200, [
         'Content-Type' => 'application/javascript',
