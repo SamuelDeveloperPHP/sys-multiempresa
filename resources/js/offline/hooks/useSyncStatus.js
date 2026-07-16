@@ -19,11 +19,14 @@ import db, { getMeta, setMeta } from '../db';
 import { processAll, retryRejected, discardRejected } from '../syncQueue';
 
 export default function useSyncStatus() {
-    // Contagem reativa via useLiveQuery — re-renderiza quando a tabela muda
-    const pendingCount = useLiveQuery(
+    // Contagem reativa via useLiveQuery — re-renderiza quando a tabela muda.
+    // IMPORTANTE: sem defaultValue, o hook retorna `undefined` até a 1ª consulta
+    // resolver. Isso deixa a UI distinguir "ainda carregando" de "zero pendências"
+    // — sem isso, ao montar (ex.: abrir o drawer) o valor caía como 0 e a tela
+    // afirmava "Tudo sincronizado" por um frame antes de saber a contagem real.
+    const pendingRaw = useLiveQuery(
         () => db.sync_queue.where('status').anyOf(['pending', 'failed']).count(),
-        [],
-        0
+        []
     );
 
     const failedCount = useLiveQuery(
@@ -34,11 +37,17 @@ export default function useSyncStatus() {
 
     // Rejeitados pelo servidor (erro permanente) — fora da fila automática,
     // aguardando triagem manual do usuário.
-    const rejectedItems = useLiveQuery(
+    const rejectedRaw = useLiveQuery(
         () => db.sync_queue.where('status').equals('rejected').sortBy('created_at'),
-        [],
         []
     );
+
+    // Só afirmamos um estado de sincronização depois que AMBAS as consultas
+    // resolveram. Enquanto `ready` é false, a UI mostra "Verificando…" em vez de
+    // um "Tudo sincronizado" prematuro (a causa do sidebar sempre verde).
+    const ready = pendingRaw !== undefined && rejectedRaw !== undefined;
+    const pendingCount = pendingRaw ?? 0;
+    const rejectedItems = rejectedRaw ?? [];
 
     const lastSyncMeta = useLiveQuery(
         () => db.meta.get('last_global_sync'),
@@ -73,6 +82,7 @@ export default function useSyncStatus() {
     }, [syncing]);
 
     return {
+        ready,
         pendingCount: pendingCount || 0,
         failedCount: failedCount || 0,
         rejectedCount: rejectedItems?.length || 0,
