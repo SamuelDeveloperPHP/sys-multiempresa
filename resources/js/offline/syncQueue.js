@@ -426,6 +426,18 @@ async function onSyncSuccess(queueItem, serverData) {
                 _sync_status: 'synced',
                 _local_id: null,
             });
+            // Rede de segurança contra a duplicata "Pendente" fantasma: se a cópia
+            // local pendente não foi encontrada acima (ex.: _local_id divergente
+            // após um download intermediário), ela sobreviveria ao lado do
+            // registro do servidor e ficaria eternamente "Pendente" — sem item de
+            // fila para reprocessá-la. Remove qualquer registro do mesmo
+            // client_uuid/_local_id cujo id não seja o do servidor.
+            const uuid = queueItem.local_id;
+            const dupes = await tbl
+                .filter(r => String(r.id) !== String(serverData.id)
+                    && (r._local_id === uuid || r.client_uuid === uuid))
+                .toArray();
+            for (const d of dupes) await tbl.delete(d.id);
         }
     } else if (queueItem.op === 'update' && queueItem.server_id) {
         if (serverData?.id) {

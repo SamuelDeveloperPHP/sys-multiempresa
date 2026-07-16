@@ -311,8 +311,9 @@ class MobileApiController extends Controller
 
     public function abastecimentosStore(StoreAbastecimentoRequest $request)
     {
-        // Garante que o veículo pertence à empresa do usuário
-        $this->veiculoDaEmpresa((int) $request->veiculo_id);
+        // Garante que o veículo pertence à empresa do usuário (e nos dá o
+        // veículo, fonte autoritativa de company_id e da obra da locação atual).
+        $veiculo = $this->veiculoDaEmpresa((int) $request->veiculo_id);
 
         // Idempotência: reenvio do mesmo create devolve o registro existente
         if ($existing = $this->findByClientUuid(VeiculoAbastecimento::class, $request->input('client_uuid'))) {
@@ -320,7 +321,17 @@ class MobileApiController extends Controller
         }
 
         $payload = $this->normalizeAbastecimento($request->validated());
-        $payload['company_id'] = $this->companyId();
+        // company_id vem do VEÍCULO, não da sessão: o fluxo mobile é por token e
+        // CompanyContext::current() (baseado em sessão) volta null aqui, deixando
+        // company_id em branco. O veículo carrega o company_id autoritativo.
+        $payload['company_id'] = $veiculo->company_id;
+        // id_obra vem da locação ATIVA do veículo (data_fim IS NULL). O veículo é
+        // alugado a obras diferentes ao longo do tempo, então veiculos.obra_id não
+        // é confiável — a obra corrente é a da locação em aberto.
+        $payload['id_obra'] = $veiculo->locacaoAtual?->id_obra;
+        // Carimba a recepção no servidor: o registro chegou e está persistido.
+        $payload['sync_status'] = 1;
+        $payload['data_sincronizacao'] = now();
         if ($uuid = $request->input('client_uuid')) {
             $payload['client_uuid'] = $uuid;
         }
@@ -344,6 +355,9 @@ class MobileApiController extends Controller
         $rec = VeiculoAbastecimento::findOrFail($id);
         $this->veiculoDaEmpresa((int) $rec->veiculo_id);  // ownership check
         $payload = $this->normalizeAbastecimento($request->validated(), false);
+        // Edição via sync também é uma recepção no servidor: recarimba.
+        $payload['sync_status'] = 1;
+        $payload['data_sincronizacao'] = now();
         // Troca de foto do comprovante na edição (mesma convenção do store)
         $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'abastecimentos', 'abast');
         if ($foto) {

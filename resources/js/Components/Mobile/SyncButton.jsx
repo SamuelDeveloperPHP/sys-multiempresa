@@ -24,7 +24,7 @@ const TABLE_LABELS = {
 
 export default function SyncButton({ compact = false }) {
     const {
-        pendingCount, failedCount, rejectedCount, rejectedItems,
+        ready, pendingCount, failedCount, rejectedCount, rejectedItems,
         syncing, progress, lastResult, sync, lastSyncAt,
         retryRejected, discardRejected,
     } = useSyncStatus();
@@ -120,6 +120,7 @@ export default function SyncButton({ compact = false }) {
                 title={
                     syncing ? 'Sincronizando…' :
                     !online ? 'Você está offline' :
+                    !ready ? 'Verificando sincronização…' :
                     hasRejected ? `${rejectedCount} registro(s) rejeitado(s) — abra a sincronização` :
                     hasPending ? `${pendingCount} item(ns) pendente(s)` :
                     'Tudo sincronizado'
@@ -155,7 +156,10 @@ export default function SyncButton({ compact = false }) {
                     <>
                         <i className="fa-solid fa-cloud-arrow-up text-lg" />
                         <span>
-                            {hasPending ? `Enviar dados (${pendingCount})` : 'Tudo sincronizado'}
+                            {!ready ? 'Verificando…'
+                                : (hasPending || hasRejected)
+                                    ? `Enviar dados (${pendingCount + rejectedCount})`
+                                    : 'Tudo sincronizado'}
                         </span>
                     </>
                 )}
