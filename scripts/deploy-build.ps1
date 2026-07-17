@@ -113,6 +113,12 @@ if (-not $SkipZip) {
         'storage/framework/cache/data/.+',
         'storage/framework/sessions/.+',
         'storage/framework/views/.+',
+        # Integração Leroy Merlin: ~2 GB / 107 mil arquivos. Existem DUAS copias
+        # reais no disco — o caminho real do storage E o public/storage (que aqui
+        # NAO e symlink, e um diretorio real). Excluimos os dois; sem o segundo, o
+        # zip continuava inflando para +2 GB. Dados de runtime ficam no servidor.
+        'storage/app/public/leroy_merlin',
+        'public/storage/leroy_merlin',
         'README\.md', 'CHANGELOG\.md',
         # Arquivos de dev/build que nao precisam em prod
         'package-lock\.json', 'vite\.config\.js', 'tailwind\.config\.js',
