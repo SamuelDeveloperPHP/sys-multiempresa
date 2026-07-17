@@ -1,30 +1,22 @@
 // resources/js/Components/Mobile/QRCodeOCRScanner.jsx
 // -----------------------------------------------------------------------------
-// Scanner full-screen com 2 modos: QR Code e OCR de texto.
-// Port da experiência do legado React Native (vision-camera + OCR plugin)
-// para web/PWA usando html5-qrcode (QR) e tesseract.js (OCR).
+// Scanner full-screen de OCR: lê o PREFIXO do veículo (ex: AC-001) pela câmera.
+// (O modo QR Code / código de barras foi REMOVIDO a pedido — só OCR.)
+//
+// A câmera é aberta via html5-qrcode (também usado em outras telas) e o OCR roda
+// sobre o <video> gerado, a cada ~1.5s, com tesseract.js. A decodificação de QR
+// do html5-qrcode é ignorada — usamos a lib só como fonte de vídeo.
+//
+// ACURÁCIA (leitura de código curto impresso/estêncil):
+//   - Recorta uma FAIXA CENTRAL (mira) do frame, dá zoom e converte p/ cinza+contraste
+//   - tesseract com whitelist (A–Z 0–9 -) e PSM de linha única
+//   - Extração TOLERANTE: corrige confusões de OCR (O↔0, I↔1, S↔5, B↔8…)
+//   OBS: OCR é para texto IMPRESSO/estêncil. Manuscrito não é confiável.
 //
 // API:
-//   <QRCodeOCRScanner
-//     isOpen={open}
-//     onClose={() => setOpen(false)}
-//     onResult={(text, mode) => { ... }}  // mode: 'qr' | 'ocr'
-//     initialMode="qr"
-//     prefixRegex={/[A-Z]{2,3}\s*-?\s*\d{3}/i}  // regex para extrair prefixo no OCR
-//     maxLength={7}                              // trunca o resultado a N chars
-//   />
+//   <QRCodeOCRScanner isOpen onClose onResult prefixRegex maxLength />
 //
-// Comportamento:
-//   - Modo QR: lê qualquer QR Code ou código de barras (ean13, code-128, code-39)
-//   - Modo OCR: faz OCR contínuo a cada ~1.5s do frame da câmera. Quando o regex
-//     achar match, retorna via onResult e fecha automaticamente.
-//   - Toggle entre os modos via botões na parte inferior.
-//   - Reuso do mesmo stream de vídeo entre os modos (mais eficiente).
-//
-// Requer:
-//   - HTTPS (getUserMedia)
-//   - tesseract.js (~2MB primeira vez, depois cached)
-//   - html5-qrcode (~50KB)
+// Requer: HTTPS (getUserMedia) · tesseract.js (~2MB 1ª vez) · html5-qrcode
 // -----------------------------------------------------------------------------
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -44,17 +36,25 @@ const STATUS = {
 
 const DEFAULT_PREFIX_REGEX = /[A-Z]{2,3}\s*-?\s*\d{3}/i;
 const OCR_INTERVAL_MS = 1500;
-const SCANNER_ID = 'qr-ocr-scanner-region';
+const SCANNER_ID = 'ocr-scanner-region';
+
+// Mira: faixa central onde o motorista alinha o prefixo. O recorte do OCR usa
+// EXATAMENTE estas proporções (o que está na moldura é o que é lido).
+const RETICLE = { wPct: 0.72, hPct: 0.20 };
+
+// Confusões clássicas de OCR na parte NUMÉRICA do prefixo.
+const DIGIT_FIX = {
+    O: '0', Q: '0', D: '0', I: '1', L: '1', '|': '1',
+    Z: '2', S: '5', G: '6', T: '7', B: '8',
+};
 
 export default function QRCodeOCRScanner({
     isOpen,
     onClose,
     onResult,
-    initialMode = 'qr',
     prefixRegex = DEFAULT_PREFIX_REGEX,
     maxLength = 7,
 }) {
-    const [mode, setMode] = useState(initialMode);
     const [status, setStatus] = useState(STATUS.IDLE);
     const [errorMsg, setErrorMsg] = useState('');
     const [ocrText, setOcrText] = useState('');
@@ -66,28 +66,41 @@ export default function QRCodeOCRScanner({
     const videoElRef = useRef(null);
 
     // -------------------------------------------------------------------------
-    // Helper: extrai prefixo formatado do texto (LL-NNN ou LLL-NNN)
+    // Extrai prefixo formatado (LL-NNN ou LLL-NNN), tolerante a erros de OCR.
     // -------------------------------------------------------------------------
-    const extractPrefix = useCallback((text) => {
-        if (!text) return null;
-        const match = String(text).match(prefixRegex);
-        if (!match) return null;
-        let prefixo = match[0].toUpperCase().replace(/\s+/g, '');
-        if (!prefixo.includes('-')) {
-            const letras = prefixo.replace(/[0-9]/g, '');
-            const numeros = prefixo.replace(/[^0-9]/g, '');
-            prefixo = `${letras}-${numeros}`;
+    const extractPrefix = useCallback((rawText) => {
+        if (!rawText) return null;
+        const up = String(rawText).toUpperCase().replace(/[–—]/g, '-');
+
+        let letras = null;
+        let num = null;
+
+        // 1) tentativa ESTRITA (regex configurável)
+        const strict = up.match(prefixRegex);
+        if (strict) {
+            const clean = strict[0].replace(/\s+/g, '').replace('-', '');
+            letras = clean.replace(/[0-9]/g, '');
+            num = clean.replace(/[^0-9]/g, '');
+        } else {
+            // 2) TOLERANTE: 2-3 letras + separador + 3 chars alfanum → corrige dígitos
+            const loose = up.match(/([A-Z]{2,3})\s*-?\s*([A-Z0-9]{3})/);
+            if (!loose) return null;
+            letras = loose[1];
+            num = loose[2].split('').map((c) => DIGIT_FIX[c] ?? c).join('');
         }
-        if (prefixo.length > maxLength) {
-            prefixo = prefixo.substring(0, maxLength);
-        }
+
+        if (!/^[A-Z]{2,3}$/.test(letras) || !/^\d{3}$/.test(num)) return null;
+
+        let prefixo = `${letras}-${num}`;
+        if (prefixo.length > maxLength) prefixo = prefixo.substring(0, maxLength);
         return prefixo;
     }, [prefixRegex, maxLength]);
 
     // -------------------------------------------------------------------------
-    // Inicia o html5-qrcode (modo QR + leitura contínua de barras)
+    // Abre a câmera (via html5-qrcode). O stream é só fonte de vídeo p/ o OCR —
+    // QR/código de barras NÃO são processados.
     // -------------------------------------------------------------------------
-    const startQrScanner = useCallback(async () => {
+    const startCamera = useCallback(async () => {
         setStatus(STATUS.REQUESTING);
         setErrorMsg('');
 
@@ -97,30 +110,17 @@ export default function QRCodeOCRScanner({
 
             await qr.start(
                 { facingMode: 'environment' },
-                {
-                    fps: 10,
-                    qrbox: { width: 250, height: 250 },
-                    aspectRatio: 1.7777,
-                },
-                (decodedText) => {
-                    // Sucesso na leitura QR/barcode
-                    let result = decodedText;
-                    if (maxLength && result.length > maxLength) {
-                        result = result.substring(0, maxLength);
-                    }
-                    onResult?.(result, 'qr');
-                    closeAll();
-                },
+                { fps: 10, aspectRatio: 1.7777 },
+                () => { /* QR ignorado — este scanner é só OCR */ },
                 () => { /* erro de frame, ignora silenciosamente */ }
             );
 
-            // Pega o elemento <video> criado pelo html5-qrcode pra usar no OCR
             const container = document.getElementById(SCANNER_ID);
             videoElRef.current = container?.querySelector('video') || null;
 
             setStatus(STATUS.ACTIVE);
         } catch (err) {
-            console.error('[Scanner] erro QR:', err);
+            console.error('[OCRScanner] erro câmera:', err);
             const name = err?.name || '';
             if (name === 'NotAllowedError' || /Permission/i.test(String(err))) {
                 setStatus(STATUS.DENIED);
@@ -128,25 +128,32 @@ export default function QRCodeOCRScanner({
             } else if (name === 'NotFoundError') {
                 setStatus(STATUS.NO_DEVICE);
                 setErrorMsg('Nenhuma câmera encontrada.');
+            } else if (name === 'NotReadableError') {
+                setStatus(STATUS.ERROR);
+                setErrorMsg('Não foi possível iniciar a câmera (pode estar em uso por outro app).');
             } else {
                 setStatus(STATUS.ERROR);
                 setErrorMsg(err?.message || String(err) || 'Erro ao iniciar câmera.');
             }
         }
-    }, [onResult, maxLength]);
+    }, []);
 
     // -------------------------------------------------------------------------
-    // Inicializa o Tesseract worker (lazy, só na primeira vez)
+    // Inicializa o Tesseract worker (lazy) + parâmetros de acurácia
     // -------------------------------------------------------------------------
     const ensureTesseract = useCallback(async () => {
         if (tesseractWorkerRef.current) return tesseractWorkerRef.current;
         setOcrLoading(true);
         try {
             const Tesseract = await loadTesseract();
-            // createWorker pode levar uns segundos no primeiro carregamento
             const worker = await Tesseract.createWorker('por', 1, {
-                // Logger silencioso. Habilite para debug.
                 // logger: m => console.log('[Tesseract]', m),
+            });
+            // Só letras/dígitos/hífen e leitura como UMA linha — dispara acurácia
+            // em código curto e evita o motor "inventar" símbolos.
+            await worker.setParameters({
+                tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
+                tessedit_pageseg_mode: '7', // PSM_SINGLE_LINE
             });
             tesseractWorkerRef.current = worker;
             return worker;
@@ -156,28 +163,47 @@ export default function QRCodeOCRScanner({
     }, []);
 
     // -------------------------------------------------------------------------
-    // Captura um frame do vídeo e roda OCR
+    // Captura o recorte da MIRA, pré-processa (zoom + cinza/contraste) e roda OCR
     // -------------------------------------------------------------------------
     const ocrTick = useCallback(async () => {
         const video = videoElRef.current;
         if (!video || video.readyState < 2) return; // HAVE_CURRENT_DATA = 2
 
         try {
+            const vw = video.videoWidth || 640;
+            const vh = video.videoHeight || 480;
+
+            // Recorte da faixa central (mesma proporção da mira na tela)
+            const cw = Math.round(vw * RETICLE.wPct);
+            const ch = Math.round(vh * RETICLE.hPct);
+            const sx = Math.round((vw - cw) / 2);
+            const sy = Math.round((vh - ch) / 2);
+            const scale = 2.5; // zoom p/ ajudar o OCR
+
             const canvas = document.createElement('canvas');
-            const w = video.videoWidth || 640;
-            const h = video.videoHeight || 480;
-            canvas.width = w;
-            canvas.height = h;
+            canvas.width = Math.round(cw * scale);
+            canvas.height = Math.round(ch * scale);
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, w, h);
+            ctx.drawImage(video, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
+
+            // Escala de cinza + contraste (sem binarização dura, p/ tolerar iluminação)
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imgData.data;
+            const contrast = 1.4;
+            for (let i = 0; i < d.length; i += 4) {
+                let g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+                g = Math.min(255, Math.max(0, (g - 128) * contrast + 128));
+                d[i] = d[i + 1] = d[i + 2] = g;
+            }
+            ctx.putImageData(imgData, 0, 0);
             const dataUrl = canvas.toDataURL('image/png');
 
             const worker = await ensureTesseract();
-            if (!worker || mode !== 'ocr') return;
+            if (!worker) return;
 
             const result = await worker.recognize(dataUrl);
             const text = result?.data?.text || '';
-            setOcrText(text.substring(0, 100));
+            setOcrText(text.replace(/\s+/g, ' ').trim().substring(0, 60));
 
             const prefix = extractPrefix(text);
             if (prefix) {
@@ -185,18 +211,17 @@ export default function QRCodeOCRScanner({
                 closeAll();
             }
         } catch (err) {
-            console.warn('[Scanner] OCR tick falhou:', err?.message);
+            console.warn('[OCRScanner] OCR tick falhou:', err?.message);
         }
-    }, [mode, ensureTesseract, extractPrefix, onResult]);
+    }, [ensureTesseract, extractPrefix, onResult]);
 
     // -------------------------------------------------------------------------
-    // Loop de OCR (intervalo)
+    // Loop de OCR — roda enquanto a câmera estiver ativa
     // -------------------------------------------------------------------------
     useEffect(() => {
-        if (!isOpen || mode !== 'ocr' || status !== STATUS.ACTIVE) return;
+        if (!isOpen || status !== STATUS.ACTIVE) return;
 
-        // Inicia carregamento Tesseract antecipadamente
-        ensureTesseract();
+        ensureTesseract(); // carrega o worker antecipadamente
 
         ocrTimerRef.current = setInterval(() => {
             ocrTick();
@@ -208,7 +233,7 @@ export default function QRCodeOCRScanner({
                 ocrTimerRef.current = null;
             }
         };
-    }, [isOpen, mode, status, ocrTick, ensureTesseract]);
+    }, [isOpen, status, ocrTick, ensureTesseract]);
 
     // -------------------------------------------------------------------------
     // Cleanup e fechar
@@ -225,8 +250,6 @@ export default function QRCodeOCRScanner({
             } catch (_) { /* ignore */ }
             html5QrRef.current = null;
         }
-        // Não terminamos o tesseract worker — pode ser reutilizado no próximo open.
-        // Liberar via terminateTesseract() apenas no unmount global, se precisar.
         videoElRef.current = null;
         setStatus(STATUS.IDLE);
         setOcrText('');
@@ -238,8 +261,7 @@ export default function QRCodeOCRScanner({
     // -------------------------------------------------------------------------
     useEffect(() => {
         if (isOpen) {
-            // Espera o DOM montar o container
-            setTimeout(() => startQrScanner(), 50);
+            setTimeout(() => startCamera(), 50); // espera o DOM montar o container
         }
         return () => {
             if (html5QrRef.current) {
@@ -274,13 +296,9 @@ export default function QRCodeOCRScanner({
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-black/80 backdrop-blur text-white">
                 <div>
-                    <h2 className="text-base font-semibold">
-                        {mode === 'qr' ? 'Modo QR Code' : 'Modo OCR'}
-                    </h2>
+                    <h2 className="text-base font-semibold">Ler prefixo</h2>
                     <p className="text-xs text-gray-300">
-                        {mode === 'qr'
-                            ? 'Aponte para o QR Code ou código de barras'
-                            : 'Aponte para o prefixo (ex: CM-002)'}
+                        Centralize o prefixo na moldura (ex: AC-001)
                     </p>
                 </div>
                 <button
@@ -293,9 +311,19 @@ export default function QRCodeOCRScanner({
                 </button>
             </div>
 
-            {/* Container do scanner */}
+            {/* Container do scanner (vídeo da câmera) */}
             <div className="flex-1 relative overflow-hidden">
                 <div id={SCANNER_ID} className="w-full h-full" />
+
+                {/* Mira central — onde o OCR recorta */}
+                {status === STATUS.ACTIVE && (
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                        <div
+                            className="border-2 border-[#557bbb] rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]"
+                            style={{ width: `${RETICLE.wPct * 100}%`, height: `${RETICLE.hPct * 100}%` }}
+                        />
+                    </div>
+                )}
 
                 {/* Overlay de status */}
                 {status !== STATUS.ACTIVE && (
@@ -326,7 +354,7 @@ export default function QRCodeOCRScanner({
                 )}
 
                 {/* Feedback OCR (texto encontrado em tempo real) */}
-                {status === STATUS.ACTIVE && mode === 'ocr' && (
+                {status === STATUS.ACTIVE && (
                     <div className="absolute top-2 left-2 right-2 bg-black/70 text-white p-2 rounded text-xs">
                         {ocrLoading && (
                             <p className="text-amber-300">
@@ -349,35 +377,9 @@ export default function QRCodeOCRScanner({
                 )}
             </div>
 
-            {/* Toggle de modos + cancelar */}
+            {/* Rodapé: só Cancelar (sem toggle de modos) */}
             {status === STATUS.ACTIVE && (
-                <div className="px-4 pb-6 pt-4 bg-black/80 backdrop-blur space-y-3">
-                    <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setMode('qr')}
-                            className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-                                mode === 'qr'
-                                    ? 'bg-[#557bbb] text-white'
-                                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                            }`}
-                        >
-                            <i className="fa-solid fa-qrcode mr-2" />
-                            QR Code
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setMode('ocr')}
-                            className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-                                mode === 'ocr'
-                                    ? 'bg-[#557bbb] text-white'
-                                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                            }`}
-                        >
-                            <i className="fa-solid fa-font mr-2" />
-                            Texto (OCR)
-                        </button>
-                    </div>
+                <div className="px-4 pb-6 pt-4 bg-black/80 backdrop-blur">
                     <button
                         type="button"
                         onClick={closeAll}
