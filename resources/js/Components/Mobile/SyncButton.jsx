@@ -69,13 +69,17 @@ export default function SyncButton({ compact = false }) {
             toast('Você está offline. Conecte-se para sincronizar.', 'warning');
             return;
         }
-        if (pendingCount === 0) {
-            toast('Nada para sincronizar.', 'success');
-            return;
-        }
-        if (!(await confirmarCiclosAbertos())) return;
+        // Confirmação de ciclo aberto só é relevante quando há algo a ENVIAR.
+        if (pendingCount > 0 && !(await confirmarCiclosAbertos())) return;
+        // sync() agora ENVIA a fila (se houver) e BAIXA os dados atualizados.
         const res = await sync();
-        if (res) {
+        if (!res) return;
+        const nadaEnviado = (res.sent ?? 0) === 0 && (res.failed ?? 0) === 0
+            && (res.rejected ?? 0) === 0 && !res.aborted;
+        if (nadaEnviado) {
+            // Foi um refresh puro (não havia pendências) — feedback claro.
+            toast('Dados atualizados.', 'success');
+        } else {
             setShowResult(true);
             setTimeout(() => setShowResult(false), 4000);
         }

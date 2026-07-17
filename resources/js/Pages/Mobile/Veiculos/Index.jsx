@@ -150,7 +150,7 @@ export default function VeiculosIndex() {
                         type="text"
                         value={searchQuery}
                         onChange={(e) => handleSearchManual(e.target.value.toUpperCase())}
-                        placeholder="Aponte a câmera para o código…"
+                        placeholder="Digite ou escaneie o prefixo…"
                         className="w-full pl-9 pr-9 py-3 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-[#557bbb] focus:ring-1 focus:ring-[#557bbb] text-center uppercase font-mono"
                         autoCapitalize="characters"
                         spellCheck={false}
@@ -167,13 +167,12 @@ export default function VeiculosIndex() {
                     )}
                 </div>
 
-                {/* Feedback do scanner */}
+                {/* Feedback do scanner (OCR) */}
                 {scanFeedback && (
                     <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-2 text-xs flex items-center gap-2">
-                        <i className={`fa-solid ${scanFeedback.mode === 'qr' ? 'fa-qrcode' : 'fa-font'} text-emerald-600`} />
+                        <i className="fa-solid fa-font text-emerald-600" />
                         <span>
-                            {scanFeedback.mode === 'qr' ? 'QR lido' : 'OCR lido'}:{' '}
-                            <strong>{scanFeedback.text}</strong>
+                            Prefixo lido: <strong>{scanFeedback.text}</strong>
                         </span>
                     </div>
                 )}
@@ -213,9 +212,9 @@ export default function VeiculosIndex() {
                 {!searchQuery && !loading && (
                     <div className="text-center py-16 text-gray-400">
                         <i className="fa-solid fa-camera text-5xl mb-4 text-[#557bbb]/30" />
-                        <p className="text-sm font-medium">Aponte a câmera para o código do veículo.</p>
+                        <p className="text-sm font-medium">Escaneie ou digite o prefixo do veículo.</p>
                         <p className="text-xs mt-2 text-gray-400">
-                            Use o botão acima para escanear QR Code ou ler o prefixo (OCR).
+                            Use o botão acima para ler o prefixo pela câmera (ex: AC-001), ou digite no campo.
                         </p>
                     </div>
                 )}
@@ -296,7 +295,6 @@ export default function VeiculosIndex() {
                 isOpen={scannerOpen}
                 onClose={() => setScannerOpen(false)}
                 onResult={handleScannerResult}
-                initialMode="qr"
             />
         </MobileLayout>
     );

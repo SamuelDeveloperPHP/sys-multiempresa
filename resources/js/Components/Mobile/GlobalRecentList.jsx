@@ -65,9 +65,10 @@ export default function GlobalRecentList({
     }, []);
 
     const filtered = useMemo(() => {
+        const base = items || [];
         const q = query.trim().toUpperCase();
-        if (!q) return items;
-        return items.filter(it => {
+        if (!q) return base;
+        return base.filter(it => {
             const veiculoId = it.veiculo_id ?? it.id_veiculo;
             const v = veiculosMap[veiculoId];
             const prefixo = String(v?.prefixo || '').toUpperCase();
@@ -86,7 +87,7 @@ export default function GlobalRecentList({
                     </div>
                     <div className="flex-1">
                         <h1 className="font-bold text-gray-800 text-sm">{title}</h1>
-                        <p className="text-[11px] text-gray-500">{items.length} registro(s) no cache</p>
+                        <p className="text-[11px] text-gray-500">{items?.length ?? 0} registro(s) no cache</p>
                     </div>
                     {online && !syncing && (
                         <button onClick={syncNow}
