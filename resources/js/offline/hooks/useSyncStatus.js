@@ -8,7 +8,7 @@
 //   - lastSyncAt         : ISO da última sincronização global
 //   - syncing            : true durante processAll
 //   - progress           : { percent, message }
-//   - sync()             : função para acionar processAll manualmente
+//   - sync()             : envia a fila (push) + baixa dados do servidor (pull)
 //   - retryRejected(id)  : devolve item rejeitado à fila
 //   - discardRejected(id): descarta item rejeitado (e ajusta o registro local)
 // -----------------------------------------------------------------------------
@@ -17,6 +17,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import db, { getMeta, setMeta } from '../db';
 import { processAll, retryRejected, discardRejected } from '../syncQueue';
+import { refreshAll } from '../refreshAll';
 
 export default function useSyncStatus() {
     // Contagem reativa via useLiveQuery — re-renderiza quando a tabela muda.
@@ -63,11 +64,33 @@ export default function useSyncStatus() {
         if (syncing) return null;
         setSyncing(true);
         setProgress({ percent: 0, message: 'Iniciando…' });
+        let pushResult = null;
         try {
-            const result = await processAll((percent, message) => {
+            // 1) PUSH — envia a fila pendente (só se houver algo a enviar).
+            if (pendingCount > 0) {
+                pushResult = await processAll((percent, message) => {
+                    setProgress({ percent, message: message || `Enviando… ${percent}%` });
+                });
+            }
+            // Sessão expirou no envio? Não adianta tentar baixar.
+            if (pushResult?.aborted) {
+                setLastResult(pushResult);
+                return pushResult;
+            }
+            // 2) PULL — baixa os dados atualizados do servidor (sempre).
+            const pull = await refreshAll((percent, message) => {
                 setProgress({ percent, message });
             });
             await setMeta('last_global_sync', new Date().toISOString());
+            const result = {
+                sent: pushResult?.sent ?? 0,
+                failed: pushResult?.failed ?? 0,
+                rejected: pushResult?.rejected ?? 0,
+                total: pushResult?.total ?? 0,
+                aborted: false,
+                refreshed: pull.ok,
+                refreshFailed: pull.fail,
+            };
             setLastResult(result);
             return result;
         } catch (err) {
@@ -79,7 +102,7 @@ export default function useSyncStatus() {
             // Reset progress após 2s
             setTimeout(() => setProgress({ percent: 0, message: '' }), 2000);
         }
-    }, [syncing]);
+    }, [syncing, pendingCount]);
 
     return {
         ready,
