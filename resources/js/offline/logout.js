@@ -30,6 +30,18 @@ const STORAGE_KEYS_TO_CLEAR = [
     // do dispositivo que devem sobreviver ao logout.
 ];
 
+// Caches da Cache API (Workbox) que guardam conteúdo AUTENTICADO / por-empresa.
+// Precisam ser apagados no logout: se outro usuário logar no mesmo dispositivo,
+// uma navegação com rede instável (via catch handler do SW) poderia servir a
+// página cacheada do usuário anterior — vazamento entre usuários/empresas.
+// NÃO apagamos os públicos (bunny-fonts, cdn-static, brand-assets) nem o
+// precache do app-shell (código, não dados).
+const CACHES_TO_CLEAR = [
+    'mobile-pages-v3', // páginas Inertia do usuário (abastecimentos, diário, etc.)
+    'auth-shell',      // /login e / cacheados
+    'veiculos-imgs',   // imagens de veículos são escopadas por empresa
+];
+
 /**
  * Limpa storage local relacionado ao usuário logado.
  *
@@ -42,6 +54,15 @@ async function clearLocalAuthData() {
     // Aguarda: o redirect logo em seguida abortaria a escrita no IndexedDB e
     // deixaria a sessão offline viva após o logout.
     try { await clearOfflineSession(); } catch (_) { /* best-effort */ }
+
+    // Apaga os caches da Cache API com conteúdo autenticado (best-effort).
+    // Awaited pelo mesmo motivo do IndexedDB: o redirect não pode cortar antes.
+    if (typeof caches !== 'undefined') {
+        try {
+            await Promise.all(CACHES_TO_CLEAR.map((name) => caches.delete(name)));
+        } catch (_) { /* best-effort — nunca bloqueia o logout */ }
+    }
+
     if (typeof localStorage === 'undefined') return;
     for (const key of STORAGE_KEYS_TO_CLEAR) {
         try { localStorage.removeItem(key); } catch (_) { /* ignore */ }
