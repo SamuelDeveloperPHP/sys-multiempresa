@@ -36,7 +36,13 @@ export default defineConfig({
         VitePWA({
             registerType: 'autoUpdate',
             injectRegister: false, // registramos manualmente no app.blade.php
-            strategies: 'generateSW',
+            // injectManifest: SW escrito à mão em resources/sw/sw.js. Trocamos o
+            // generateSW por isto para poder usar setCatchHandler — a única forma
+            // de dar um fallback REAL de navegação (offline.html) quando o
+            // NetworkFirst falha, sem o loop que o navigateFallback causava.
+            // Ver o cabeçalho de resources/sw/sw.js para o racional completo.
+            strategies: 'injectManifest',
+            srcDir: 'resources/sw',
             filename: 'sw.js',
             manifestFilename: 'manifest.webmanifest',
             manifest: {
@@ -71,25 +77,12 @@ export default defineConfig({
                     },
                 ],
             },
-            workbox: {
-                // Background Sync (bônus Android/Chrome — arquitetura.md §7):
-                // script autocontido anexado ao SW gerado. Absoluto porque o
-                // sw.js é servido na raiz (/sw.js) pela rota Laravel.
-                importScripts: ['/sw-bg-sync.js'],
-                // Atualização agressiva: novo SW assume controle imediatamente
-                // sem esperar todas as abas/PWA fecharem. Sem isso, mudanças
-                // no SW só pegam efeito depois do usuário fechar tudo —
-                // que é exatamente o que vimos com o bug do /offline.html.
-                skipWaiting: true,
-                clientsClaim: true,
-                // Limpa caches antigos do Workbox (evita ficar com /offline.html
-                // de versões anteriores que apontavam para um arquivo inexistente).
-                cleanupOutdatedCaches: true,
-                // Pré-cache do app-shell (HTML/JS/CSS/fonts)
+            // Config do MANIFEST de precache injetado em self.__WB_MANIFEST.
+            // (As estratégias de runtime e o catch handler vivem no sw.js.)
+            injectManifest: {
+                // Pré-cache do app-shell (HTML/JS/CSS/fonts/ícones).
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-                // NÃO pré-cachear libs grandes e de uso eventual — elas carregam
-                // sob demanda (lazy import). Mantém o app-shell leve e a instalação
-                // do SW rápida (evita baixar ~2 MB de ONNX/PDF.js/Tesseract à toa).
+                // NÃO pré-cachear libs grandes de uso eventual (carregam sob demanda).
                 globIgnores: [
                     '**/pdf-*.js',
                     '**/pdf.worker*.mjs',
@@ -97,120 +90,14 @@ export default defineConfig({
                     '**/tesseract*.js',
                     '**/*.wasm',
                 ],
-                // Permite que chunks maiores sejam cacheados em runtime se necessário.
+                // Chunks maiores podem ser precacheados se necessário.
                 maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-                // O offline.html mora em public/offline.html (raiz) — NÃO em
-                // public/build/ — então o globPatterns não pega. Adicionamos
-                // manualmente via additionalManifestEntries.
-                // Revision = timestamp do build (regera cache quando muda).
+                // O offline.html mora em public/offline.html (raiz), fora de
+                // public/build/ — então o globPatterns não o pega. Adicionamos
+                // manualmente para o catch handler poder servi-lo do precache.
+                // Revision = timestamp do build (regera quando muda).
                 additionalManifestEntries: [
                     { url: '/offline.html', revision: String(Date.now()) },
-                ],
-                // Precisa ser null EXPLICITAMENTE, não apenas omitido: o
-                // vite-plugin-pwa tem default navigateFallback: 'index.html', e
-                // omitir a chave faz o default valer — gerando um NavigationRoute
-                // preso a um index.html que nem existe neste app (Laravel, não SPA),
-                // sem denylist alguma. Pior que o bug original.
-                navigateFallback: null,
-                // NÃO usar navigateFallback com URL aqui. Apesar do nome, ele não é um
-                // "fallback quando a navegação falha": é o padrão App Shell, e
-                // serve a URL indicada em TODA navegação, direto do precache,
-                // sem nunca tentar a rede. Com navigateFallback: '/offline.html'
-                // qualquer acesso direto ou F5 em /mobile/* servia a tela de
-                // offline mesmo online — e como o offline.html reconhece que há
-                // conexão e recarrega, virava loop infinito de reload.
-                // (Só não aparecia navegando pelo app porque o Inertia troca de
-                // página por XHR, que não é navegação e portanto não passava aqui.)
-                // As navegações agora caem no runtimeCaching abaixo: auth-shell
-                // para /login e /, mobile-pages-v3 para /mobile/*. O suporte
-                // offline vem desses caches NetworkFirst.
-                // Um offline.html de verdade exigiria injectManifest + um sw.js
-                // próprio com setCatchHandler — que é o mecanismo que realmente
-                // significa "se falhar, sirva isto". generateSW não expõe isso.
-                runtimeCaching: [
-                    {
-                        // Fontes Bunny / Google
-                        urlPattern: /^https:\/\/fonts\.bunny\.net\/.*/i,
-                        handler: 'CacheFirst',
-                        options: {
-                            cacheName: 'bunny-fonts',
-                            expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-                            cacheableResponse: { statuses: [0, 200] },
-                        },
-                    },
-                    {
-                        // Font Awesome CDN
-                        urlPattern: /^https:\/\/cdnjs\.cloudflare\.com\/.*/i,
-                        handler: 'CacheFirst',
-                        options: {
-                            cacheName: 'cdn-static',
-                            expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 30 },
-                            cacheableResponse: { statuses: [0, 200] },
-                        },
-                    },
-                    {
-                        // Imagens da galeria de veículos (servidor próprio)
-                        urlPattern: /\/imagens\/veiculos\/.*/i,
-                        handler: 'CacheFirst',
-                        options: {
-                            cacheName: 'veiculos-imgs',
-                            expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
-                            cacheableResponse: { statuses: [0, 200] },
-                        },
-                    },
-                    {
-                        // Logos e ícones da marca — quase imutáveis. CacheFirst longo.
-                        urlPattern: /\/imagens\/logos\/.*/i,
-                        handler: 'CacheFirst',
-                        options: {
-                            cacheName: 'brand-assets',
-                            expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
-                            cacheableResponse: { statuses: [0, 200] },
-                        },
-                    },
-                    {
-                        // API JSON do módulo mobile — NetworkOnly: deixamos o Dexie gerenciar cache
-                        urlPattern: /\/api\/mobile\/.*/i,
-                        handler: 'NetworkOnly',
-                        options: {
-                            cacheName: 'api-mobile',
-                            // Não cacheia — repositories fazem read-through manualmente
-                        },
-                    },
-                    {
-                        // Páginas Inertia /mobile/* — NetworkFirst com timeout
-                        // generoso (10s) para tolerar conexões 3G/4G ruins.
-                        // Antes era 4s, causando fallback prematuro no
-                        // offline.html quando o servidor estava lento.
-                        urlPattern: /\/mobile\/.*/i,
-                        handler: 'NetworkFirst',
-                        options: {
-                            // v3: os caches v2 podem ter guardado o offline.html (ou um
-                            // redirect opaco) sob a chave /mobile/veiculos. Renomear
-                            // descarta esse lixo em vez de servi-lo.
-                            cacheName: 'mobile-pages-v3',
-                            networkTimeoutSeconds: 10,
-                            expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 7 },
-                            // Só 200. Requisição de navegação tem redirect:'manual', então
-                            // o 302 para /login (sessão expirada) volta como resposta
-                            // opaqueredirect de status 0 — e com 0 na lista ela seria
-                            // gravada sob a chave /mobile/veiculos, fazendo o cache
-                            // devolver "vá para /login" para sempre. Rota same-origin
-                            // não tem motivo legítimo para cachear status 0.
-                            cacheableResponse: { statuses: [200] },
-                        },
-                    },
-                    {
-                        // Tela de login: NetworkFirst com timeout curto. Em offline serve cache.
-                        urlPattern: ({ url }) => url.pathname === '/login' || url.pathname === '/',
-                        handler: 'NetworkFirst',
-                        options: {
-                            cacheName: 'auth-shell',
-                            networkTimeoutSeconds: 3,
-                            expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 30 },
-                            cacheableResponse: { statuses: [0, 200] },
-                        },
-                    },
                 ],
             },
             devOptions: {
