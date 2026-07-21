@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { router, Link, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { formatWallClock } from '@/utils/datetime';
 import { alertDialog } from '@/utils/dialogs';
 import repo from '@/offline/repositories/diarioBordoRepo';
 
@@ -52,7 +53,7 @@ export default function DiarioBordoShow({ veiculoId, diarioId }) {
                         <i className="fa-solid fa-book text-2xl text-[#2ecc71]" />
                         <div>
                             <p className="font-bold text-gray-800">
-                                {d.data ? new Date(d.data).toLocaleString('pt-BR') : '—'}
+                                {formatWallClock(d.data)}
                             </p>
                             {d.responsavel && <p className="text-xs text-gray-500">{d.responsavel}</p>}
                         </div>

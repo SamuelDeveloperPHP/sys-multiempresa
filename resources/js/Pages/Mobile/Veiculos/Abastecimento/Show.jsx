@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { router, Link, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { formatWallClock } from '@/utils/datetime';
 import FotoEvidencia from '@/Components/Mobile/FotoEvidencia';
 import { alertDialog } from '@/utils/dialogs';
 import repo from '@/offline/repositories/abastecimentosRepo';
@@ -56,7 +57,7 @@ export default function AbastecimentoShow({ veiculoId, abastecimentoId }) {
                         <i className="fa-solid fa-gas-pump text-2xl text-[#e67e22]" />
                         <div>
                             <p className="font-bold text-gray-800">
-                                {a.data ? new Date(a.data).toLocaleString('pt-BR') : '—'}
+                                {formatWallClock(a.data)}
                             </p>
                             <p className="text-xs text-gray-500">{a.combustivel}</p>
                         </div>

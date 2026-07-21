@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { router, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { toDatetimeLocalValue } from '@/utils/datetime';
 import repo from '@/offline/repositories/diarioBordoRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 
@@ -20,7 +21,7 @@ export default function DiarioBordoEdit({ veiculoId, diarioId }) {
             const v = await veiculosRepo.find(id);
             setVeiculo(v?.veiculo);
             const d = await repo.find(dId);
-            if (d) setForm({ ...d, data: d.data ? new Date(d.data).toISOString().slice(0, 16) : '' });
+            if (d) setForm({ ...d, data: toDatetimeLocalValue(d.data) });
             else setError('Registro não encontrado.');
         })();
     }, [id, dId]);

@@ -8,6 +8,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, Head } from '@inertiajs/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { formatWallClock } from '@/utils/datetime';
 import repo from '@/offline/repositories/checklistsRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
@@ -147,7 +148,7 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm font-medium text-gray-800">
-                                                {s.data ? new Date(s.data).toLocaleString('pt-BR') : '—'}
+                                                {formatWallClock(s.data)}
                                             </span>
                                             {s._sync_status && s._sync_status !== 'synced' && (
                                                 <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">
