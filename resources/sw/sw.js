@@ -45,6 +45,21 @@ precacheAndRoute(self.__WB_MANIFEST);
 try { self.importScripts('/sw-bg-sync.js'); } catch (e) { /* ambiente sem suporte: segue sem BG sync */ }
 
 // -----------------------------------------------------------------------------
+// Constantes compartilhadas: cache das páginas /mobile/*, app-shell e offline.
+// -----------------------------------------------------------------------------
+// Cache das páginas Inertia /mobile/*. MANTIDO EM SINCRONIA com logout.js
+// (CACHES_TO_CLEAR) — não renomear o valor sem alinhar lá.
+const MOBILE_PAGES_CACHE = 'mobile-pages-v3';
+// App-shell offline: a variante FULL-PAGE (sem X-Inertia) de /mobile/veiculos
+// cacheada é um bootstrap Inertia válido e Dexie-driven (VeiculosIndex lê sempre
+// do IndexedDB e ignora props). Vira o casco de QUALQUER navegação /mobile/* sem
+// cache próprio, para o React montar offline em vez de morrer no offline.html.
+// 1 device = 1 usuário fixo (decisão do dono) → sem preocupação cross-tenant.
+const APP_SHELL_URL = '/mobile/veiculos';
+// Página neutra (precacheada) para navegações sem shell ou fora de /mobile.
+const OFFLINE_URL = '/offline.html';
+
+// -----------------------------------------------------------------------------
 // Runtime caching — replica exatamente o que existia no generateSW.
 // -----------------------------------------------------------------------------
 
@@ -104,7 +119,7 @@ registerRoute(/\/api\/mobile\/.*/i, new NetworkOnly());
 registerRoute(
     /\/mobile\/.*/i,
     new NetworkFirst({
-        cacheName: 'mobile-pages-v3',
+        cacheName: MOBILE_PAGES_CACHE,
         networkTimeoutSeconds: 10,
         plugins: [
             new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 7 }),
@@ -131,13 +146,47 @@ registerRoute(
 // Dispara quando NENHUM handler acima conseguiu produzir resposta (rede falhou
 // + cache não casou). Antes disso virava `no-response` não tratado.
 // -----------------------------------------------------------------------------
-const OFFLINE_URL = '/offline.html';
+
+// Recupera o app-shell: o documento /mobile/veiculos cacheado. cache.match(URL)
+// usa uma Request SEM X-Inertia → casa a variante FULL-PAGE (documento), nunca o
+// JSON parcial do Inertia (guardado sob a chave X-Inertia:true). Retorna null se
+// o shell ainda não foi cacheado (antes do 1º mount online / warmup).
+async function getAppShell() {
+    try {
+        const cache = await caches.open(MOBILE_PAGES_CACHE);
+        const cached = await cache.match(APP_SHELL_URL);
+        if (!cached) return null;
+        // Resposta `redirected` (ex.: 302 de sessão seguido no fetch) NÃO pode ser
+        // usada numa navegação — o browser recusa. Reconstroi uma resposta limpa.
+        if (cached.redirected) {
+            const body = await cached.blob();
+            return new Response(body, {
+                status: cached.status,
+                statusText: cached.statusText,
+                headers: cached.headers,
+            });
+        }
+        return cached;
+    } catch (_) {
+        return null;
+    }
+}
 
 setCatchHandler(async ({ request }) => {
     // Somente NAVEGAÇÕES (abrir/recarregar página) ganham fallback visual.
-    // Servimos o /offline.html NEUTRO do precache — nunca uma página de dados
-    // cacheada de outro contexto/usuário (isolamento multiempresa: Security).
     if (request.mode === 'navigate') {
+        // Navegação /mobile/* offline sem cache próprio: sobe o app pelo SHELL
+        // (o /mobile/veiculos cacheado) para o React montar e ler do Dexie, em
+        // vez do beco-sem-saída do offline.html. As 5 rotas do warmup já têm
+        // cache full-page próprio (o Vary só varia de fato por X-Inertia; a
+        // navegação casa a variante sem X-Inertia) e nem chegam aqui — o shell
+        // cobre as NÃO-aquecidas (por-veículo, detalhe, criar/editar, etc.).
+        if (new URL(request.url).pathname.startsWith('/mobile')) {
+            const shell = await getAppShell();
+            if (shell) return shell;
+        }
+        // Sem shell (ainda não cacheado) ou navegação fora de /mobile: página
+        // neutra precacheada. Nunca uma página de dados de outro contexto.
         const offline = await matchPrecache(OFFLINE_URL);
         if (offline) return offline;
     }

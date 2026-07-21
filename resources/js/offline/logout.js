@@ -36,11 +36,23 @@ const STORAGE_KEYS_TO_CLEAR = [
 // página cacheada do usuário anterior — vazamento entre usuários/empresas.
 // NÃO apagamos os públicos (bunny-fonts, cdn-static, brand-assets) nem o
 // precache do app-shell (código, não dados).
+// NOTA: os cacheNames aqui espelham os definidos em resources/sw/sw.js e devem
+// ser mantidos em sincronia com aquele arquivo (veja o comentário no sw.js).
 const CACHES_TO_CLEAR = [
     'mobile-pages-v3', // páginas Inertia do usuário (abastecimentos, diário, etc.)
     'auth-shell',      // /login e / cacheados
     'veiculos-imgs',   // imagens de veículos são escopadas por empresa
 ];
+
+// ATENÇÃO — POR QUE NÃO LIMPAMOS O IndexedDB (Dexie) AQUI:
+// O logout NÃO apaga os dados locais (veículos, abastecimentos, diário,
+// checklists, locações, obras) nem a sync_queue de propósito. Um usuário pode
+// sair OFFLINE com mutações pendentes; apagá-las no logout seria PERDA DE DADOS
+// antes da sincronização. O isolamento entre usuários/empresas no mesmo device
+// é garantido no BOOT do módulo mobile (MobileLayout → ensureLocalDataOwner em
+// offline/offlineAuth.js): quando um usuário DIFERENTE loga, aí sim todo o
+// estado local do usuário anterior é apagado (clearAllLocal). Portanto, NÃO
+// adicione um wipe de Dexie neste logout comum.
 
 /**
  * Limpa storage local relacionado ao usuário logado.

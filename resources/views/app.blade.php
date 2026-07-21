@@ -39,6 +39,21 @@
     @production
     <script>
         if ('serviceWorker' in navigator) {
+            // Recarrega UMA vez quando um SW NOVO assume o controle (deploy com
+            // skipWaiting + clientsClaim). Sem isto, uma aba aberta durante o
+            // deploy pode pedir um chunk hasheado que o precache novo já removeu
+            // → 404 / tela branca. O guard `hadController` evita recarregar no
+            // primeiro install (quando ainda não havia controller) e o flag
+            // `refreshing` evita loop de reload. Offline não dispara: sem buscar
+            // um /sw.js novo, não há controllerchange — não atrapalha o campo.
+            let refreshing = false;
+            const hadController = !!navigator.serviceWorker.controller;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing || !hadController) return;
+                refreshing = true;
+                window.location.reload();
+            });
+
             window.addEventListener('load', () => {
                 navigator.serviceWorker
                     .register('/sw.js', { scope: '/' })
