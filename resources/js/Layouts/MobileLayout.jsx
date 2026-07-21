@@ -19,14 +19,54 @@ import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
 import { reconcileSwResults } from '@/offline/syncQueue';
 import { warmupMobileCache } from '@/offline/warmupCache';
 import { setAuthMarker, clearAuthMarker } from '@/offline/authMarker';
-import { renewOfflineSession, getOfflineSession, ensurePersistentStorage } from '@/offline/offlineAuth';
+import { renewOfflineSession, getOfflineSession, ensurePersistentStorage, ensureLocalDataOwner } from '@/offline/offlineAuth';
 import { logoutSafely } from '@/offline/logout';
+
+// Cache SÍNCRONO do dono dos dados locais (só para o caminho rápido do boot —
+// evita o flash de "Carregando…" na navegação normal do MESMO usuário). A fonte
+// de verdade é db.meta (ver offline/offlineAuth.js#ensureLocalDataOwner); este
+// localStorage é apenas otimização e pode divergir sem comprometer o isolamento.
+const LOCAL_OWNER_LS_KEY = 'sga_local_data_owner';
 
 export default function MobileLayout({ header, backUrl, children, hideBottomNav = false }) {
     const { auth } = usePage().props;
     const { user } = auth || {};
     const [menuOpen, setMenuOpen] = useState(false);
     const { online } = useOnlineStatus();
+
+    // ===== Gate de isolamento multiempresa (parecer Security F1/F2) =====
+    // Antes de renderizar o módulo, garantimos que os dados locais (Dexie)
+    // pertencem ao usuário logado. Se um usuário DIFERENTE assumiu o device,
+    // ensureLocalDataOwner apaga tudo do anterior. Caminho rápido: se o cache
+    // síncrono do localStorage já bate com o usuário atual, renderizamos na hora
+    // (sem flash) — a verificação autoritativa contra db.meta roda no efeito e
+    // confirma/corrige. Qualquer divergência/ausência cai no gate assíncrono.
+    const [ready, setReady] = useState(() => {
+        try {
+            if (!user?.id) return true;
+            return localStorage.getItem(LOCAL_OWNER_LS_KEY) === String(user.id);
+        } catch (_) {
+            return false; // sem localStorage: usa o gate assíncrono (db.meta)
+        }
+    });
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                if (user?.id) {
+                    await ensureLocalDataOwner(user); // autoritativo (db.meta); apaga na troca
+                    try { localStorage.setItem(LOCAL_OWNER_LS_KEY, String(user.id)); } catch (_) { /* ignore */ }
+                }
+            } catch (e) {
+                // Best-effort — nunca trava o app. Loga por ser relevante a segurança.
+                if (typeof console !== 'undefined') console.warn('[MobileLayout] gate de isolamento falhou:', e?.message);
+            } finally {
+                if (!cancelled) setReady(true);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [user?.id]);
 
     // Persiste "auth marker" no localStorage quando temos auth.user válido.
     // (Mantido por compatibilidade; a fonte de verdade do acesso offline agora
@@ -45,6 +85,7 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
     // sessão offline válida; sem ela, volta para /login (que offline pede a
     // senha contra o hash PBKDF2 local).
     useEffect(() => {
+        if (!ready) return; // só depois do gate de isolamento resolver
         let cancelled = false;
         (async () => {
             try {
@@ -60,7 +101,7 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
             } catch (_) { /* gate é best-effort — nunca derruba a página */ }
         })();
         return () => { cancelled = true; };
-    }, [online, user?.id]);
+    }, [online, user?.id, ready]);
 
     // Pre-warm do cache de navegação: quando o usuário abre qualquer página
     // mobile estando online, disparamos fetch em background das outras rotas
@@ -68,11 +109,12 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
     // modo avião depois, todas funcionam offline.
     // Throttled internamente (5 min) e silencioso em caso de erro.
     useEffect(() => {
+        if (!ready) return; // não reconciliar a fila do usuário anterior antes do wipe
         warmupMobileCache().catch(() => { /* silent */ });
         // Aplica nos registros locais o que o Background Sync (Android)
         // processou com o app fechado — no-op quando não há nada.
         reconcileSwResults().catch(() => { /* silent */ });
-    }, []);
+    }, [ready]);
 
     const handleBack = () => {
         if (backUrl) {
@@ -83,6 +125,20 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
             router.visit('/mobile/veiculos');
         }
     };
+
+    // Enquanto o gate de isolamento não resolve, não montamos o módulo (nenhum
+    // filho lê o Dexie antes de um eventual wipe do usuário anterior). Caminho
+    // rápido do MESMO usuário já inicia ready=true — sem flash na navegação.
+    if (!ready) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3 text-gray-400">
+                    <i className="fa-solid fa-circle-notch fa-spin text-2xl" />
+                    <span className="text-xs">Carregando…</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
