@@ -59,3 +59,16 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Script validado e seguro:
+
+Dry-run no build real: 203 arquivos mantidos, 0 órfãos → zero falso-positivo (não marca nada em uso — o ponto crítico pra produção).
+Com um órfão falso: listou só ele, mantendo os 203.
+Dry-run é o padrão — só apaga com --apply; aborta se não achar o manifest.json.
+Como fazer a higienização
+No servidor (precisa só de PHP CLI — você já roda artisan por lá), numa janela tranquila (depois que os clientes migraram, ex.: dia seguinte / antes do próximo deploy):
+
+cd ~/newsga
+php scripts/prune-build.php            # 1) revisa a lista de órfãos (não apaga)
+php scripts/prune-build.php --apply    # 2) apaga os órfãos
+Zero downtime: ele preserva tudo que a build atual referencia (manifest.json + precache do sw.js + sw.js/workbox-*/manifest.*) e remove só o resto.
