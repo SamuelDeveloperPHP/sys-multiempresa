@@ -2,6 +2,7 @@
 // Lista GLOBAL de execuções de checklist (todos os veículos).
 import { Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { formatWallClock } from '@/utils/datetime';
 import GlobalRecentList from '@/Components/Mobile/GlobalRecentList';
 import repo from '@/offline/repositories/checklistsRepo';
 
@@ -27,7 +28,7 @@ export default function ChecklistsGlobalIndex() {
                         <>
                             <p className="text-xs text-gray-600 truncate">{s.template_nome || 'Checklist'}</p>
                             <p className="text-[11px] text-gray-500 mt-0.5">
-                                {s.data ? new Date(s.data).toLocaleString('pt-BR') : '—'}
+                                {formatWallClock(s.data)}
                             </p>
                             {respostas.length > 0 && (
                                 <div className="flex gap-2 mt-1">

@@ -58,6 +58,35 @@ export function toLocalDMYHM(d) {
 }
 
 /**
+ * Formata um datetime de NEGÓCIO (hora local de SP) como "DD/MM/YYYY, HH:MM:SS",
+ * lendo os DÍGITOS diretamente — SEM conversão de fuso. Aceita "Y-M-D H:M:S",
+ * ISO "Y-M-DTH:M:S(.fff)(Z|+00:00)" etc.
+ *
+ * Por que existe: o servidor devolve datas locais (data_abastecimento, etc.)
+ * rotuladas como UTC (+00:00). new Date(x).toLocaleString() converte de novo e
+ * mostra -3h. Como a convenção do app é "hora local de SP em todo datetime de
+ * negócio", exibimos os dígitos como estão. Também evita divergência de parsing
+ * entre navegadores (iOS trata "Y-M-D H:M:S" como UTC).
+ */
+export function formatWallClock(value) {
+    if (!value) return '—';
+    const m = String(value).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (!m) return '—';
+    const [, y, mo, d, h, mi, se] = m;
+    return `${d}/${mo}/${y}, ${h}:${mi}:${se || '00'}`;
+}
+
+/**
+ * Valor para <input type="datetime-local"> a partir de um datetime de negócio,
+ * lendo os dígitos (sem conversão de fuso). Retorna "YYYY-MM-DDTHH:MM".
+ */
+export function toDatetimeLocalValue(value) {
+    if (!value) return '';
+    const m = String(value).match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    return m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}` : '';
+}
+
+/**
  * Formata um ISO date string como dd/mm/aaaa.
  */
 export function formatDate(isoOrDate) {
@@ -129,6 +158,8 @@ export default {
     toLocalTimestamp,
     nowLocalDMYHM,
     toLocalDMYHM,
+    formatWallClock,
+    toDatetimeLocalValue,
     formatDate,
     diffMinutos,
     parseDateFlex,

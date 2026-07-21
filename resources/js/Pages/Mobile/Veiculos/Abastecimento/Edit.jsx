@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { router, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { toDatetimeLocalValue } from '@/utils/datetime';
 import repo from '@/offline/repositories/abastecimentosRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 
@@ -25,7 +26,7 @@ export default function AbastecimentoEdit({ veiculoId, abastecimentoId }) {
             if (a) {
                 setForm({
                     ...a,
-                    data: a.data ? new Date(a.data).toISOString().slice(0, 16) : '',
+                    data: toDatetimeLocalValue(a.data),
                 });
             } else {
                 setError('Registro não encontrado no cache local.');

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { router, Link, Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { formatWallClock } from '@/utils/datetime';
 import FotoEvidencia from '@/Components/Mobile/FotoEvidencia';
 import { alertDialog } from '@/utils/dialogs';
 import repo from '@/offline/repositories/checklistsRepo';
@@ -61,7 +62,7 @@ export default function ChecklistServicoShow({ veiculoId, servicoId }) {
                         <div className="flex-1">
                             <p className="font-bold text-gray-800">{s.template_nome || 'Checklist'}</p>
                             <p className="text-xs text-gray-500">
-                                {s.data ? new Date(s.data).toLocaleString('pt-BR') : '—'}
+                                {formatWallClock(s.data)}
                             </p>
                         </div>
                     </div>

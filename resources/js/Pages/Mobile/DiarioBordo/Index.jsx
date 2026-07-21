@@ -2,6 +2,7 @@
 // Lista GLOBAL (cross-veículo) de registros do diário de bordo.
 import { Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { formatWallClock } from '@/utils/datetime';
 import GlobalRecentList from '@/Components/Mobile/GlobalRecentList';
 import repo from '@/offline/repositories/diarioBordoRepo';
 
@@ -21,7 +22,7 @@ export default function DiarioBordoGlobalIndex() {
                     <>
                         <p className="text-xs text-gray-600 truncate">
                             {d.responsavel && <span>👷 {d.responsavel} · </span>}
-                            {d.data ? new Date(d.data).toLocaleString('pt-BR') : '—'}
+                            {formatWallClock(d.data)}
                         </p>
                         {d.descricao && (
                             <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{d.descricao}</p>

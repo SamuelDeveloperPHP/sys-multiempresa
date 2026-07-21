@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, Head } from '@inertiajs/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { formatWallClock } from '@/utils/datetime';
 import repo from '@/offline/repositories/diarioBordoRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
@@ -79,7 +80,7 @@ export default function DiarioBordoIndex({ veiculoId }) {
                                 >
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-sm font-semibold text-gray-800">
-                                            {d.data ? new Date(d.data).toLocaleString('pt-BR') : '—'}
+                                            {formatWallClock(d.data)}
                                         </span>
                                         {d._sync_status && d._sync_status !== 'synced' && <SyncBadge status={d._sync_status} />}
                                     </div>

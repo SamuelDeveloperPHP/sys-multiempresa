@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, Head } from '@inertiajs/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { formatWallClock } from '@/utils/datetime';
 import repo from '@/offline/repositories/abastecimentosRepo';
 import veiculosRepo from '@/offline/repositories/veiculosRepo';
 import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
@@ -83,7 +84,7 @@ export default function AbastecimentoIndex({ veiculoId }) {
                                 >
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-sm font-semibold text-gray-800">
-                                            {a.data ? new Date(a.data).toLocaleString('pt-BR') : '—'}
+                                            {formatWallClock(a.data)}
                                         </span>
                                         {a._sync_status && a._sync_status !== 'synced' && (
                                             <SyncBadge status={a._sync_status} />

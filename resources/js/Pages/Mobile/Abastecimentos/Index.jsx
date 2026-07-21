@@ -2,6 +2,7 @@
 // Lista GLOBAL (cross-veículo) de abastecimentos recentes.
 import { Head } from '@inertiajs/react';
 import MobileLayout from '@/Layouts/MobileLayout';
+import { formatWallClock } from '@/utils/datetime';
 import GlobalRecentList from '@/Components/Mobile/GlobalRecentList';
 import repo from '@/offline/repositories/abastecimentosRepo';
 
@@ -29,7 +30,7 @@ export default function AbastecimentosGlobalIndex() {
                             </span>
                         </div>
                         <p className="text-[11px] text-gray-500 mt-0.5">
-                            {a.data ? new Date(a.data).toLocaleString('pt-BR') : '—'}
+                            {formatWallClock(a.data)}
                             {a.fornecedor && ` · ${a.fornecedor}`}
                         </p>
                     </>
