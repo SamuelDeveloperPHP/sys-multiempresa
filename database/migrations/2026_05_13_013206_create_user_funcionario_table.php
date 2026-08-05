@@ -11,17 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('user_funcionario', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('user_id');
-            $table->unsignedBigInteger('funcionario_id');
-            $table->unsignedBigInteger('company_id')->nullable();
-            $table->timestamps();
+        // Ja criada por 2026_05_12_000003_create_funcionarios_tables em bancos novos.
+        if (!Schema::hasTable('user_funcionario')) {
+            Schema::create('user_funcionario', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('user_id');
+                $table->unsignedBigInteger('funcionario_id');
+                $table->unsignedBigInteger('company_id')->nullable();
+                $table->timestamps();
 
-            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('funcionario_id')->references('id')->on('funcionarios')->onDelete('cascade');
-            $table->foreign('company_id')->references('id')->on('companies')->onDelete('set null');
-        });
+                $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+                $table->foreign('funcionario_id')->references('id')->on('funcionarios')->onDelete('cascade');
+                $table->foreign('company_id')->references('id')->on('companies')->onDelete('set null');
+            });
+        }
     }
 
     /**
