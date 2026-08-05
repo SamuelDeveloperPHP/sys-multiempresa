@@ -27,6 +27,10 @@ Thumbs.db
 /_release
 /.claude
 
+# Documentação de agentes/papéis (local, não versionar)
+/agentes
+/agentsDocs
+
 # Dumps/planilhas de dados TCPO e pacotes locais (não versionar)
 /docs/excel/
 /docs/*.sql
