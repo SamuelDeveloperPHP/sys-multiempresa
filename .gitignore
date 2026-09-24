@@ -28,6 +28,7 @@ Thumbs.db
 /.claude
 
 # Documentação de agentes/papéis (local, não versionar)
+/.agents
 /agentes
 /agentsDocs
 
