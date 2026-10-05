@@ -46,7 +46,7 @@ export default defineConfig({
             filename: 'sw.js',
             manifestFilename: 'manifest.webmanifest',
             manifest: {
-                name: 'SGA Engeativos',
+                name: 'SGA',
                 short_name: 'SGA',
                 description: 'Sistema de Gestão de Ativos - Engetecnica',
                 theme_color: '#557bbb',

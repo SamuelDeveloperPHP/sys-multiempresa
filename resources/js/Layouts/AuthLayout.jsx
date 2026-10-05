@@ -9,7 +9,7 @@ export default function AuthLayout({ children }) {
                         <Link href="/">
                             <img
                                 src="/imagens/logos/new-logo.png"
-                                alt="SGA Engeativos"
+                                alt="SGA"
                                 className="h-100 w-auto"
                             />
                         </Link>

@@ -252,7 +252,7 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
                         </nav>
 
                         <div className="p-3 border-t border-gray-200 text-[10px] text-gray-400 text-center">
-                            SGA-Engeativos {new Date().getFullYear()}
+                            SGA {new Date().getFullYear()}
                         </div>
                     </div>
                 </>

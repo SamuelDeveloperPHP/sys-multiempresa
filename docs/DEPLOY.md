@@ -29,7 +29,7 @@ Teste: `curl -I https://seu-host.com.br` → deve responder `HTTP/2 200`.
 
 ```bash
 # === Obrigatório em prod ===
-APP_NAME="SGA Engeativos"
+APP_NAME="SGA"
 APP_ENV=production
 APP_KEY=base64:...           # se vazio, rode `php artisan key:generate`
 APP_DEBUG=false              # ⚠️ NUNCA true em prod

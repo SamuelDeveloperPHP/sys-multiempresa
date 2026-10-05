@@ -253,7 +253,7 @@ Route::get('/manifest.webmanifest', function () {
     if (!file_exists($file)) {
         // Fallback inline se o build ainda não rodou
         return response()->json([
-            'name' => 'SGA Engeativos',
+            'name' => 'SGA',
             'short_name' => 'SGA',
             'theme_color' => '#557bbb',
             'background_color' => '#ffffff',

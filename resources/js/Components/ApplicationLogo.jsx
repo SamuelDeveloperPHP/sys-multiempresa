@@ -1,11 +1,11 @@
 /**
- * ApplicationLogo — logo padrão do SGA Engeativos.
+ * ApplicationLogo — logo padrão do SGA.
  *
  * Usa /imagens/logos/adaptive-icon.png. Aceita className para dimensionamento
  * via Tailwind (ex: <ApplicationLogo className="h-10 w-10" />) e demais atributos
  * de <img> (alt, style, onClick, etc).
  */
-export default function ApplicationLogo({ className = 'h-8 w-8', alt = 'SGA Engeativos', ...props }) {
+export default function ApplicationLogo({ className = 'h-8 w-8', alt = 'SGA', ...props }) {
     return (
         <img
             src="/imagens/logos/adaptive-icon.png"
