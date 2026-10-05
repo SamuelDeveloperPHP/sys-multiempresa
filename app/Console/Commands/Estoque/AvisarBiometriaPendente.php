@@ -98,7 +98,7 @@ class AvisarBiometriaPendente extends Command
         $url = config('app.url') . '/admin/perfil/biometria';
         $assunto = 'Ação necessária: cadastre suas biometrias';
         $msg = $count === 0
-            ? "Olá {$user->name},\n\nNotamos que você ainda não cadastrou nenhuma biometria no SGA Engeativos. Por política da empresa, é necessário cadastrar pelo menos 2 digitais para autenticar retiradas de estoque.\n\nAcesse: {$url}\n\nObrigado!"
+            ? "Olá {$user->name},\n\nNotamos que você ainda não cadastrou nenhuma biometria no SGA. Por política da empresa, é necessário cadastrar pelo menos 2 digitais para autenticar retiradas de estoque.\n\nAcesse: {$url}\n\nObrigado!"
             : "Olá {$user->name},\n\nVocê tem apenas {$count} biometria cadastrada no SGA. Por política da empresa, é necessário ter ao menos 2 (redundância — se um dedo machucar, outro funciona).\n\nCadastre o segundo dedo em: {$url}\n\nObrigado!";
 
         Mail::raw($msg, function ($m) use ($user, $assunto) {

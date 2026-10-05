@@ -112,7 +112,7 @@ export default function Create({ pageTitle, formAction, cancelRoute }) {
                             
                             <div className="md:col-span-1">
                                 <label className="block text-sm font-medium text-gray-700">Nome Principal do Sistema *</label>
-                                <input type="text" value={data.name} onChange={e => setData('name', e.target.value)} className={inputClasses} placeholder="Ex: Grupo Engeativos" required />
+                                <input type="text" value={data.name} onChange={e => setData('name', e.target.value)} className={inputClasses} placeholder="Ex: Grupo Exemplo" required />
                                 {errors.name && <div className="mt-1 text-xs text-red-600 font-medium">{errors.name}</div>}
                             </div>
                             

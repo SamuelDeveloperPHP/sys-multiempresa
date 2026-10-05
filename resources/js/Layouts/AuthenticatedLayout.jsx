@@ -274,7 +274,7 @@ export default function AuthenticatedLayout({ header, children }) {
                 </main>
 
                 <footer className="border-t bg-white px-6 py-2 text-[11px] text-gray-500 flex justify-between items-center flex-shrink-0">
-                    <span>SGA-Engeativos &copy; {new Date().getFullYear()}</span>
+                    <span>SGA &copy; {new Date().getFullYear()}</span>
                     <span className="text-gray-400">{user?.email}</span>
                 </footer>
             </div>

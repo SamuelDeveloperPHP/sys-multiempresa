@@ -3,7 +3,7 @@ import { Head, Link } from '@inertiajs/react';
 export default function Welcome({ auth, canLogin, canRegister }) {
     return (
         <>
-            <Head title="Bem-vindo ao Engeativos" />
+            <Head title="Bem-vindo ao SGA" />
 
             <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-[#557bbb] selection:text-white">
                 {/* Navbar / Header */}
@@ -14,7 +14,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                             <Link href="/" className="flex-shrink-0 flex items-center gap-3 cursor-pointer group">
                                 <img
                                     src="/imagens/logos/splash.png"
-                                    alt="SGA Engeativos"
+                                    alt="SGA"
                                     className="h-12 w-auto group-hover:scale-105 transition-transform duration-300"
                                 />
                             </Link>
@@ -236,14 +236,14 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                                 </p>
                             </div>
 
-                            {/* Feature 11: App Engeativos */}
+                            {/* Feature 11: App SGA */}
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl hover:border-[#bccae7] transition-all duration-300 group">
                                 <div className="w-12 h-12 bg-[#f4f0ff] rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
                                     <svg className="w-6 h-6 text-[#8b5cf6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                     </svg>
                                 </div>
-                                <h3 className="text-lg font-bold text-gray-900 mb-2">App Engeativos (Off-line)</h3>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">App SGA (Off-line)</h3>
                                 <p className="text-gray-600 text-sm leading-relaxed">
                                     Aplicativo Mobile completo operando com predominância off-line para o trabalho em campo.
                                 </p>
@@ -271,7 +271,7 @@ export default function Welcome({ auth, canLogin, canRegister }) {
                 <footer className="border-t border-gray-200 bg-white">
                     <div className="w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <span className="font-bold text-gray-900">SGA<span className="text-[#557bbb]"> ENGEATIVOS</span></span>
+                            <span className="font-bold text-gray-900">SGA</span>
                             <span className="text-gray-400 text-sm">© {new Date().getFullYear()}. Todos os direitos reservados.</span>
                         </div>
                         <div className="text-sm text-gray-500">

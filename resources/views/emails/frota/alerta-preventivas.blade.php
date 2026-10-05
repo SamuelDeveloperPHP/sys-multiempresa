@@ -63,7 +63,7 @@
                 @endforeach
 
                 <p style="margin-top:24px; font-size:12px; color:#6b7280; border-top:1px solid #e5e7eb; padding-top:16px;">
-                    Esse email é gerado automaticamente pelo SGA-Engeativos. Para desativar os alertas, ajuste a variável
+                    Esse email é gerado automaticamente pelo SGA. Para desativar os alertas, ajuste a variável
                     <code style="background:#f3f4f6; padding:1px 4px; border-radius:3px;">FROTA_ALERTAS_EMAIL</code> no servidor.
                 </p>
             </td>
