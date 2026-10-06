@@ -1,6 +1,6 @@
 // resources/js/Pages/Mobile/Veiculos/Abastecimento/Create.jsx
 // -----------------------------------------------------------------------------
-// Cadastro de Abastecimento — port das regras do legado (engeativos RN).
+// Cadastro de Abastecimento — port das regras do legado (legado RN).
 //
 // CARACTERÍSTICAS:
 //   - Máscara BRL (R$ X,YZ) em valor_do_litro e valor_total

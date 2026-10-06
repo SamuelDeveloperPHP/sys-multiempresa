@@ -15,7 +15,7 @@
 //   - Botão dinâmico: "Acessar (ONLINE)" azul vs "Acessar (OFFLINE)" laranja
 //   - Auto-redirect quando offline + SESSÃO offline ainda válida (timer 1.2s)
 //
-// Inspirado em: C:\wamp64\www\app_engeativos_v002\src\pages\Login\index.js
+// Inspirado em: login do app mobile legado
 // -----------------------------------------------------------------------------
 
 import { useEffect, useState } from 'react';
@@ -398,7 +398,7 @@ export default function Login({ status, canResetPassword }) {
             <div className="mt-6 pt-4 border-t border-gray-100 text-center">
                 <div className="flex items-center justify-center gap-2 text-[11px]">
                     <a
-                        href="https://sga-engeativos.com.br/privacidade"
+                        href="/privacidade"
                         target="_blank"
                         rel="noreferrer"
                         className="text-[#557bbb] hover:underline"
@@ -407,7 +407,7 @@ export default function Login({ status, canResetPassword }) {
                     </a>
                     <span className="text-gray-300">•</span>
                     <a
-                        href="https://sga-engeativos.com.br/suporte"
+                        href="/suporte"
                         target="_blank"
                         rel="noreferrer"
                         className="text-[#557bbb] hover:underline"

@@ -24,7 +24,7 @@
 /* eslint-disable no-restricted-globals */
 
 const SGA_SYNC_TAG = 'sga-sync-pendentes';
-const SGA_DB_NAME = 'sga_engeativos_offline';
+const SGA_DB_NAME = 'sys_multiempresa_offline';
 const SGA_QUEUE_STORE = 'sync_queue';
 const SGA_API_BASE = '/api/mobile';
 const SGA_MAX_POR_SYNC = 30; // orçamento de execução do evento é limitado

@@ -6,7 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Migra dados das tabelas Veiculo* do banco engeativos (legado)
+ * Migra dados das tabelas Veiculo* do banco legado
  * para o banco atual (sys-multiempresa).
  *
  * Aplica mapeamento de schema (nomeCategoria → nome_categoria, etc),
@@ -21,11 +21,11 @@ class MigrarFrotaLegado extends Command
 {
     protected $signature = 'frota:migrar-legado
                             {--fresh : Trunca cada tabela destino antes de inserir}
-                            {--source=engeativos : Nome do schema MySQL origem}
+                            {--source=sys_multiempresa_legado : Nome do schema MySQL origem}
                             {--company=1 : ID da empresa para os registros migrados}
                             {--only= : CSV de etapas (fornecedores,categorias,subcategorias,marcas,modelos,tipos,preventivas,veiculos,locacoes,imagens,abastecimentos,horimetros,quilometragens,diario,checklists,checklist_itens,checklist_execucoes,checklist_realizados,manutencoes,ipvas,seguros,docs_legais,docs_tecnicos,preventivas_itens,preventivas_realizadas)}';
 
-    protected $description = 'Migra dados de Frota do banco engeativos (legado) para o sys-multiempresa';
+    protected $description = 'Migra dados de Frota do banco legado para o sys-multiempresa';
 
     protected string $source;
     protected int $companyId;

@@ -17,7 +17,7 @@ use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
 /**
- * Locação de Veículos — port do legacy (engeativos2/VeiculoLocacaoController).
+ * Locação de Veículos — port do legacy (legado/VeiculoLocacaoController).
  *
  * Diferenças vs. legacy:
  *   - Inertia/React em vez de blade.

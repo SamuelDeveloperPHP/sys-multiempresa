@@ -1,6 +1,6 @@
 // resources/js/Pages/Mobile/Perfil/Index.jsx
 // -----------------------------------------------------------------------------
-// Perfil do motorista — port do legado (engeativos RN/Usuarios/Perfil).
+// Perfil do motorista — port do legado (legado RN/Usuarios/Perfil).
 //
 // Mostra:
 //   - Avatar (foto do funcionário ou fallback)
@@ -84,7 +84,7 @@ export default function PerfilIndex() {
 
     const matricula = funcionario?.matricula || `USR-${user?.id || '0'}`;
     const fotoUrl = funcionario?.imagem_usuario
-        ? `https://sga-engeativos.com.br/build/images/users/${funcionario.id}/${funcionario.imagem_usuario}`
+        ? `/build/images/users/${funcionario.id}/${funcionario.imagem_usuario}`
         : null;
 
     const initials = (user?.name || 'U')
@@ -228,12 +228,12 @@ export default function PerfilIndex() {
 
                 {/* ============= LEGAL ============= */}
                 <div className="flex items-center justify-center gap-2 py-2 text-[11px] text-gray-400">
-                    <a href="https://sga-engeativos.com.br/privacidade" target="_blank" rel="noreferrer"
+                    <a href="/privacidade" target="_blank" rel="noreferrer"
                         className="text-[#557bbb] underline">
                         Política de Privacidade
                     </a>
                     <span>•</span>
-                    <a href="https://sga-engeativos.com.br/suporte" target="_blank" rel="noreferrer"
+                    <a href="/suporte" target="_blank" rel="noreferrer"
                         className="text-[#557bbb] underline">
                         Termos e Suporte
                     </a>

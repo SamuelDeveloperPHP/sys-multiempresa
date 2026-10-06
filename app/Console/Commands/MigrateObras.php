@@ -12,7 +12,7 @@ class MigrateObras extends Command
      * @var string
      */
     protected $signature = 'app:migrate-obras';
-    protected $description = 'Migra a tabela de obras do engeativos para blog_irpr';
+    protected $description = 'Migra a tabela de obras do legado para blog_irpr';
 
     public function handle()
     {
@@ -45,7 +45,7 @@ class MigrateObras extends Command
 
             // 3. Migrar os dados
             $this->info('Copiando dados...');
-            $obras = \Illuminate\Support\Facades\DB::table('engeativos.obras')->get();
+            $obras = \Illuminate\Support\Facades\DB::table('sys_multiempresa_legado.obras')->get();
 
             $bar = $this->output->createProgressBar(count($obras));
             $bar->start();

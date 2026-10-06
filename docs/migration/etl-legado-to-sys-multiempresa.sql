@@ -1,25 +1,25 @@
 -- =====================================================================
--- ETL: engeativos (banco antigo) -> sys-multiempresa (banco novo)
+-- ETL: legado (banco antigo) -> sys-multiempresa (banco novo)
 -- =====================================================================
 -- Premissas:
---   * Banco antigo:   `engeativos`        (MySQL no mesmo servidor WAMP)
+--   * Banco antigo:   `legado`        (MySQL no mesmo servidor WAMP)
 --   * Banco novo:     `sys_multiempresa`  (criar previamente, ja com migrations rodadas)
 --   * Existe ao menos UMA empresa cadastrada no novo banco (companies)
 --     antes de rodar este ETL. Substitua @company_id pelo ID correto.
 --
 -- IMPORTANTE: Antes de rodar
 --   1. Fazer backup completo do banco antigo:
---      mysqldump -u root engeativos > backup_engeativos.sql
+--      mysqldump -u root legado > backup_sys_multiempresa_legado.sql
 --   2. Confirmar que migrations do sys-multiempresa rodaram (todas as tabelas existem).
 --   3. Ajustar @company_id abaixo para a empresa-alvo do sys-multiempresa.
 --   4. Rodar este script com o banco sys_multiempresa selecionado:
---      mysql -u root sys_multiempresa < etl-engeativos-to-sys-multiempresa.sql
+--      mysql -u root sys_multiempresa < etl-legado-to-sys-multiempresa.sql
 --
 -- Este script eh IDEMPOTENTE para a maioria das tabelas (usa INSERT IGNORE
 -- ou ON DUPLICATE KEY UPDATE). Pode ser rodado mais de uma vez sem duplicar.
 
 SET @company_id := 1;             -- AJUSTE: id da empresa no novo banco
-SET @origem := 'engeativos';      -- nome do schema antigo
+SET @origem := 'sys_multiempresa_legado';      -- nome do schema antigo
 SET FOREIGN_KEY_CHECKS = 0;       -- so durante a carga
 SET UNIQUE_CHECKS = 0;
 
@@ -27,9 +27,9 @@ SET UNIQUE_CHECKS = 0;
 -- 1. OBRAS
 -- =====================================================================
 -- Mapeamento:
---   engeativos.obras.id           -> sys_multiempresa.obras.id        (preserva PK)
---   engeativos.obras.codigo_obra  -> code + codigo_obra
---   engeativos.obras.id_empresa   -> id_empresa + company_id (forcado para @company_id)
+--   sys_multiempresa_legado.obras.id           -> sys_multiempresa.obras.id        (preserva PK)
+--   sys_multiempresa_legado.obras.codigo_obra  -> code + codigo_obra
+--   sys_multiempresa_legado.obras.id_empresa   -> id_empresa + company_id (forcado para @company_id)
 --
 -- ATENCAO: se o sys_multiempresa.obras ja tem outras obras (de outras
 -- empresas), o INSERT IGNORE preserva-as. Caso contrario, considere TRUNCATE.
@@ -49,7 +49,7 @@ SELECT
     NULL, NULL, NULL, NULL, NULL, NULL, NULL,
     NULL, NULL, 'Ativa',
     COALESCE(o.created_at, NOW()), COALESCE(o.updated_at, NOW())
-FROM engeativos.obras o
+FROM sys_multiempresa_legado.obras o
 WHERE o.deleted_at IS NULL;
 
 -- =====================================================================
@@ -59,15 +59,15 @@ WHERE o.deleted_at IS NULL;
 -- 2.1 Funcoes
 INSERT IGNORE INTO funcao_funcionarios (id, company_id, funcao, created_at, updated_at)
 SELECT f.id, @company_id, f.funcao, COALESCE(f.created_at, NOW()), COALESCE(f.updated_at, NOW())
-FROM engeativos.funcao_funcionarios f
+FROM sys_multiempresa_legado.funcao_funcionarios f
 WHERE f.deleted_at IS NULL;
 
 -- 2.2 Setores (se a tabela de origem existir)
--- Comentar se a tabela `setores` nao existir no engeativos
+-- Comentar se a tabela `setores` nao existir no legado
 /*
 INSERT IGNORE INTO funcionario_setores (id, company_id, nome, created_at, updated_at)
 SELECT s.id, @company_id, s.nome, COALESCE(s.created_at, NOW()), COALESCE(s.updated_at, NOW())
-FROM engeativos.setores s;
+FROM sys_multiempresa_legado.setores s;
 */
 
 -- 2.3 Funcionarios
@@ -81,7 +81,7 @@ SELECT
     f.nome, f.matricula, f.cpf,
     COALESCE(f.status, 'Ativo'), f.imagem_usuario,
     COALESCE(f.created_at, NOW()), COALESCE(f.updated_at, NOW())
-FROM engeativos.funcionarios f
+FROM sys_multiempresa_legado.funcionarios f
 WHERE f.deleted_at IS NULL;
 
 -- =====================================================================
@@ -95,19 +95,19 @@ WHERE f.deleted_at IS NULL;
 -- 3.1 Vincular users a empresa
 INSERT IGNORE INTO company_user (user_id, company_id, role, created_at, updated_at)
 SELECT u.id, @company_id, 'member', NOW(), NOW()
-FROM engeativos.users u
+FROM sys_multiempresa_legado.users u
 WHERE u.deleted_at IS NULL;
 
 -- 3.2 Vincular users a obras (via CadastroUsuariosVinculo)
 INSERT IGNORE INTO obra_user (user_id, obra_id, role, created_at, updated_at)
 SELECT DISTINCT v.id_usuario, v.id_obra, 'member', NOW(), NOW()
-FROM engeativos.cadastro_usuarios_vinculo v
+FROM sys_multiempresa_legado.cadastro_usuarios_vinculo v
 WHERE v.id_usuario IS NOT NULL AND v.id_obra IS NOT NULL;
 
 -- 3.3 Vincular users a funcionario (1:1 quando aplicavel)
 INSERT IGNORE INTO user_funcionario (user_id, funcionario_id, company_id)
 SELECT DISTINCT v.id_usuario, v.id_funcionario, @company_id
-FROM engeativos.cadastro_usuarios_vinculo v
+FROM sys_multiempresa_legado.cadastro_usuarios_vinculo v
 WHERE v.id_funcionario IS NOT NULL;
 
 -- =====================================================================
@@ -117,7 +117,7 @@ WHERE v.id_funcionario IS NOT NULL;
 -- 4.1 Tipos
 INSERT IGNORE INTO tipos_veiculos (id, company_id, nome, created_at, updated_at)
 SELECT t.id, @company_id, t.nome, COALESCE(t.created_at, NOW()), COALESCE(t.updated_at, NOW())
-FROM engeativos.tipos_veiculos t;
+FROM sys_multiempresa_legado.tipos_veiculos t;
 
 -- 4.2 Veiculos
 INSERT IGNORE INTO veiculos (
@@ -132,7 +132,7 @@ SELECT
     COALESCE(v.tipo_km, 0), COALESCE(v.tipo_hr, 0),
     1, NOW(),
     COALESCE(v.created_at, NOW()), COALESCE(v.updated_at, NOW())
-FROM engeativos.veiculos v
+FROM sys_multiempresa_legado.veiculos v
 WHERE v.deleted_at IS NULL;
 
 -- 4.3 Locacoes
@@ -147,7 +147,7 @@ SELECT
     l.id_funcionario, l.id_funcionario_destino, l.tipo_veiculo,
     l.data_inicio, l.data_prevista, l.data_fim,
     1, NOW(), COALESCE(l.created_at, NOW()), COALESCE(l.updated_at, NOW())
-FROM engeativos.veiculos_locacaos l
+FROM sys_multiempresa_legado.veiculos_locacaos l
 WHERE l.deleted_at IS NULL;
 
 -- 4.4 Checklists
@@ -159,7 +159,7 @@ INSERT IGNORE INTO veiculo_checklist (
 SELECT c.id, @company_id, c.id_veiculo, c.nome_checklist, COALESCE(c.situacao, 'Ativo'),
        c.user_create, c.user_edit, 1, NOW(),
        COALESCE(c.created_at, NOW()), COALESCE(c.updated_at, NOW()), c.deleted_at
-FROM engeativos.veiculo_checklist c;
+FROM sys_multiempresa_legado.veiculo_checklist c;
 
 INSERT IGNORE INTO veiculo_checklist_itens (
     id, company_id, id_checklist, id_veiculo, nome_servico,
@@ -171,7 +171,7 @@ SELECT i.id, @company_id, i.id_checklist, i.id_veiculo, i.nome_servico,
        i.periodo_maq_vei, i.alerta_venci, i.tipo_itens, i.periodo_dias, i.alert_venc_dias,
        i.user_create, i.user_edit, COALESCE(i.situacao, 'Ativo'),
        1, NOW(), COALESCE(i.created_at, NOW()), COALESCE(i.updated_at, NOW()), i.deleted_at
-FROM engeativos.veiculo_checklist_itens i;
+FROM sys_multiempresa_legado.veiculo_checklist_itens i;
 
 -- 4.5 Checklist execucao (servicos + realizados)
 INSERT IGNORE INTO veiculo_checklist_itens_servicos (
@@ -190,7 +190,7 @@ SELECT s.id, @company_id, s.id_obra, s.id_veiculo, s.id_checklist,
        s.foto_extra_3, s.desc_extra_3, s.foto_extra_4, s.desc_extra_4,
        s.data_cadastro, s.user_create, s.user_edit, s.id_horimetro, s.id_quilometragem,
        1, NOW(), COALESCE(s.created_at, NOW()), COALESCE(s.updated_at, NOW()), s.deleted_at
-FROM engeativos.veiculo_checklist_itens_servicos s;
+FROM sys_multiempresa_legado.veiculo_checklist_itens_servicos s;
 
 INSERT IGNORE INTO veiculo_checklist_itens_realizados (
     id, company_id, id_obra, id_checklist, id_local,
@@ -206,7 +206,7 @@ SELECT r.id, @company_id, r.id_obra, r.id_checklist, r.id_local,
        r.user_create, r.horimetro_atual, r.horimetro_novo,
        r.quilometragem_atual, r.quilometragem_nova, r.observacao,
        1, NOW(), COALESCE(r.created_at, NOW()), COALESCE(r.updated_at, NOW()), r.deleted_at
-FROM engeativos.veiculo_checklist_itens_realizados r;
+FROM sys_multiempresa_legado.veiculo_checklist_itens_realizados r;
 
 -- 4.6 Operacao do dia: horimetro, quilometragem, abastecimento, diario
 INSERT IGNORE INTO veiculo_horimetro (
@@ -217,7 +217,7 @@ INSERT IGNORE INTO veiculo_horimetro (
 SELECT h.id, @company_id, h.id_local, h.veiculo_id, h.id_funcionario, h.id_obra,
        h.user_create, h.user_edit, h.horimetro_atual, h.horimetro_novo,
        h.data_horimetro, 1, NOW(), COALESCE(h.created_at, NOW()), COALESCE(h.updated_at, NOW())
-FROM engeativos.veiculo_horimetro h;
+FROM sys_multiempresa_legado.veiculo_horimetro h;
 
 INSERT IGNORE INTO veiculo_quilometragems (
     id, company_id, id_local, veiculo_id, id_funcionario, id_obra,
@@ -227,7 +227,7 @@ INSERT IGNORE INTO veiculo_quilometragems (
 SELECT q.id, @company_id, q.id_local, q.veiculo_id, q.id_funcionario, q.id_obra,
        q.user_create, q.quilometragem_atual, q.quilometragem_nova,
        q.data_quilometragem, 1, NOW(), COALESCE(q.created_at, NOW()), COALESCE(q.updated_at, NOW())
-FROM engeativos.veiculo_quilometragems q;
+FROM sys_multiempresa_legado.veiculo_quilometragems q;
 
 INSERT IGNORE INTO veiculo_abastecimentos (
     id, company_id, id_local, veiculo_id, id_obra, id_funcionario,
@@ -245,7 +245,7 @@ SELECT a.id, @company_id, a.id_local, a.veiculo_id, a.id_obra, a.id_funcionario,
        a.quantidade, a.valor_do_litro, a.valor_total,
        a.arquivo_app, a.arquivo_servidor,
        1, NOW(), COALESCE(a.created_at, NOW()), COALESCE(a.updated_at, NOW())
-FROM engeativos.veiculo_abastecimentos a;
+FROM sys_multiempresa_legado.veiculo_abastecimentos a;
 
 INSERT IGNORE INTO veiculos_diario_bordo (
     id, company_id, id_local, ciclo_status, horas_trabalhadas_minutos,
@@ -264,7 +264,7 @@ SELECT d.id, @company_id, d.id_local, COALESCE(d.ciclo_status, 'ABERTO'),
        d.horario_final, d.hr_atual, d.km_atual,
        d.descricao_atividade, d.arquivo_app, d.arquivo_servidor,
        1, NOW(), COALESCE(d.created_at, NOW()), COALESCE(d.updated_at, NOW()), d.deleted_at
-FROM engeativos.veiculos_diario_bordo d;
+FROM sys_multiempresa_legado.veiculos_diario_bordo d;
 
 -- 4.7 Preventivas
 INSERT IGNORE INTO veiculo_preventivas (
@@ -279,7 +279,7 @@ SELECT p.id, @company_id, p.id_veiculo,
        p.periodo, p.tipo, p.alerta_venci,
        p.user_create, p.user_edit, 1, NOW(),
        COALESCE(p.created_at, NOW()), COALESCE(p.updated_at, NOW()), p.deleted_at
-FROM engeativos.veiculo_preventivas p;
+FROM sys_multiempresa_legado.veiculo_preventivas p;
 
 INSERT IGNORE INTO veiculo_preventivas_itens_realizadas (
     id, company_id, id_veiculo, fornecedor_id, id_obra,
@@ -303,7 +303,7 @@ SELECT r.id, @company_id, r.id_veiculo, r.fornecedor_id, r.id_obra,
        r.data_de_vencimento, r.descricao, r.status_realizado,
        r.user_create, r.user_edit, 1, NOW(),
        COALESCE(r.created_at, NOW()), COALESCE(r.updated_at, NOW()), r.deleted_at
-FROM engeativos.veiculo_preventivas_itens_realizadas r;
+FROM sys_multiempresa_legado.veiculo_preventivas_itens_realizadas r;
 
 -- =====================================================================
 -- 5. CONCLUSAO

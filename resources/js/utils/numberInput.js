@@ -1,7 +1,7 @@
 // resources/js/utils/numberInput.js
 // -----------------------------------------------------------------------------
 // Helpers de máscara/normalização numéricos.
-// Port direto do app legado (engeativos React Native) para web/PWA.
+// Port direto do app legado (legado React Native) para web/PWA.
 // -----------------------------------------------------------------------------
 
 /**

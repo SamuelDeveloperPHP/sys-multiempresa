@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
  *   POST /api/app_logout          -> revoga o token atual
  *   GET  /api/modulos-permitidos  -> lista de modulos liberados ao usuario na empresa atual
  *
- * Compatibilidade com o app Engeativos (RN): retorna a MESMA shape do payload
+ * Compatibilidade com o app mobile (RN): retorna a MESMA shape do payload
  * antigo (`token`, `user`, `data_local`, `dados_func`, `obra_acesso`, `funcao`).
  */
 class AppAuthController extends Controller

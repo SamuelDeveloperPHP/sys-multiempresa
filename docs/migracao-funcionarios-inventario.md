@@ -1,7 +1,7 @@
 # Migração Funcionários — Inventário
 
 ## Projeto origem
-`C:\wamp64\www\engeativos2-main`
+`sistema legado`
 
 ## Projeto destino
 `C:\wamp64\www\sys-multiempresa`
@@ -111,7 +111,7 @@ O legado utilizava controle de acesso do Laravel atrelado ao `CadastroUsuariosVi
 ### Riscos
 - **Diferença de Estrutura de Models:** `CadastroFuncionario` possui atributos que talvez não existam atualmente no fillable do `App\Models\Funcionario`.
 - **Anexos e Documentos:** Necessário padronizar a lógica de arquivos (armazenamento na AWS S3 / Local `storage` usando validação Multipart via Inertia).
-- Resposta: os anexos são enviados para o Onedrive via Microsoft Graph API utilizando o arquivo C:\wamp64\www\engeativos2-main\app\Helpers\FileUploadHelper.php
+- Resposta: os anexos são enviados para o Onedrive via Microsoft Graph API utilizando o arquivo o FileUploadHelper do sistema legado
 
 
 ### Itens que NÃO serão alterados

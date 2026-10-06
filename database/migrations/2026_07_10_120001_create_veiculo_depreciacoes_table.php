@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Frota — historico de depreciacao do veiculo (importado do legado engeativos2).
+ * Frota — historico de depreciacao do veiculo (importado do sistema legado).
  * Cada registro guarda o valor atual do bem numa referencia (mes/ano).
  */
 return new class extends Migration {

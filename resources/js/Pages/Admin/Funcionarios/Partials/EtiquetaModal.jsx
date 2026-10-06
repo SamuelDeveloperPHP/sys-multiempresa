@@ -70,7 +70,7 @@ export default function EtiquetaModal({ isOpen, onClose, funcionario }) {
                         {/* QRCode Column */}
                         <div className="w-1/3 flex items-center justify-center border-r border-gray-100 p-2">
                             <QRCode 
-                                value={`https://sga-engeativos.com.br/detalhes/funcionario/${funcionario.id}`} 
+                                value={`${window.location.origin}/detalhes/funcionario/${funcionario.id}`} 
                                 size={120} 
                                 level={"H"} 
                                 includeMargin={false} 

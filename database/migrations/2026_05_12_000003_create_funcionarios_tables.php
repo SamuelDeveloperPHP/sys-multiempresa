@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
  * Multi-empresa: todas as tabelas tem company_id.
  *
  * IMPORTANTE (schema drift):
- * Em ambientes que vieram do import legado (ETL — engeativos2), estas tabelas
+ * Em ambientes que vieram do import legado (ETL — legado), estas tabelas
  * JÁ EXISTEM com um schema mais rico (criado fora das migrations). Por isso
  * cada Schema::create() abaixo é guardado por Schema::hasTable(): em banco
  * legado vira no-op (não recria/quebra), e em instalação NOVA cria a base

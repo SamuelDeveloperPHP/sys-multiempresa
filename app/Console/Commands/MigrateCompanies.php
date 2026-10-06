@@ -29,8 +29,8 @@ class MigrateCompanies extends Command
 
             $this->info('Registros antigos removidos.');
 
-            // Lendo registros do engeativos
-            $empresas = \Illuminate\Support\Facades\DB::table('engeativos.empresas')->get();
+            // Lendo registros do legado
+            $empresas = \Illuminate\Support\Facades\DB::table('sys_multiempresa_legado.empresas')->get();
             $this->info("Encontradas " . count($empresas) . " empresas no banco antigo.");
 
             $bar = $this->output->createProgressBar(count($empresas));
