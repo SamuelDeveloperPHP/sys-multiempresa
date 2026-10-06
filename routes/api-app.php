@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| API do app mobile Engeativos (Capacitor)
+| API do app mobile (Capacitor)
 |--------------------------------------------------------------------------
 | Tokens Sanctum bearer (escopo 'mobile'). NAO usa cookie HTTP-only.
 | Para registrar este arquivo no bootstrap, ver bootstrap/app.php:

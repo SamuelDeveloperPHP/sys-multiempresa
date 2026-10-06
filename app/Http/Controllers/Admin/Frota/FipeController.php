@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Http;
  * Proxy para a API pública da tabela FIPE (veiculos.fipe.org.br), usado pela
  * cascata Marca → Modelo → Ano → Valor no formulário de veículo.
  *
- * Portado do legado engeativos2 (FipeController), com duas melhorias:
+ * Portado do sistema legado (FipeController), com duas melhorias:
  *  - a tabela de referência (que muda todo mês) deixa de ser hardcoded (311):
  *    buscamos a mais recente e cacheamos por 12h;
  *  - usa o Http client do Laravel em vez de instanciar Guzzle direto.

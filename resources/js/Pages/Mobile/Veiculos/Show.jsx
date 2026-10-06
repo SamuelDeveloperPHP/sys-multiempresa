@@ -104,7 +104,7 @@ export default function VeiculoShow({ veiculoId }) {
 
     const v = data.veiculo;
     const isMaquina = v.tipo_hr == 1;
-    const baseImageUrl = 'https://sga-engeativos.com.br/imagens/veiculos';
+    const baseImageUrl = '/imagens/veiculos';
 
     return (
         <MobileLayout header={v.prefixo} backUrl="/mobile/veiculos">

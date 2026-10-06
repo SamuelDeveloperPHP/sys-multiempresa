@@ -19,7 +19,7 @@
 
 1. Abra o navegador do device (Chrome no Android / Safari no iOS) e faça login **online**.
 2. ✅ Deve redirecionar para `/mobile/veiculos` com a lista de veículos.
-3. DevTools remoto → Application → IndexedDB → `sga_engeativos_offline`:
+3. DevTools remoto → Application → IndexedDB → `sys_multiempresa_offline`:
    - ✅ tabela `credenciais` tem 1 registro (hash + salt — **sem senha em texto**);
    - ✅ `meta` tem `offline_session` com `expires_at` ~7 dias à frente.
 4. Navegue por Veículos → um veículo → Checklist (aquece o cache do SW).

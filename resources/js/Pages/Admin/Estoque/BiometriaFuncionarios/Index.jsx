@@ -184,7 +184,7 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
 // =============================================================================
 function FuncionarioRow({ funcionario: f, working, feedback, onCadastrar, disabled }) {
     const fotoUrl = f.imagem_usuario
-        ? `https://sga-engeativos.com.br/build/images/users/${f.id}/${f.imagem_usuario}`
+        ? `/build/images/users/${f.id}/${f.imagem_usuario}`
         : null;
 
     return (

@@ -20,7 +20,7 @@ const FONT_FAMILIES = [
     'Times New Roman', 'Georgia', 'Courier New', 'Impact', 'Comic Sans MS',
 ];
 
-// Dimensões oficiais do crachá (herdadas do legado engeativos2-main).
+// Dimensões oficiais do crachá (herdadas do sistema legado).
 // Não mudar sem realinhar todas as posições percentuais abaixo.
 const CANVAS_W = 640;
 const CANVAS_H = 1006;

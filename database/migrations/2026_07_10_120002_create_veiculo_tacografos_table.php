@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Frota — tacografo do veiculo (importado do legado engeativos2).
+ * Frota — tacografo do veiculo (importado do sistema legado).
  * Documento com data de emissao e vencimento + observacoes.
  */
 return new class extends Migration {

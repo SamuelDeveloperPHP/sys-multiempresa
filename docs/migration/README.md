@@ -1,11 +1,11 @@
-# Migração Engeativos → sys-multiempresa (Fase 1 + Fase 2)
+# Migração SGA → sys-multiempresa (Fase 1 + Fase 2)
 
 Guia operacional para executar a primeira metade do plano: fundação (multi-empresa, sanctum, módulos) + domínio Frota completo.
 
 ## Pré-requisitos
 
 - PHP 8.2+
-- MySQL/MariaDB com o banco antigo `engeativos` ainda acessível
+- MySQL/MariaDB com o banco antigo `sys_multiempresa_legado` ainda acessível
 - Composer instalado
 - Node 20+ e npm
 - WAMP rodando
@@ -108,12 +108,12 @@ Anote o `id` da Company — vai ser usado no ETL.
 
 ### 6.1 Backup defensivo
 ```powershell
-"C:\wamp64\bin\mysql\mysql8.0.31\bin\mysqldump.exe" -u root engeativos > c:/backup_engeativos.sql
+"C:\wamp64\bin\mysql\mysql8.0.31\bin\mysqldump.exe" -u root sys_multiempresa_legado > c:/backup_sys_multiempresa_legado.sql
 ```
 
 ### 6.2 Ajustar @company_id no script ETL
 
-Editar `docs/migration/etl-engeativos-to-sys-multiempresa.sql`:
+Editar `docs/migration/etl-legado-to-sys-multiempresa.sql`:
 
 ```sql
 SET @company_id := 1;   -- TROCAR pelo ID real da Company criada no passo 5
@@ -123,7 +123,7 @@ SET @company_id := 1;   -- TROCAR pelo ID real da Company criada no passo 5
 
 ```powershell
 cd c:/wamp64/www/sys-multiempresa
-mysql -u root sys_multiempresa < docs/migration/etl-engeativos-to-sys-multiempresa.sql
+mysql -u root sys_multiempresa < docs/migration/etl-legado-to-sys-multiempresa.sql
 ```
 
 A última query do script mostra a contagem por tabela — confirme que os números fazem sentido.
@@ -245,7 +245,7 @@ sys-multiempresa/
 └── docs/migration/
     ├── README.md                                   ← este arquivo
     ├── routes-frota.patch.md
-    └── etl-engeativos-to-sys-multiempresa.sql
+    └── etl-legado-to-sys-multiempresa.sql
 ```
 
 ## 10) Validações pós-migração
@@ -268,7 +268,7 @@ sys-multiempresa/
 | **4** | Capacitor (mobile): SQLite local + `syncService` portado de RN para Web | 3-4 sem |
 | **5** | Publicação App Store + Play Store | 2 sem |
 
-Detalhes no diff técnico anterior (`docs/migration/diff-engeativos2-vs-sys-multiempresa.md` — gerar quando começar Fase 3).
+Detalhes no diff técnico anterior (`docs/migration/diff-legado-vs-sys-multiempresa.md` — gerar quando começar Fase 3).
 
 ## 12) Rollback de emergência
 
@@ -279,7 +279,7 @@ Se algo dar muito errado:
 php artisan migrate:rollback --step=8
 
 # 2) Restaurar o banco antigo (se necessário)
-mysql -u root engeativos < c:/backup_engeativos.sql
+mysql -u root sys_multiempresa_legado < c:/backup_sys_multiempresa_legado.sql
 ```
 
 A migration do `users` (`add_app_fields_to_users_table`) só **adiciona** colunas — rollback é seguro. As migrations de Frota criam tabelas novas — rollback simplesmente drop.

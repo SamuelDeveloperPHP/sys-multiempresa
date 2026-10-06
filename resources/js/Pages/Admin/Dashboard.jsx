@@ -5,7 +5,7 @@ import { BarChart, DoughnutChart } from '@/Components/Charts';
 
 /**
  * Admin Dashboard — porta da regra de negócio de
- * `engeativos2/resources/views/pages/dashboard/`.
+ * `legado: resources/views/pages/dashboard/`.
  *
  * Manteve-se a hierarquia visual do legado:
  *   1. 5 KPI cards (Empresas, Obras, Funcionários, Fornecedores, Veículos)

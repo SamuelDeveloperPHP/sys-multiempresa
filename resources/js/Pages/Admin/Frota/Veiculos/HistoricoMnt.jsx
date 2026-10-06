@@ -68,9 +68,9 @@ export default function HistoricoMnt({
 
         {/* Logos para impressão e identidade visual */}
         <div className="flex justify-center items-center gap-6 mb-4 print-logos">
-          <img src="https://sga-engeativos.com.br/assets/images/logos/LogoMarcaHorizontal.png"
+          <img src="/assets/images/logos/LogoMarcaHorizontal.png"
                alt="SGA" className="h-16 object-contain" />
-          <img src="https://sga-engeativos.com.br/build/images/icones/logo_LEC.png"
+          <img src="/build/images/icones/logo_LEC.png"
                alt="LEC" className="h-16 object-contain" />
         </div>
 

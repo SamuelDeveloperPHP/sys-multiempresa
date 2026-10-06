@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * O app mobile Engeativos espera o campo `codigo_obra` (legado).
+ * O app mobile espera o campo `codigo_obra` (legado).
  * O schema do sys-multiempresa usa `code`. Criamos `codigo_obra`
  * como mirror para compatibilidade do payload de download.
  *

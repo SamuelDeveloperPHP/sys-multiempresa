@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * SyncController do sys-multiempresa — adaptado do engeativos2.
+ * SyncController do sys-multiempresa — adaptado do legado.
  *
  * Diferencas chave em relacao ao SyncController antigo:
  *   1. Filtro por COMPANY: todas as queries respeitam o `company_id` do usuario.
@@ -290,7 +290,7 @@ class SyncController extends Controller
 
                 case 'veiculo_horimetro':
                 case 'veiculo_quilometragems':
-                    // Apenas o ULTIMO de cada veiculo (igual o engeativos2)
+                    // Apenas o ULTIMO de cada veiculo (igual o legado)
                     $sub = DB::table($tabela)
                         ->select(DB::raw('MAX(id) as id'))
                         ->where('company_id', $companyId)

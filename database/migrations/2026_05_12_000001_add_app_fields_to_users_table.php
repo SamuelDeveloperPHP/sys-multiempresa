@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Campos exigidos pelo app mobile Engeativos:
+ * Campos exigidos pelo app mobile:
  *  - password_app: hash SHA-256 da senha (login offline)
  *  - perfil_offline: snapshot JSON do perfil para uso sem internet
  *  - biometria: usuario habilitou login biometrico

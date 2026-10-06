@@ -126,7 +126,7 @@ export default function VeiculosIndex() {
         setScanFeedback(null);
     };
 
-    const baseImageUrl = 'https://sga-engeativos.com.br/imagens/veiculos';
+    const baseImageUrl = '/imagens/veiculos';
 
     return (
         <MobileLayout header="Veículos">

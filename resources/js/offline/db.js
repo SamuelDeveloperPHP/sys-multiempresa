@@ -9,7 +9,19 @@
 
 import Dexie from 'dexie';
 
-export const db = new Dexie('sga_engeativos_offline');
+export const db = new Dexie('sys_multiempresa_offline');
+
+// Limpeza unica do banco offline do nome anterior: os registros antigos nao sao
+// mais necessarios (decisao do produto) e nao devem ocupar espaco no navegador.
+try {
+    if (typeof window !== 'undefined' && !window.localStorage.getItem('offline_db_renamed_v1')) {
+        Dexie.delete('sga_engeativos_offline') // nome anterior do banco
+            .catch(() => {})
+            .finally(() => window.localStorage.setItem('offline_db_renamed_v1', '1'));
+    }
+} catch (e) {
+    // localStorage indisponivel (modo privado): ignora, a limpeza tenta de novo na proxima abertura.
+}
 
 // ---------- v1: schema inicial ----------
 db.version(1).stores({

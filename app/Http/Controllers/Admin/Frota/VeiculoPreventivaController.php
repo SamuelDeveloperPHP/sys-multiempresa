@@ -16,7 +16,7 @@ use Inertia\Response as InertiaResponse;
 
 /**
  * Plano de manutencao preventiva = cabecalho (veiculo + nome) + N linhas de servico.
- * Cada linha tem periodo/tipo/situacao proprios (importado do legado engeativos2).
+ * Cada linha tem periodo/tipo/situacao proprios (importado do sistema legado).
  */
 class VeiculoPreventivaController extends Controller
 {

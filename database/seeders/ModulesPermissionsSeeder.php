@@ -412,7 +412,7 @@ class ModulesPermissionsSeeder extends Seeder
             // app/Http/Controllers/Admin/Frota/ e Pages/Admin/Frota/.
             //
             // PLACEHOLDERS (is_active=0, show_in_menu=0): correspondem
-            // aos sub-modulos do VeiculoController legado (engeativos2)
+            // aos sub-modulos do VeiculoController legado
             // que ainda nao foram migrados. Mantidos no banco para
             // documentar o escopo e facilitar futura ativacao.
             // ==========================================================

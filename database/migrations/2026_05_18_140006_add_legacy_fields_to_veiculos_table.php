@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Adiciona os campos legados do engeativos2 a tabela veiculos.
+ * Adiciona os campos legados do legado a tabela veiculos.
  * O schema base (000010) foi pensado mobile-first; esta migration
  * expande para suportar as regras do CRUD admin web.
  */
