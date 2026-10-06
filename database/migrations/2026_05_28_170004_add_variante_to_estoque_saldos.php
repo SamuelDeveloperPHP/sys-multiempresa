@@ -27,14 +27,14 @@ return new class extends Migration {
         }
 
         // 2) Índice avulso em produto_id para liberar a FK (se ainda não existir)
-        $temIdxProduto = collect(DB::select("SHOW INDEX FROM estoque_saldos"))
-            ->contains(fn ($i) => $i->Key_name === 'estoque_saldos_produto_id_index');
+        $temIdxProduto = collect(Schema::getIndexes('estoque_saldos'))
+            ->contains(fn ($i) => $i['name'] === 'estoque_saldos_produto_id_index');
         if (!$temIdxProduto) {
             Schema::table('estoque_saldos', fn (Blueprint $t) => $t->index('produto_id'));
         }
 
         // 3) Troca a unique (produto, obra) → (produto, obra, variante)
-        $indices = collect(DB::select("SHOW INDEX FROM estoque_saldos"))->pluck('Key_name')->unique();
+        $indices = collect(Schema::getIndexes('estoque_saldos'))->pluck('name')->unique();
         if ($indices->contains('estoque_saldos_produto_obra_unique')) {
             Schema::table('estoque_saldos', fn (Blueprint $t) => $t->dropUnique('estoque_saldos_produto_obra_unique'));
         }

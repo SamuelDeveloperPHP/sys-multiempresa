@@ -37,7 +37,9 @@ return new class extends Migration {
         //
         //    Em MySQL/MariaDB o doctrine não converte ENUM facilmente,
         //    então usamos DB::statement diretamente.
-        DB::statement('ALTER TABLE estoque_movimentacoes MODIFY validacao_method VARCHAR(20) NULL');
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement('ALTER TABLE estoque_movimentacoes MODIFY validacao_method VARCHAR(20) NULL');
+        }
     }
 
     public function down(): void
@@ -49,7 +51,9 @@ return new class extends Migration {
         });
 
         // Volta para ENUM original (descarta valores incompatíveis se houver).
-        DB::statement("ALTER TABLE estoque_movimentacoes
-                       MODIFY validacao_method ENUM('SENHA','BIOMETRIA') NULL");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE estoque_movimentacoes
+                           MODIFY validacao_method ENUM('SENHA','BIOMETRIA') NULL");
+        }
     }
 };
