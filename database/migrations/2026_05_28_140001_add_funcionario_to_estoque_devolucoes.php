@@ -22,7 +22,11 @@ return new class extends Migration {
     public function up(): void
     {
         // 1) `funcionario_user_id` aceita NULL (era FK constrained sem nullable)
-        DB::statement('ALTER TABLE estoque_devolucoes MODIFY funcionario_user_id BIGINT UNSIGNED NULL');
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement('ALTER TABLE estoque_devolucoes MODIFY funcionario_user_id BIGINT UNSIGNED NULL');
+        } else {
+            Schema::table('estoque_devolucoes', fn (Blueprint $t) => $t->unsignedBigInteger('funcionario_user_id')->nullable()->change());
+        }
 
         // 2) Adiciona funcionario_id paralelo
         Schema::table('estoque_devolucoes', function (Blueprint $t) {

@@ -29,12 +29,16 @@ return new class extends Migration {
                 $t->unsignedBigInteger('id_user')->nullable()->after('user_create');
             });
 
-            // Backfill: casa user_create (email) com users.email
+            // Backfill: casa user_create (email) com users.email.
+            // Subquery correlacionada (em vez de UPDATE ... JOIN) para rodar igual em MySQL e SQLite.
             DB::statement("
-                UPDATE veiculo_checklist_itens_servicos s
-                JOIN users u ON u.email = s.user_create
-                SET s.id_user = u.id
-                WHERE s.id_user IS NULL AND s.user_create IS NOT NULL
+                UPDATE veiculo_checklist_itens_servicos
+                SET id_user = (
+                    SELECT u.id FROM users u
+                    WHERE u.email = veiculo_checklist_itens_servicos.user_create
+                    LIMIT 1
+                )
+                WHERE id_user IS NULL AND user_create IS NOT NULL
             ");
         }
 

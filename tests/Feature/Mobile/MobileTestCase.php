@@ -14,8 +14,8 @@ use Tests\TestCase;
 /**
  * Base dos testes da API mobile.
  *
- * IMPORTANTE: as migrations do projeto não rodam em sqlite (a suíte com
- * RefreshDatabase quebra no migrate:fresh). Por isso este TestCase cria
+ * Nota: este TestCase monta um schema mínimo (em vez de rodar todas as migrations)
+ * para manter a suíte mobile rápida e isolada. Ele cria
  * APENAS o schema mínimo que os endpoints mobile tocam, direto no sqlite
  * :memory: do phpunit.xml — rápido, isolado e sem riscos ao banco real.
  */
@@ -33,7 +33,7 @@ abstract class MobileTestCase extends TestCase
             'users', 'companies', 'veiculos',
             'veiculo_checklist', 'veiculo_checklist_itens',
             'veiculo_checklist_itens_servicos', 'veiculos_diario_bordo',
-            'veiculo_abastecimentos',
+            'veiculo_abastecimentos', 'veiculos_locacaos',
             'modules', 'module_permissions',
         ] as $tabela) {
             Schema::dropIfExists($tabela);
@@ -74,6 +74,25 @@ abstract class MobileTestCase extends TestCase
         Schema::create('companies', function (Blueprint $t) {
             $t->id();
             $t->string('name')->nullable();
+            $t->timestamps();
+            $t->softDeletes();
+        });
+
+        // Consultada por Veiculo::locacaoAtual() ao registrar abastecimentos.
+        Schema::create('veiculos_locacaos', function (Blueprint $t) {
+            $t->id();
+            $t->unsignedBigInteger('company_id')->nullable();
+            $t->unsignedBigInteger('veiculo_id')->nullable();
+            $t->unsignedBigInteger('id_obra')->nullable();
+            $t->unsignedBigInteger('id_obraDestino')->nullable();
+            $t->unsignedBigInteger('id_funcionario')->nullable();
+            $t->unsignedBigInteger('id_funcionario_destino')->nullable();
+            $t->string('tipo_veiculo')->nullable();
+            $t->date('data_inicio')->nullable();
+            $t->date('data_prevista')->nullable();
+            $t->date('data_fim')->nullable();
+            $t->dateTime('data_sincronizacao')->nullable();
+            $t->tinyInteger('sync_status')->default(0);
             $t->timestamps();
             $t->softDeletes();
         });

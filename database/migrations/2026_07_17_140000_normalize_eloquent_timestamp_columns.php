@@ -43,6 +43,11 @@ return new class extends Migration
 
     public function up(): void
     {
+        // Normalização específica de MySQL/MariaDB (information_schema, sql_mode).
+        if (!in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            return;
+        }
+
         $sqlModeOriginal = DB::selectOne('SELECT @@session.sql_mode AS m')->m;
         $sqlModeRelaxado = implode(',', array_filter(
             explode(',', (string) $sqlModeOriginal),
