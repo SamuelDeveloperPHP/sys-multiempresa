@@ -39,13 +39,14 @@ const truncar = (s, n = 30) => (s && s.length > n ? s.slice(0, n) + '…' : (s ?
 export default function EntradaForm({ obras, fornecedores, obra_atual = null, is_super = false }) {
     const { auth } = usePage().props;
 
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, transform, post, processing, errors } = useForm({
         obra_id: obra_atual?.id ?? '', data_movimento: new Date().toISOString().slice(0, 10),
         fornecedor_id: '', nota_fiscal: '', data_nota_fiscal: '',
         itens: [],
     });
 
     const [carrinho, setCarrinho] = useState([]);
+    const carrinhoRef = useRef([]);
     const [q, setQ] = useState('');
     const [resultados, setResultados] = useState([]);
     const [buscando, setBuscando] = useState(false);
@@ -57,16 +58,18 @@ export default function EntradaForm({ obras, fornecedores, obra_atual = null, is
         sub: f.nome_fantasia && f.nome_fantasia !== f.razao_social ? f.nome_fantasia : '',
     }));
 
-    /* carrinho → form.itens */
+    const serializarItens = (itens) => itens.map(i => ({
+        produto_id: i.produto_id, tipo_item: i.tipo_item,
+        quantidade: i.quantidade, valor_unitario: i.valor_unitario ?? 0,
+        cor: i.cor || '', tamanho: i.tamanho || '',
+        numero_ca: i.numero_ca || '', numero_lote: i.numero_lote || '',
+        validade: i.validade || '', especificacao_tecnica: i.especificacao_tecnica || '',
+        observacao: i.observacao || '',
+    }));
+
+    /* Mantém os erros do Inertia associados a form.itens durante a edição. */
     useEffect(() => {
-        setData('itens', carrinho.map(i => ({
-            produto_id: i.produto_id, tipo_item: i.tipo_item,
-            quantidade: i.quantidade, valor_unitario: i.valor_unitario ?? 0,
-            cor: i.cor || '', tamanho: i.tamanho || '',
-            numero_ca: i.numero_ca || '', numero_lote: i.numero_lote || '',
-            validade: i.validade || '', especificacao_tecnica: i.especificacao_tecnica || '',
-            observacao: i.observacao || '',
-        })));
+        setData('itens', serializarItens(carrinho));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [carrinho]);
 
@@ -84,10 +87,18 @@ export default function EntradaForm({ obras, fornecedores, obra_atual = null, is
 
     const focarBusca = () => setTimeout(() => buscaRef.current?.focus(), 30);
 
+    // Mantém uma cópia síncrona para o submit. Assim, mesmo que o React ainda
+    // não tenha renderizado a última tecla/click, o payload usa o valor atual.
+    const atualizarCarrinho = (updater) => {
+        const next = typeof updater === 'function' ? updater(carrinhoRef.current) : updater;
+        carrinhoRef.current = next;
+        setCarrinho(next);
+    };
+
     const adicionar = (p) => {
         const tipo = inferirTipo(p);
         const epi = isEpiTipo(tipo);
-        setCarrinho(cur => {
+        atualizarCarrinho(cur => {
             // material: mescla por produto; EPI: sempre nova linha (lotes distintos)
             if (!epi) {
                 const idx = cur.findIndex(i => i.produto_id === p.id && !isEpiTipo(i.tipo_item));
@@ -105,15 +116,22 @@ export default function EntradaForm({ obras, fornecedores, obra_atual = null, is
 
     const onKey = (e) => { if (e.key === 'Enter') { e.preventDefault(); if (resultados[0]) adicionar(resultados[0]); } };
 
-    const setItem = (idx, patch) => setCarrinho(cur => cur.map((i, k) => k === idx ? { ...i, ...patch } : i));
-    const inc = (idx, d) => setCarrinho(cur => cur.map((i, k) => k === idx ? { ...i, quantidade: Math.max(0.001, Number(i.quantidade) + d) } : i));
-    const remover = (idx) => setCarrinho(cur => cur.filter((_, k) => k !== idx));
-    const limpar = () => setCarrinho([]);
+    const setItem = (idx, patch) => atualizarCarrinho(cur => cur.map((i, k) => k === idx ? { ...i, ...patch } : i));
+    const inc = (idx, d) => atualizarCarrinho(cur => cur.map((i, k) => k === idx ? { ...i, quantidade: Math.max(0.001, Number(i.quantidade) + d) } : i));
+    const remover = (idx) => atualizarCarrinho(cur => cur.filter((_, k) => k !== idx));
+    const limpar = () => atualizarCarrinho([]);
 
     const totalGeral = carrinho.reduce((s, i) => s + Number(i.quantidade || 0) * Number(i.valor_unitario || 0), 0);
     const podeSalvar = !processing && data.obra_id && carrinho.length > 0 && carrinho.every(i => Number(i.quantidade) > 0);
 
-    const submit = (e) => { e.preventDefault(); post(route('admin.estoque.entradas.store')); };
+    const submit = (e) => {
+        e.preventDefault();
+        // useEffect roda depois do render. Serializar aqui garante que um
+        // clique imediato após editar validade/CA/lote nunca envie o estado
+        // anterior do carrinho.
+        transform((current) => ({ ...current, itens: serializarItens(carrinhoRef.current) }));
+        post(route('admin.estoque.entradas.store'));
+    };
 
     const inputCls = 'w-full border border-gray-300 rounded px-2 py-1 text-sm';
     const epiInput = 'w-full border border-amber-300 bg-white rounded px-1.5 py-1 text-[11px]';
@@ -205,7 +223,7 @@ export default function EntradaForm({ obras, fornecedores, obra_atual = null, is
                                                 </div>
                                                 <div>
                                                     <label className="block text-[9px] uppercase text-amber-700 font-semibold">Validade</label>
-                                                    <input type="date" value={it.validade} onChange={(e) => setItem(idx, { validade: e.target.value })} className={epiInput} />
+                                                    <input type="date" value={it.validade} onInput={(e) => setItem(idx, { validade: e.currentTarget.value })} className={epiInput} />
                                                 </div>
                                                 <div>
                                                     <label className="block text-[9px] uppercase text-amber-700 font-semibold">Espec. técnica</label>

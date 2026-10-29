@@ -9,6 +9,16 @@ use Illuminate\Http\Request;
 
 class ModuleAccess
 {
+    /**
+     * Telas operacionais que pertencem ao mesmo domínio de permissão,
+     * embora usem controllers e nomes de rota dedicados.
+     */
+    private const ROUTE_MODULE_ALIASES = [
+        'admin.estoque.entradas.' => 'admin.estoque.movimentacoes.index',
+        'admin.estoque.saidas.' => 'admin.estoque.movimentacoes.index',
+        'admin.estoque.transferencias.' => 'admin.estoque.movimentacoes.index',
+    ];
+
     public function handle(Request $request, Closure $next)
     {
         $user = auth()->user();
@@ -38,6 +48,18 @@ class ModuleAccess
         $module = Module::where('is_active', true)
             ->where('route_name', $routeName)
             ->first();
+
+        // Rotas especializadas reutilizam a permissão do módulo funcional.
+        if (!$module) {
+            foreach (self::ROUTE_MODULE_ALIASES as $routePrefix => $moduleRoute) {
+                if (str_starts_with($routeName, $routePrefix)) {
+                    $module = Module::where('is_active', true)
+                        ->where('route_name', $moduleRoute)
+                        ->first();
+                    break;
+                }
+            }
+        }
 
         // 2) Se não achou, tenta procurar um módulo pai reduzindo a rota até achar um ".index"
         if (!$module && str_contains($routeName, '.')) {

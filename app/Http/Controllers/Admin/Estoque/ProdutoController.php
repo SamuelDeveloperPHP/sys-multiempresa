@@ -140,6 +140,11 @@ class ProdutoController extends Controller
         // Classificação + flag derivada
         $data['tipo_item']         = $data['tipo_item'] ?? Produto::TIPO_MATERIAL;
         $data['controla_variacao'] = $data['tipo_item'] !== Produto::TIPO_MATERIAL;
+        // O campo fica desabilitado no front para itens controlados por lote.
+        // ConvertEmptyStringsToNull transforma o valor vazio em null, mas a
+        // coluna é NOT NULL. O preço real continuará vindo da entrada/lote.
+        $data['valor_unitario']    = (float) ($data['valor_unitario'] ?? 0);
+        $data['estoque_minimo']    = (float) ($data['estoque_minimo'] ?? 0);
 
         if ($request->hasFile('imagem')) {
             $data['imagem'] = $request->file('imagem')->store('estoque/produtos', 'public');
@@ -170,6 +175,8 @@ class ProdutoController extends Controller
         // Classificação + flag derivada
         $data['tipo_item']         = $data['tipo_item'] ?? $produto->tipo_item ?? Produto::TIPO_MATERIAL;
         $data['controla_variacao'] = $data['tipo_item'] !== Produto::TIPO_MATERIAL;
+        $data['valor_unitario']    = (float) ($data['valor_unitario'] ?? 0);
+        $data['estoque_minimo']    = (float) ($data['estoque_minimo'] ?? 0);
 
         if ($request->hasFile('imagem')) {
             if ($produto->imagem) {

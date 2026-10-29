@@ -861,6 +861,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     [\App\Http\Controllers\Admin\FuncionarioSenhaRetiradaController::class, 'validarSenha'])
                     ->name('movimentacoes.validar-funcionario');
                 Route::resource('movimentacoes', \App\Http\Controllers\Admin\Estoque\MovimentacaoController::class)
+                    ->parameters(['movimentacoes' => 'movimentacao'])
                     ->only(['index', 'create', 'store', 'show', 'destroy']);
 
                 /* -----------------------------------------------------------------

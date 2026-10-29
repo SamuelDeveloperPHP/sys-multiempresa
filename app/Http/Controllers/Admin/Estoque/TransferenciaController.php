@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin\Estoque;
 use App\Helpers\CompanyContext;
 use App\Http\Controllers\Controller;
 use App\Models\Estoque\Movimentacao;
+use App\Models\Estoque\Lote;
+use App\Models\Estoque\Produto;
 use App\Models\Estoque\Saldo;
 use App\Models\Obra;
 use Illuminate\Http\Request;
@@ -77,6 +79,7 @@ class TransferenciaController extends Controller
 
         $data = $request->validate([
             'produto_id'      => ['required', 'integer', Rule::exists('estoque_produtos', 'id')->whereNull('deleted_at')],
+            'lote_id'         => ['nullable', 'integer', Rule::exists('estoque_lotes', 'id')->whereNull('deleted_at')],
             'obra_id'         => ['required', 'integer', Rule::exists('obras', 'id')],
             'obra_destino_id' => ['required', 'integer', 'different:obra_id', Rule::exists('obras', 'id')],
             'quantidade'      => ['required', 'numeric', 'gt:0', 'max:999999.999'],
@@ -87,27 +90,73 @@ class TransferenciaController extends Controller
             'obra_destino_id.different' => 'A obra de destino deve ser diferente da origem.',
         ]);
 
-        // Saldo
-        $saldo = Saldo::where('produto_id', $data['produto_id'])
-            ->where('obra_id', $data['obra_id'])->value('quantidade') ?? 0;
-        if ((float) $saldo < (float) $data['quantidade']) {
+        $produto = Produto::findOrFail($data['produto_id']);
+        $controlaLote = $produto->isEpiOuAfins();
+        if ($controlaLote && empty($data['lote_id'])) {
             throw ValidationException::withMessages([
-                'quantidade' => sprintf('Saldo insuficiente na obra de origem. Disponível: %s.',
-                    number_format((float) $saldo, 3, ',', '.')),
+                'lote_id' => 'Selecione o lote/variante que será transferido.',
             ]);
         }
 
-        $valorTotal = (float) $data['quantidade'] * (float) ($data['valor_unitario'] ?? 0);
         $userEmail  = Auth::user()->email;
 
-        $out = DB::transaction(function () use ($data, $valorTotal, $companyId, $userEmail) {
+        $out = DB::transaction(function () use ($data, $produto, $controlaLote, $companyId, $userEmail) {
+            $loteOrigem = null;
+            $varianteId = null;
+
+            if ($controlaLote) {
+                $loteOrigem = Lote::withoutGlobalScopes()
+                    ->whereKey($data['lote_id'])
+                    ->where('company_id', $companyId)
+                    ->where('produto_id', $produto->id)
+                    ->where('obra_id', $data['obra_id'])
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$loteOrigem) {
+                    throw ValidationException::withMessages([
+                        'lote_id' => 'O lote selecionado não pertence ao produto e à obra de origem.',
+                    ]);
+                }
+                if ((float) $loteOrigem->quantidade_atual < (float) $data['quantidade']) {
+                    throw ValidationException::withMessages([
+                        'quantidade' => sprintf(
+                            'Saldo insuficiente no lote de origem. Disponível: %s.',
+                            number_format((float) $loteOrigem->quantidade_atual, 3, ',', '.')
+                        ),
+                    ]);
+                }
+                $varianteId = $loteOrigem->variante_id;
+            } else {
+                $saldo = Saldo::withoutGlobalScopes()
+                    ->where('company_id', $companyId)
+                    ->where('produto_id', $produto->id)
+                    ->where('obra_id', $data['obra_id'])
+                    ->whereNull('variante_id')
+                    ->lockForUpdate()
+                    ->value('quantidade') ?? 0;
+                if ((float) $saldo < (float) $data['quantidade']) {
+                    throw ValidationException::withMessages([
+                        'quantidade' => sprintf(
+                            'Saldo insuficiente na obra de origem. Disponível: %s.',
+                            number_format((float) $saldo, 3, ',', '.')
+                        ),
+                    ]);
+                }
+            }
+
+            $valorUnitario = (float) ($data['valor_unitario'] ?? $loteOrigem?->valor_unitario ?? 0);
+            $valorTotal = (float) $data['quantidade'] * $valorUnitario;
+
             $out = Movimentacao::create([
                 'company_id'          => $companyId,
-                'produto_id'          => $data['produto_id'],
+                'produto_id'          => $produto->id,
+                'variante_id'         => $varianteId,
+                'lote_id'             => $loteOrigem?->id,
                 'obra_id'             => $data['obra_id'],
                 'tipo'                => Movimentacao::TIPO_TRANSF_OUT,
                 'quantidade'          => $data['quantidade'],
-                'valor_unitario'      => $data['valor_unitario'] ?? 0,
+                'valor_unitario'      => $valorUnitario,
                 'valor_total'         => $valorTotal,
                 'data_movimento'      => $data['data_movimento'],
                 'observacao'          => $data['observacao'] ?? null,
@@ -117,11 +166,12 @@ class TransferenciaController extends Controller
 
             $in = Movimentacao::create([
                 'company_id'          => $companyId,
-                'produto_id'          => $data['produto_id'],
+                'produto_id'          => $produto->id,
+                'variante_id'         => $varianteId,
                 'obra_id'             => $data['obra_destino_id'],
                 'tipo'                => Movimentacao::TIPO_TRANSF_IN,
                 'quantidade'          => $data['quantidade'],
-                'valor_unitario'      => $data['valor_unitario'] ?? 0,
+                'valor_unitario'      => $valorUnitario,
                 'valor_total'         => $valorTotal,
                 'data_movimento'      => $data['data_movimento'],
                 'observacao'          => $data['observacao'] ?? null,
@@ -129,6 +179,27 @@ class TransferenciaController extends Controller
                 'movimentacao_par_id' => $out->id,
                 'user_create'         => $userEmail,
             ]);
+
+            if ($loteOrigem) {
+                $loteDestino = Lote::create([
+                    'company_id'              => $companyId,
+                    'produto_id'              => $produto->id,
+                    'variante_id'             => $varianteId,
+                    'obra_id'                 => $data['obra_destino_id'],
+                    'numero_ca'               => $loteOrigem->numero_ca,
+                    'numero_lote'             => $loteOrigem->numero_lote,
+                    'validade'                => $loteOrigem->validade,
+                    'especificacao_tecnica'   => $loteOrigem->especificacao_tecnica,
+                    'fornecedor_id'           => $loteOrigem->fornecedor_id,
+                    'valor_unitario'          => $valorUnitario,
+                    'quantidade_inicial'      => $data['quantidade'],
+                    'quantidade_atual'        => $data['quantidade'],
+                    'data_entrada'            => $data['data_movimento'],
+                    'movimentacao_entrada_id' => $in->id,
+                ]);
+                $loteOrigem->decrement('quantidade_atual', (float) $data['quantidade']);
+                $in->forceFill(['lote_id' => $loteDestino->id])->saveQuietly();
+            }
 
             $out->update(['movimentacao_par_id' => $in->id]);
             return $out;

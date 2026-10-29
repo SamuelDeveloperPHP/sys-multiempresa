@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Field, ProdutoPicker, SaldoBadge } from '../_shared/Pickers';
+import {
+    Field, ProdutoPicker, SaldoBadge, LoteSelector, produtoControlaLote,
+} from '../_shared/Pickers';
 
 /**
  * Formulário dedicado de TRANSFERÊNCIA entre obras.
@@ -10,6 +12,7 @@ import { Field, ProdutoPicker, SaldoBadge } from '../_shared/Pickers';
 export default function TransferenciaForm({ obras }) {
     const { data, setData, post, processing, errors } = useForm({
         produto_id:       '',
+        lote_id:          '',
         obra_id:          '',
         obra_destino_id:  '',
         quantidade:       '',
@@ -19,6 +22,7 @@ export default function TransferenciaForm({ obras }) {
     });
 
     const [produtoSel, setProdutoSel] = useState(null);
+    const controlaLote = produtoControlaLote(produtoSel);
 
     const moeda = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -49,7 +53,14 @@ export default function TransferenciaForm({ obras }) {
                         <h3 className="text-sm font-semibold text-gray-700 mb-3">Produto</h3>
                         <ProdutoPicker
                             value={data.produto_id}
-                            onChange={(p) => { setProdutoSel(p); setData('produto_id', p?.id || ''); }}
+                            onChange={(p) => {
+                                setProdutoSel(p);
+                                setData((current) => ({
+                                    ...current,
+                                    produto_id: p?.id || '',
+                                    lote_id: '',
+                                }));
+                            }}
                             selecionado={produtoSel}
                         />
                         {errors.produto_id && <p className="text-xs text-red-600 mt-2">{errors.produto_id}</p>}
@@ -77,6 +88,20 @@ export default function TransferenciaForm({ obras }) {
                         {data.produto_id && data.obra_id && (
                             <SaldoBadge produto_id={data.produto_id} obra_id={data.obra_id}
                                         label="Saldo na obra de origem:" />
+                        )}
+                        {controlaLote && (
+                            <Field label="Lote / variante de origem *" error={errors.lote_id}>
+                                <LoteSelector
+                                    produto_id={data.produto_id}
+                                    obra_id={data.obra_id}
+                                    value={Number(data.lote_id) || null}
+                                    onChange={(loteId, lote) => setData((current) => ({
+                                        ...current,
+                                        lote_id: loteId || '',
+                                        valor_unitario: lote?.valor_unitario ?? current.valor_unitario,
+                                    }))}
+                                />
+                            </Field>
                         )}
                     </div>
 
