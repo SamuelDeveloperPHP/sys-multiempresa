@@ -16,3 +16,10 @@
 - 17 testes mobile / 67 asserções aprovados; cobertura Admin de Frota permanece pendente.
 - Correções funcionais ainda não iniciadas.
 
+## 2026-10-29 — Backlog de correções de Frota
+
+- Backlog técnico priorizado em quatro ondas e 17 itens (`FRT-000` a `FRT-016`).
+- Estratégia recomendada: risco primeiro, começando por testes, autorização e ownership mobile.
+- Dependências, critérios de aceite, gates de dados e definição de pronto documentados.
+- Estado: pronto para refinamento/execução; nenhuma correção funcional iniciada.
+
