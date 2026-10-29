@@ -1,7 +1,7 @@
 # Backlog sênior — Correções dos módulos de Frota
 
 Data: 2026-10-29  
-Status: em execução — `FRT-000` concluído
+Status: em execução — `FRT-000` e `FRT-001` concluídos
 Origem: `frota-gestao-veiculos-review.md`
 
 ## Objetivo
@@ -33,7 +33,7 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 | Ordem | ID | Item | Prioridade | Esforço | Dependências |
 |---:|---|---|:---:|:---:|---|
 | 0 | FRT-000 | Baseline de testes e diagnóstico repetível — concluído | P1 | M | — |
-| 1 | FRT-001 | Autorização explícita das rotas mutáveis | P1 | M | FRT-000 |
+| 1 | FRT-001 | Autorização explícita das rotas mutáveis — concluído | P1 | M | FRT-000 |
 | 2 | FRT-002 | Ownership nas mutações mobile | P1 | M | FRT-000 |
 | 3 | FRT-003 | Contrato canônico de checklist Admin/PWA | P1 | L | FRT-000 |
 | 4 | FRT-004 | Completude e versionamento do checklist | P1 | L | FRT-003 |
@@ -86,6 +86,8 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 
 ### FRT-001 — Autorização explícita das rotas mutáveis
 
+**Status:** concluído em 2026-10-29 no commit `9a942b9`.
+
 **Resultado esperado:** nenhuma requisição de escrita é autorizada como simples visualização.
 
 **Escopo:** mapear todas as rotas POST/PUT/PATCH/DELETE de Frota para habilidade/policy explícita; remover o fallback inseguro por nome de método; validar ações como pneus, preventivas, obsolescência, duplicação e depreciação.
@@ -96,6 +98,16 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 - perfis com a habilidade correta mantêm o fluxo atual;
 - matriz automatizada cobre cada rota mutável de Frota;
 - tentativa negada não altera banco nem arquivos.
+
+**Implementação entregue:**
+
+- macro `moduleAbility()` para declarar `create`, `edit` ou `delete` diretamente nas rotas customizadas;
+- todas as ações customizadas de Frota classificadas explicitamente;
+- fallback seguro no `ModuleAccess`: mutações desconhecidas nunca retornam `view`;
+- matriz automatizada das 92 rotas mutáveis;
+- testes HTTP comprovando 403 sem mutação para perfil somente leitura e sucesso para editor.
+
+**Validação:** 64 testes e 349 asserções na suíte completa; cache de rotas criado e limpo com sucesso; nenhuma alteração de banco necessária.
 
 ### FRT-002 — Ownership nas mutações mobile
 

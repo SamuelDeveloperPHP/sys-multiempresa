@@ -31,3 +31,12 @@
 - Validação completa: 61 testes e 203 asserções; nenhuma regressão.
 - Próximo item: `FRT-001` — autorização explícita das rotas mutáveis.
 
+## 2026-10-29 — FRT-001 concluído
+
+- As 92 rotas mutáveis de Frota agora exigem habilidade de escrita.
+- Ações customizadas declaram `moduleAbility()` na própria rota.
+- O fallback global de mutações deixou de retornar `view`.
+- Perfil somente leitura validado com 403 e ausência de mutação; perfil editor validado com sucesso.
+- Suíte completa: 64 testes e 349 asserções; cache de rotas aprovado.
+- Próximo item: `FRT-002` — ownership nas mutações mobile.
+
