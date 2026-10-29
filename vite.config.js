@@ -46,9 +46,9 @@ export default defineConfig({
             filename: 'sw.js',
             manifestFilename: 'manifest.webmanifest',
             manifest: {
-                name: 'SGA',
-                short_name: 'SGA',
-                description: 'Sistema de Gestão de Ativos - Engetecnica',
+                name: 'Gestão de Ativos',
+                short_name: 'Gestão',
+                description: 'Sistema de gestão empresarial',
                 theme_color: '#557bbb',
                 background_color: '#ffffff',
                 display: 'standalone',
@@ -58,22 +58,10 @@ export default defineConfig({
                 lang: 'pt-BR',
                 icons: [
                     {
-                        src: '/imagens/logos/adaptive-icon.png',
-                        sizes: '192x192',
-                        type: 'image/png',
+                        src: '/imagens/icons/icon.svg',
+                        sizes: 'any',
+                        type: 'image/svg+xml',
                         purpose: 'any',
-                    },
-                    {
-                        src: '/imagens/logos/adaptive-icon.png',
-                        sizes: '512x512',
-                        type: 'image/png',
-                        purpose: 'any',
-                    },
-                    {
-                        src: '/imagens/logos/adaptive-icon.png',
-                        sizes: '512x512',
-                        type: 'image/png',
-                        purpose: 'maskable',
                     },
                 ],
             },

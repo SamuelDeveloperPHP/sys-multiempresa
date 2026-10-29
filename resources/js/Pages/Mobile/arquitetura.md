@@ -301,7 +301,7 @@ window.addEventListener('online',  () => banner('Conexão restabelecida'));
 - [x] CRUD local gravando no IndexedDB (UUID por registro: client_uuid em localCreate)
 - [x] Botão "Enviar Dados" + fila assíncrona com retry/backoff exponencial e triagem de rejeitados
 - [x] Background Sync no Android (bônus) — degradação limpa no iOS
-      (public/sw-bg-sync.js via workbox.importScripts; tag 'sga-sync-pendentes';
+      (public/sw-bg-sync.js via workbox.importScripts; tag de sincronização em segundo plano;
       reconciliação em syncQueue.reconcileSwResults na abertura do app)
 - [x] Toggle de conexão + banners de status (useOnlineStatus: forcedOffline + NetworkStatusBar)
 - [x] Endpoint idempotente no servidor (deduplicação por client_uuid nos stores mobile)

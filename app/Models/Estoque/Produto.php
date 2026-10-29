@@ -147,10 +147,10 @@ class Produto extends Model
 
     /**
      * Gera SKU automático se não foi informado (chamado no controller).
-     * Formato: SGA-{8 chars uniqid em base36}.
+     * Formato: MAT-{8 caracteres hexadecimais}.
      */
     public static function gerarSku(): string
     {
-        return 'SGA-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+        return 'MAT-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
     }
 }

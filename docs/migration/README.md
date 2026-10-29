@@ -1,4 +1,4 @@
-# Migração SGA → sys-multiempresa (Fase 1 + Fase 2)
+# Migração para sys-multiempresa (Fase 1 + Fase 2)
 
 Guia operacional para executar a primeira metade do plano: fundação (multi-empresa, sanctum, módulos) + domínio Frota completo.
 
@@ -98,7 +98,7 @@ Modulos Frota/SMS/Sincronizacao cadastrados/atualizados.
 
 Acesse o admin (http://localhost/sys-multiempresa/admin) e cadastre:
 
-1. Uma **Company** (ex.: "Engetecnica SGA").
+1. Uma **Company** (ex.: "Empresa").
 2. Pelo menos uma **Obra** vinculada a essa Company.
 3. Um **User** admin vinculado a essa Company e Obra via `obra_user`.
 

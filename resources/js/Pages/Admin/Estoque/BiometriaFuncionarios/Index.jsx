@@ -184,7 +184,7 @@ export default function BiometriaFuncionariosIndex({ funcionarios, busca, totalC
 // =============================================================================
 function FuncionarioRow({ funcionario: f, working, feedback, onCadastrar, disabled }) {
     const fotoUrl = f.imagem_usuario
-        ? `/build/images/users/${f.id}/${f.imagem_usuario}`
+        ? `/admin/frota/locacoes/funcionario/${f.id}/foto`
         : null;
 
     return (

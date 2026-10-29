@@ -29,7 +29,7 @@ Teste: `curl -I https://seu-host.com.br` → deve responder `HTTP/2 200`.
 
 ```bash
 # === Obrigatório em prod ===
-APP_NAME="SGA"
+APP_NAME="Gestão de Ativos"
 APP_ENV=production
 APP_KEY=base64:...           # se vazio, rode `php artisan key:generate`
 APP_DEBUG=false              # ⚠️ NUNCA true em prod
@@ -67,20 +67,9 @@ MAIL_PORT=587
 MAIL_USERNAME=...
 MAIL_PASSWORD=...
 MAIL_ENCRYPTION=tls
-MAIL_FROM_ADDRESS=naoresponda@engetecnica.com.br
+MAIL_FROM_ADDRESS=naoresponda@empresa.com.br
 MAIL_FROM_NAME="${APP_NAME}"
 
-# === OneDrive (Microsoft Graph) ===
-# Galeria de veículos + uploads do módulo Frota.
-# ⚠️ Nomes das chaves são MS_GRAPH_* (NÃO ONEDRIVE_*). Sem elas o upload
-#    falha — não há mais fallback hardcoded no código (segurança).
-# ⚠️ ROTACIONE o client_secret no Azure: o valor antigo esteve versionado
-#    no git e deve ser considerado comprometido.
-MS_GRAPH_TENANT_ID=...
-MS_GRAPH_CLIENT_ID=...
-MS_GRAPH_CLIENT_SECRET=...          # secret NOVO (rotacionado)
-MS_GRAPH_SITE_ID=...
-MS_GRAPH_ROOT_FOLDER=SGA-Engeativos
 ```
 
 ### 3. Permissões de arquivo
@@ -91,6 +80,9 @@ sudo chmod -R 755 /var/www/sys-multiempresa
 sudo chmod -R 775 /var/www/sys-multiempresa/storage
 sudo chmod -R 775 /var/www/sys-multiempresa/bootstrap/cache
 ```
+
+Anexos privados de funcionários e veículos são gravados em
+`storage/app/private/public/uploads`; mantenha essa pasta fora do document root.
 
 ### 4. Migrations + backup
 
@@ -138,9 +130,9 @@ Esse cron executa o `AlertarPreventivasFrota` (08:00 BRT) e qualquer outro sched
 
 ### 7. Supervisor (queue worker) — opcional mas recomendado
 
-`/etc/supervisor/conf.d/sga-queue.conf`:
+`/etc/supervisor/conf.d/app-queue.conf`:
 ```ini
-[program:sga-queue]
+[program:app-queue]
 process_name=%(program_name)s_%(process_num)02d
 command=php /var/www/sys-multiempresa/artisan queue:work database --tries=3 --max-time=3600
 autostart=true
@@ -148,11 +140,11 @@ autorestart=true
 user=www-data
 numprocs=2
 redirect_stderr=true
-stdout_logfile=/var/log/sga-queue.log
+stdout_logfile=/var/log/app-queue.log
 ```
 
 ```bash
-sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl start sga-queue:*
+sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl start app-queue:*
 ```
 
 ## 🟡 Recomendações importantes (pós-deploy inicial)
@@ -208,7 +200,7 @@ php artisan db:seed --class=ModulesPermissionsSeeder --force
 php artisan tinker
 > User::create([
 >   'name' => 'Samuel Melo',
->   'email' => 'samuel.melo@engetecnica.com.br',
+>   'email' => 'usuario@empresa.com.br',
 >   'password' => Hash::make('senha_forte_aqui'),
 >   'type' => 'super_admin',
 >   'is_active' => 1,
@@ -280,8 +272,8 @@ mysql -u USER -p NOME_BANCO < backup_YYYYMMDD_HHMMSS.sql
 
 1. Abra `https://seu-host.com.br/m` no navegador do celular
 2. Logue com seu e-mail e senha
-3. Aceite o banner **"Instalar SGA no celular"** (Android Chrome) ou:
+3. Aceite o banner **"Instalar aplicativo no celular"** (Android Chrome) ou:
    - **iOS Safari**: Compartilhar → Adicionar à Tela de Início
-4. O ícone SGA aparece na tela inicial — abra por aí
+4. O ícone do aplicativo aparece na tela inicial — abra por aí
 5. Funciona offline após o primeiro carregamento
 6. Use o botão ☁️ Sincronizar no menu (☰) quando voltar a ter internet

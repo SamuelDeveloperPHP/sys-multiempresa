@@ -3,8 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Company;
+use App\Models\Obra;
+use App\Helpers\CompanyContext;
+use App\Models\Scopes\CompanyScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class CompanyController extends Controller
@@ -94,15 +98,39 @@ class CompanyController extends Controller
 
     public function set(Request $request)
     {
-        $request->validate([
-            'company_id' => 'required|exists:companies,id',
+        $validated = $request->validate([
+            'company_id' => ['required', 'integer', Rule::exists('companies', 'id')->whereNull('deleted_at')],
             'obra_id'    => 'nullable|exists:obras,id',
         ]);
 
-        session(['current_company_id' => $request->company_id]);
+        $user = $request->user();
+        $companyId = (int) $validated['company_id'];
+        $isPrivileged = in_array($user->type, ['super_admin', 'admin'], true);
+
+        if (!CompanyContext::userCanAccess($companyId)) {
+            abort(403, 'Você não tem acesso a esta empresa.');
+        }
+
+        if (!empty($validated['obra_id'])) {
+            $obra = Obra::withoutGlobalScope(CompanyScope::class)
+                ->whereKey((int) $validated['obra_id'])
+                ->where('company_id', $companyId)
+                ->first();
+
+            $canAccessObra = $obra && (
+                $isPrivileged
+                || $user->obras()->whereKey($obra->id)->where('company_id', $companyId)->exists()
+            );
+
+            if (!$canAccessObra) {
+                abort(403, 'Você não tem acesso a esta obra.');
+            }
+        }
+
+        session(['current_company_id' => $companyId]);
         
         if ($request->filled('obra_id')) {
-            session(['current_obra_id' => $request->obra_id]);
+            session(['current_obra_id' => (int) $validated['obra_id']]);
         } else {
             session()->forget('current_obra_id');
         }

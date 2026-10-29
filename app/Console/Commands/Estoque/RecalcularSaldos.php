@@ -6,6 +6,7 @@ use App\Models\Estoque\Movimentacao;
 use App\Models\Estoque\Saldo;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Recalcula estoque_saldos a partir de zero, somando todas as movimentações.
@@ -35,18 +36,18 @@ class RecalcularSaldos extends Command
         $this->info('Recalculando saldos…' . ($dryRun ? ' (DRY-RUN — não persiste)' : ''));
 
         // 1. Apaga saldos atuais (do escopo).
-        // 2. Para cada (produto, obra) com pelo menos 1 movimentação, recalcula.
+        // 2. Para cada (produto, obra, variante) com pelo menos 1 movimentação, recalcula.
         $movQuery = Movimentacao::query();
         if ($companyId) {
             $movQuery->where('company_id', $companyId);
         }
 
         $combos = $movQuery
-            ->select('company_id', 'produto_id', 'obra_id')
-            ->groupBy('company_id', 'produto_id', 'obra_id')
+            ->select('company_id', 'produto_id', 'obra_id', 'variante_id')
+            ->groupBy('company_id', 'produto_id', 'obra_id', 'variante_id')
             ->get();
 
-        $this->info("Combinações (produto × obra) a recalcular: {$combos->count()}");
+        $this->info("Combinações (produto × obra × variante) a recalcular: {$combos->count()}");
 
         $bar = $this->output->createProgressBar($combos->count());
         $bar->start();
@@ -63,6 +64,10 @@ class RecalcularSaldos extends Command
             foreach ($combos as $combo) {
                 $movs = Movimentacao::where('produto_id', $combo->produto_id)
                     ->where('obra_id', $combo->obra_id)
+                    ->where('company_id', $combo->company_id)
+                    ->when($combo->variante_id === null,
+                        fn ($query) => $query->whereNull('variante_id'),
+                        fn ($query) => $query->where('variante_id', $combo->variante_id))
                     ->orderBy('data_movimento')
                     ->orderBy('id')
                     ->get();
@@ -84,14 +89,19 @@ class RecalcularSaldos extends Command
                 }
 
                 if (!$dryRun) {
-                    Saldo::create([
+                    $attributes = [
                         'company_id'  => $combo->company_id,
                         'produto_id'  => $combo->produto_id,
+                        'variante_id' => $combo->variante_id,
                         'obra_id'     => $combo->obra_id,
                         'quantidade'  => $qtd,
                         'valor_medio' => $pmp,
                         'ultima_movimentacao_at' => $movs->last()?->updated_at,
-                    ]);
+                    ];
+                    if (Schema::hasColumn('estoque_saldos', 'variante_key')) {
+                        $attributes['variante_key'] = (int) ($combo->variante_id ?? 0);
+                    }
+                    Saldo::create($attributes);
                 }
             }
         });

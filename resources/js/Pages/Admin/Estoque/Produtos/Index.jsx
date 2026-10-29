@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { safeLabel } from '@/utils/sanitize';
 
 export default function ProdutosIndex({ produtos, categorias, filtros }) {
     const { flash } = usePage().props;
@@ -274,7 +275,7 @@ function Pagination({ produtos }) {
                     <a
                         key={i}
                         href={link.url || '#'}
-                        dangerouslySetInnerHTML={{ __html: link.label }}
+                        dangerouslySetInnerHTML={safeLabel(link.label)}
                         className={`px-3 py-1.5 rounded border text-xs ${
                             link.active
                                 ? 'bg-rise-600 text-white border-rise-600'

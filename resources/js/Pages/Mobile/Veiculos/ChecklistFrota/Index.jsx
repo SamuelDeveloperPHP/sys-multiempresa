@@ -130,7 +130,7 @@ export default function ChecklistFrotaIndex({ veiculoId }) {
                             Histórico ({(historico || []).length})
                         </h2>
                         <Link
-                            href={`/mobile/veiculos/${id}/checklist/historico`}
+                            href="/mobile/checklists"
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#557bbb]/10 text-[#557bbb] border border-[#557bbb]/40 active:bg-[#557bbb]/20"
                         >
                             Ver tudo <i className="fa-solid fa-chevron-right ml-0.5 text-[9px]" />

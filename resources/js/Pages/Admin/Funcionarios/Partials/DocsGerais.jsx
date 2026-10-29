@@ -94,7 +94,8 @@ export default function DocsGerais({ funcionario }) {
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Arquivo PDF/Imagem *</label>
                                 <input 
-                                    type="file" 
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-200 rounded-md cursor-pointer"
                                     onChange={e => setFormData({...formData, file: e.target.files[0]})}
                                     required
@@ -140,7 +141,12 @@ export default function DocsGerais({ funcionario }) {
                                     
                                     return (
                                         <tr key={idx} className="hover:bg-gray-50 transition">
-                                            <td className="px-4 py-3 font-medium text-gray-800">{anexo.nome_arquivo}</td>
+                                            <td className="px-4 py-3 font-medium text-gray-800">
+                                                <a href={route('admin.funcionarios.documentos.arquivo', anexo.id)} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
+                                                    {anexo.nome_arquivo}
+                                                </a>
+                                                <a href={`${route('admin.funcionarios.documentos.arquivo', anexo.id)}?download=1`} className="ml-2 text-xs text-gray-500 hover:underline">Baixar</a>
+                                            </td>
                                             <td className="px-4 py-3 text-center text-gray-600">
                                                 {new Date(anexo.created_at).toLocaleDateString('pt-BR')}
                                             </td>
@@ -166,7 +172,7 @@ export default function DocsGerais({ funcionario }) {
                                                 </select>
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                <button type="button" className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded transition" title="Excluir Documento" onClick={() => alert('Excluir documento?')}>
+                                                <button type="button" className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded transition" title="Excluir Documento" onClick={() => window.confirm('Excluir este documento?') && router.delete(route('admin.funcionarios.excluir_documento', anexo.id), { preserveScroll: true })}>
                                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                 </button>
                                             </td>

@@ -393,7 +393,7 @@ export default function VeiculoForm({ veiculo, subcategorias: subIni = [], looku
 
             <div className="mt-4">
               <label className={lbl}>Imagem principal</label>
-              <input type="file" accept="image/*" onChange={(e) => onImagem(e.target.files[0] ?? null)} className="block w-full text-sm" />
+              <input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={(e) => onImagem(e.target.files[0] ?? null)} className="block w-full text-sm" />
               {errors.imagem && <p className="text-red-600 text-xs mt-0.5">{errors.imagem}</p>}
               <p className="text-xs text-gray-400 mt-1">Máx. 5 MB. Galeria (mais fotos) na tela de detalhes.</p>
             </div>

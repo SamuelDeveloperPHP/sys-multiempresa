@@ -101,7 +101,7 @@ $zipSize = [math]::Round((Get-Item $zipPath).Length / 1MB, 2)
 Write-Host "OK - deps_$timestamp.zip ($zipSize MB)" -ForegroundColor Green
 Write-Host ""
 Write-Host "No servidor:" -ForegroundColor Cyan
-Write-Host "  cd ~/newsga" -ForegroundColor White
+    Write-Host "  cd ~/app-gestao" -ForegroundColor White
 Write-Host "  # backup do .env e dos diretorios atuais (se ja existirem)" -ForegroundColor DarkGray
 Write-Host "  unzip -o deps_*.zip" -ForegroundColor White
 Write-Host "  rm deps_*.zip" -ForegroundColor White

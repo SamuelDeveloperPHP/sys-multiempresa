@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { safeLabel } from '@/utils/sanitize';
 
 const moeda = (v) =>
     v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -239,7 +240,7 @@ function Pagination({ page }) {
             <span className="text-gray-600">{page.from}–{page.to} de {page.total}</span>
             <div className="flex flex-wrap gap-1">
                 {page.links.map((link, i) => (
-                    <a key={i} href={link.url || '#'} dangerouslySetInnerHTML={{ __html: link.label }}
+                    <a key={i} href={link.url || '#'} dangerouslySetInnerHTML={safeLabel(link.label)}
                         className={`px-3 py-1.5 rounded border text-xs ${
                             link.active ? 'bg-rise-600 text-white border-rise-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                         } ${!link.url ? 'opacity-40 pointer-events-none' : ''}`} />

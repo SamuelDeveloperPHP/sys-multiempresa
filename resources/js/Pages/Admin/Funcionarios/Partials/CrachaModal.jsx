@@ -612,7 +612,7 @@ export default function CrachaModal({ isOpen, onClose, funcionario }) {
                             <input
                                 ref={fileInputRef}
                                 type="file"
-                                accept="image/*"
+                                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                                 onChange={handleFile}
                                 className="hidden"
                             />

@@ -12,10 +12,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="SGA">
-    <link rel="apple-touch-icon" href="/imagens/logos/icon.png">
-    <link rel="icon" type="image/png" href="/imagens/logos/icon.png">
-    <link rel="shortcut icon" href="/imagens/logos/icon.png">
+    <meta name="apple-mobile-web-app-title" content="{{ config('app.name') }}">
+    <link rel="icon" type="image/svg+xml" href="/imagens/icons/icon.svg">
 
     {{-- Font Awesome 6: importado via npm (em resources/css/app.css). Sem CDN para evitar Tracking Prevention. --}}
 
@@ -100,13 +98,13 @@
                 // Se algo foi limpo AGORA, recarrega UMA única vez para garantir
                 // que os assets venham fresh — mas usando flag em sessionStorage
                 // para nunca entrar em loop.
-                const alreadyCleaned = sessionStorage.getItem('sga_dev_sw_cleaned');
+                const alreadyCleaned = sessionStorage.getItem('app_dev_sw_cleaned');
                 const hadSwOrCache = (await navigator.serviceWorker.getRegistrations()).length === 0;
                 // Note: depois de unregister, getRegistrations() retorna 0. Não recarregamos
                 // automaticamente — o próprio ato de desregistrar não força HTML novo;
                 // a próxima navegação já virá fresh do servidor. Sem reload, sem loop.
                 if (!alreadyCleaned) {
-                    sessionStorage.setItem('sga_dev_sw_cleaned', '1');
+                    sessionStorage.setItem('app_dev_sw_cleaned', '1');
                 }
             })();
         }

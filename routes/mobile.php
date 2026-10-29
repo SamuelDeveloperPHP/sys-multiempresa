@@ -22,7 +22,7 @@ Route::get('/m',           fn() => redirect('/mobile/veiculos'))->name('m.short'
 Route::get('/mobile',      fn() => redirect('/mobile/veiculos'))->name('mobile.short');
 
 // =============== PAGES (Inertia) ===============
-Route::middleware(['auth', 'mobile.access'])->prefix('mobile')->name('mobile.')->group(function () {
+Route::middleware(['auth', 'mobile.access', 'company'])->prefix('mobile')->name('mobile.')->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [PagesController::class, 'dashboardMobile'])->name('dashboard');
@@ -65,7 +65,7 @@ Route::middleware(['auth', 'mobile.access'])->prefix('mobile')->name('mobile.')-
 });
 
 // =============== API JSON (consumida pelo Dexie) ===============
-Route::middleware(['auth', 'mobile.access', 'throttle:120,1'])->prefix('api/mobile')->name('mobile.api.')->group(function () {
+Route::middleware(['auth', 'mobile.access', 'company', 'throttle:120,1'])->prefix('api/mobile')->name('mobile.api.')->group(function () {
 
     // Health check
     Route::get('/ping', [MobileApiController::class, 'ping'])->name('ping');

@@ -24,7 +24,6 @@ use App\Models\AnexoFuncionarioHistorico;
 use App\Helpers\FileUploadHelper;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use App\Services\Funcionario\FichaRegistroExtractor;
 
 class FuncionarioController extends Controller
@@ -80,25 +79,6 @@ class FuncionarioController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             return back()->withErrors(['error' => 'Falha ao listar funcionários.']);
-        }
-    }
-
-    public function revisaoOnedrive()
-    {
-        try {
-            $funcionarios = Funcionario::with(['obra', 'funcao', 'setor'])
-                ->where('status', 'Ativo')
-                ->orderBy('nome')
-                ->paginate(50);
-
-            return Inertia::render('Admin/Funcionarios/RevisaoOneDrive', [
-                'funcionarios' => $funcionarios
-            ]);
-        } catch (Throwable $e) {
-            Log::error('Erro ao listar funcionarios para Revisao OneDrive', [
-                'msg' => $e->getMessage(),
-            ]);
-            return back()->withErrors(['error' => 'Falha ao abrir tela de revisão.']);
         }
     }
 
@@ -403,7 +383,7 @@ class FuncionarioController extends Controller
         $maxKb = (int) config('funcionario_import.max_file_mb', 20) * 1024;
 
         $request->validate([
-            'arquivo' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,webp', "max:{$maxKb}"],
+            'arquivo' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', "max:{$maxKb}"],
         ], [
             'arquivo.required' => 'Selecione um arquivo (PDF ou imagem).',
             'arquivo.mimes'    => 'Formato inválido. Aceitos: PDF, JPG, PNG ou WEBP.',
@@ -687,7 +667,7 @@ class FuncionarioController extends Controller
     /**
      * Salva uma imagem editada (PNG em base64) como foto do funcionário.
      * Origem: editor de crachá (Fabric.js canvas exportado).
-     * Destino: public/uploads/usuarios/{id}/foto.png + coluna imagem_usuario.
+     * Destino: storage/app/private/public/uploads/funcionarios/{id}/foto + coluna imagem_usuario.
      */
     public function salvarFotoPerfil(Request $request, Funcionario $funcionario)
     {
@@ -704,7 +684,7 @@ class FuncionarioController extends Controller
             $dataUrl = $request->input('image');
 
             // Aceita 'data:image/png;base64,XXX' ou já apenas o base64
-            if (preg_match('/^data:image\/(png|jpe?g|webp);base64,(.+)$/i', $dataUrl, $matches)) {
+            if (preg_match('/^data:image\/(png|jpe?g);base64,(.+)$/i', $dataUrl, $matches)) {
                 $ext     = strtolower($matches[1]) === 'jpg' ? 'jpeg' : strtolower($matches[1]);
                 $payload = $matches[2];
             } else {
@@ -722,17 +702,13 @@ class FuncionarioController extends Controller
                 return back()->withErrors(['error' => 'Imagem maior que 5 MB.']);
             }
 
-            $filename  = 'foto.' . $ext;
-            $relPath   = "uploads/usuarios/{$funcionario->id}/{$filename}";
-            $publicDir = public_path("uploads/usuarios/{$funcionario->id}");
-
-            if (! is_dir($publicDir)) {
-                mkdir($publicDir, 0775, true);
-            }
-
-            file_put_contents(public_path($relPath), $binary);
-
-            $funcionario->update(['imagem_usuario' => $relPath]);
+            FileUploadHelper::replaceContents(
+                $funcionario->imagem_usuario,
+                $binary,
+                "funcionarios/{$funcionario->id}",
+                $ext,
+                fn ($path) => $funcionario->update(['imagem_usuario' => $path])
+            );
 
             return back()->with('success', 'Foto do funcionário atualizada com sucesso.');
         } catch (Throwable $e) {
@@ -742,6 +718,23 @@ class FuncionarioController extends Controller
             ]);
             return back()->withErrors(['error' => 'Falha ao salvar foto: ' . $e->getMessage()]);
         }
+    }
+
+    public function foto(Funcionario $funcionario)
+    {
+        abort_unless($this->abilitiesForCurrentUser('funcionarios')['view'], 403);
+        abort_unless($funcionario->imagem_usuario, 404);
+
+        return FileUploadHelper::serve($funcionario->imagem_usuario, false, "funcionarios/{$funcionario->id}");
+    }
+
+    public function visualizarDocumento(AnexoFuncionario $anexo)
+    {
+        abort_unless($this->abilitiesForCurrentUser('funcionarios')['view'], 403);
+        Funcionario::findOrFail($anexo->id_funcionario);
+        abort_unless($anexo->arquivo, 404);
+
+        return FileUploadHelper::serve($anexo->arquivo, request()->boolean('download'), "funcionarios/{$anexo->id_funcionario}");
     }
 
     /**
@@ -778,6 +771,12 @@ class FuncionarioController extends Controller
 
     public function adicionarAnexos(Request $request)
     {
+        $request->validate([
+            'id_funcionario_anexo' => 'required|integer|exists:funcionarios,id',
+            'file' => 'required|array|min:1',
+            'file.*' => 'required|file|mimes:pdf,jpg,jpeg,png|max:20480',
+        ]);
+
         if (!$request->hasFile('file')) {
             return back()->withErrors(['error' => 'Selecione ao menos um arquivo.']);
         }
@@ -786,8 +785,10 @@ class FuncionarioController extends Controller
         $id_funcionario = $request->id_funcionario_anexo;
         $usuario_logado = Auth::user()->email ?? 'Sistema';
         $dataHoraAtual = Carbon::now();
+        $storedPaths = [];
 
-        $funcionario = Funcionario::find($id_funcionario);
+        $funcionario = Funcionario::findOrFail($id_funcionario);
+        abort_unless($this->abilitiesForCurrentUser('funcionarios')['edit'], 403);
 
         try {
             DB::beginTransaction();
@@ -809,13 +810,15 @@ class FuncionarioController extends Controller
                     }
                 }
 
+                $storedPath = FileUploadHelper::store($file, "funcionarios/{$id_funcionario}/anexos");
+                $storedPaths[] = $storedPath;
                 $anexo = new AnexoFuncionario([
                     'id_funcionario'    => $id_funcionario,
                     'id_qualificacao'   => 0, // Documento Avulso
                     'id_funcao'         => $funcionario->id_funcao ?? 0,
                     'usuario_cad'       => $usuario_logado,
                     'usuario_aprov'     => $usuario_aprov,
-                    'arquivo'           => $file->getClientOriginalName(),
+                    'arquivo'           => $storedPath,
                     'nome_arquivo'      => $file->getClientOriginalName(),
                     'data_conclusao'    => $data_conclusao,
                     'data_validade_doc' => $data_validade,
@@ -825,21 +828,12 @@ class FuncionarioController extends Controller
 
                 $anexo->save();
 
-                // 2. Upload Físico (Disk Public)
-                $file->storeAs("public/uploads/usuarios/{$id_funcionario}", $file->getClientOriginalName());
-                
-                // OneDrive Upload (Assíncrono ou imediato, usando FileUploadHelper se configurado)
-                try {
-                    $folderName = (string) $id_funcionario;
-                    FileUploadHelper::uploadFilesToFolder($folderName, $file, 'usuarios');
-                } catch (\Exception $e) {
-                    Log::error('Erro ao enviar para OneDrive', ['msg' => $e->getMessage()]);
-                }
             }
             DB::commit();
             return back()->with('success', count($files) . ' arquivo(s) adicionado(s) com sucesso!');
         } catch (\Exception $e) {
             DB::rollBack();
+            foreach ($storedPaths as $storedPath) FileUploadHelper::delete($storedPath);
             Log::error('Erro ao adicionar anexos', ['msg' => $e->getMessage()]);
             return back()->withErrors(['error' => 'Falha ao adicionar arquivos.']);
         }
@@ -849,13 +843,15 @@ class FuncionarioController extends Controller
     {
         $request->validate([
             'id_qualificacao' => 'required',
-            'file' => 'required|file',
+            'file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:20480',
         ]);
 
         $file = $request->file('file');
         $id_qualificacao = $request->id_qualificacao;
         $usuario_logado = Auth::user()->email ?? 'Sistema';
         $funcionario = Funcionario::findOrFail($id);
+        abort_unless($this->abilitiesForCurrentUser('funcionarios')['edit'], 403);
+        $storedPath = null;
 
         try {
             DB::beginTransaction();
@@ -867,12 +863,13 @@ class FuncionarioController extends Controller
                 $data_validade = Carbon::parse($data_conclusao)->addMonths($request->tempo_validade)->format('Y-m-d');
             }
 
+            $storedPath = FileUploadHelper::store($file, "funcionarios/{$id}/anexos");
             $anexo = new AnexoFuncionario([
                 'id_funcionario'    => $id,
                 'id_qualificacao'   => $id_qualificacao,
                 'id_funcao'         => $funcionario->id_funcao ?? 0,
                 'usuario_cad'       => $usuario_logado,
-                'arquivo'           => $file->getClientOriginalName(),
+                'arquivo'           => $storedPath,
                 'nome_arquivo'      => $file->getClientOriginalName(),
                 'data_conclusao'    => $data_conclusao,
                 'data_validade_doc' => $data_validade,
@@ -881,19 +878,11 @@ class FuncionarioController extends Controller
 
             $anexo->save();
 
-            $file->storeAs("public/uploads/usuarios/{$id}", $file->getClientOriginalName());
-            
-            try {
-                $folderName = (string) $id;
-                FileUploadHelper::uploadFilesToFolder($folderName, $file, 'usuarios');
-            } catch (\Exception $e) {
-                Log::error('Erro ao enviar documento obrigatorio para OneDrive', ['msg' => $e->getMessage()]);
-            }
-
             DB::commit();
             return back()->with('success', 'Documento anexado com sucesso!');
         } catch (\Exception $e) {
             DB::rollBack();
+            if ($storedPath) FileUploadHelper::delete($storedPath);
             Log::error('Erro ao anexar documento obrigatorio', ['msg' => $e->getMessage()]);
             return back()->withErrors(['error' => 'Falha ao anexar documento.']);
         }
@@ -909,6 +898,7 @@ class FuncionarioController extends Controller
         DB::beginTransaction();
         try {
             $anexo = AnexoFuncionario::findOrFail($anexoId);
+            Funcionario::findOrFail($anexo->id_funcionario);
             $userMail = Auth::user()->email ?? 'Sistema';
             $now = Carbon::now();
 
@@ -963,7 +953,11 @@ class FuncionarioController extends Controller
     {
         try {
             $anexo = AnexoFuncionario::findOrFail($anexoId);
+            Funcionario::findOrFail($anexo->id_funcionario);
+            abort_unless($this->abilitiesForCurrentUser('funcionarios')['delete'], 403);
+            $path = $anexo->arquivo;
             $anexo->delete();
+            FileUploadHelper::delete($path);
             return back()->with('success', 'Documento removido com sucesso!');
         } catch (\Exception $e) {
             Log::error('Erro ao excluir documento', ['msg' => $e->getMessage()]);

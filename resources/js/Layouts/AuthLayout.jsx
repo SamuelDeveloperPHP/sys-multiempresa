@@ -7,11 +7,8 @@ export default function AuthLayout({ children }) {
                 <div className="p-8">
                     <div className="text-center mb-8 flex justify-center">
                         <Link href="/">
-                            <img
-                                src="/imagens/logos/new-logo.png"
-                                alt="SGA"
-                                className="h-100 w-auto"
-                            />
+                            <i className="fa-solid fa-chart-line text-5xl text-[#557bbb]" aria-hidden="true" />
+                            <span className="sr-only">Início</span>
                         </Link>
                     </div>
 

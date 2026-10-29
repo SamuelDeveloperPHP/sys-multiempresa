@@ -7,7 +7,8 @@ import { localCreate, localUpdate, localDelete } from '../syncQueue';
 export async function syncByVeiculo(veiculoId) {
     const { data } = await apiClient.get(ENDPOINTS.diarioBordo.byVeiculo(veiculoId));
     const rows = (data?.data || data?.diario_bordo || []).map(r => ({
-        ...r, _sync_status: 'synced', _local_id: null,
+        ...r, veiculo_id: Number(r.veiculo_id ?? r.id_veiculo ?? veiculoId),
+        _sync_status: 'synced', _local_id: null,
     }));
     await db.transaction('rw', db.diario_bordo, async () => {
         await db.diario_bordo
@@ -81,7 +82,8 @@ export async function listAllRecent(limit = 100) {
 export async function syncAllRecent() {
     const { data } = await apiClient.get(ENDPOINTS.diarioBordo.list);
     const rows = (data?.data || data?.diario_bordo || []).map(r => ({
-        ...r, _sync_status: 'synced', _local_id: null,
+        ...r, veiculo_id: Number(r.veiculo_id ?? r.id_veiculo),
+        _sync_status: 'synced', _local_id: null,
     }));
     await db.transaction('rw', db.diario_bordo, async () => {
         await db.diario_bordo.filter(r => r._sync_status === 'synced').delete();

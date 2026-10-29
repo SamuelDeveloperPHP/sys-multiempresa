@@ -61,7 +61,7 @@ class UpdateVeiculoRequest extends FormRequest
             'observacao'           => 'nullable|string',
             'situacao'             => 'nullable|string|max:30',
 
-            'imagem'               => 'nullable|file|image|max:5120',
+            'imagem'               => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
         ];
     }
 }

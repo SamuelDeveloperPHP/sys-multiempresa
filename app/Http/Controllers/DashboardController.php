@@ -19,8 +19,8 @@ use Inertia\Inertia;
  * DashboardController — port do legacy `pages.dashboard.index` /
  * `pages.dashboard.partials.dashboard_admin`.
  *
- * O legacy era focado em ferramentas calibradas (SGA). Como o
- * sys-multiempresa não tem esse domínio, a estrutura visual foi mantida
+ * A estrutura visual do legado foi mantida, pois o
+ * sys-multiempresa não tem aquele domínio,
  * (5 KPIs no topo, tabela de vencimentos, 4 gráficos) mas os dados foram
  * adaptados para o domínio de FROTA já existente.
  */

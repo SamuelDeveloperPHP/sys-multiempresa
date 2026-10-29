@@ -84,20 +84,6 @@ export default function Index({ funcionarios, companies, filters, auth, can = {}
                 {/* Card de Fundo */}
                 <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden p-4 sm:p-6">
                     
-                    {/* Alerta OneDrive */}
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
-                        <div className="flex items-center gap-3">
-                            <svg className="w-6 h-6 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                            <span className="text-sm font-medium text-amber-900">
-                                Verifique a sincronização dos arquivos dos funcionários com o OneDrive
-                            </span>
-                        </div>
-                        <Link href={route('admin.funcionarios.revisao-onedrive')} className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded shadow-sm whitespace-nowrap transition-colors flex items-center gap-1">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                            Revisar arquivos
-                        </Link>
-                    </div>
-
                     {/* Barra de Filtros (Status + Pesquisa) */}
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
                         {/* Status Buttons */}

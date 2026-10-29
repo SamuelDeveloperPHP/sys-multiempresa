@@ -22,51 +22,38 @@ import { setAuthMarker, clearAuthMarker } from '@/offline/authMarker';
 import { renewOfflineSession, getOfflineSession, ensurePersistentStorage, ensureLocalDataOwner } from '@/offline/offlineAuth';
 import { logoutSafely } from '@/offline/logout';
 
-// Cache SÍNCRONO do dono dos dados locais (só para o caminho rápido do boot —
-// evita o flash de "Carregando…" na navegação normal do MESMO usuário). A fonte
-// de verdade é db.meta (ver offline/offlineAuth.js#ensureLocalDataOwner); este
-// localStorage é apenas otimização e pode divergir sem comprometer o isolamento.
-const LOCAL_OWNER_LS_KEY = 'sga_local_data_owner';
-
 export default function MobileLayout({ header, backUrl, children, hideBottomNav = false }) {
     const { auth } = usePage().props;
     const { user } = auth || {};
     const [menuOpen, setMenuOpen] = useState(false);
     const { online } = useOnlineStatus();
 
-    // ===== Gate de isolamento multiempresa (parecer Security F1/F2) =====
-    // Antes de renderizar o módulo, garantimos que os dados locais (Dexie)
-    // pertencem ao usuário logado. Se um usuário DIFERENTE assumiu o device,
-    // ensureLocalDataOwner apaga tudo do anterior. Caminho rápido: se o cache
-    // síncrono do localStorage já bate com o usuário atual, renderizamos na hora
-    // (sem flash) — a verificação autoritativa contra db.meta roda no efeito e
-    // confirma/corrige. Qualquer divergência/ausência cai no gate assíncrono.
-    const [ready, setReady] = useState(() => {
-        try {
-            if (!user?.id) return true;
-            return localStorage.getItem(LOCAL_OWNER_LS_KEY) === String(user.id);
-        } catch (_) {
-            return false; // sem localStorage: usa o gate assíncrono (db.meta)
-        }
-    });
+    // Só libera as telas depois que o usuário atual for confirmado no IndexedDB.
+    const [verifiedUserId, setVerifiedUserId] = useState(null);
+    const [ownerError, setOwnerError] = useState(false);
+    const [ownerCheckAttempt, setOwnerCheckAttempt] = useState(0);
+    const ready = Boolean(user?.id && Number(verifiedUserId) === Number(user.id));
 
     useEffect(() => {
         let cancelled = false;
+        setVerifiedUserId(null);
+        setOwnerError(false);
+        if (!user?.id) {
+            setOwnerError(true);
+            return () => { cancelled = true; };
+        }
+
         (async () => {
             try {
-                if (user?.id) {
-                    await ensureLocalDataOwner(user); // autoritativo (db.meta); apaga na troca
-                    try { localStorage.setItem(LOCAL_OWNER_LS_KEY, String(user.id)); } catch (_) { /* ignore */ }
-                }
+                await ensureLocalDataOwner(user);
+                if (!cancelled) setVerifiedUserId(Number(user.id));
             } catch (e) {
-                // Best-effort — nunca trava o app. Loga por ser relevante a segurança.
                 if (typeof console !== 'undefined') console.warn('[MobileLayout] gate de isolamento falhou:', e?.message);
-            } finally {
-                if (!cancelled) setReady(true);
+                if (!cancelled) setOwnerError(true);
             }
         })();
         return () => { cancelled = true; };
-    }, [user?.id]);
+    }, [user?.id, ownerCheckAttempt]);
 
     // Persiste "auth marker" no localStorage quando temos auth.user válido.
     // (Mantido por compatibilidade; a fonte de verdade do acesso offline agora
@@ -126,15 +113,31 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
         }
     };
 
-    // Enquanto o gate de isolamento não resolve, não montamos o módulo (nenhum
-    // filho lê o Dexie antes de um eventual wipe do usuário anterior). Caminho
-    // rápido do MESMO usuário já inicia ready=true — sem flash na navegação.
+    // Nenhuma tela que lê o Dexie monta antes de confirmar o dono no IndexedDB.
     if (!ready) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3 text-gray-400">
-                    <i className="fa-solid fa-circle-notch fa-spin text-2xl" />
-                    <span className="text-xs">Carregando…</span>
+                <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center text-gray-500">
+                    {ownerError ? (
+                        <>
+                            <p className="text-sm">Não foi possível validar a sessão e proteger os dados locais.</p>
+                            {user?.id ? (
+                                <button type="button" onClick={() => setOwnerCheckAttempt(value => value + 1)}
+                                    className="rounded-md bg-[#557bbb] px-4 py-2 text-sm font-semibold text-white">
+                                    Tentar novamente
+                                </button>
+                            ) : (
+                                <a href="/login" className="rounded-md bg-[#557bbb] px-4 py-2 text-sm font-semibold text-white">
+                                    Entrar novamente
+                                </a>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <i className="fa-solid fa-circle-notch fa-spin text-2xl" />
+                            <span className="text-xs">Validando dados locais…</span>
+                        </>
+                    )}
                 </div>
             </div>
         );
@@ -155,7 +158,7 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
 
                     <div className="flex-1 min-w-0">
                         <h1 className="text-[15px] font-semibold text-gray-800 truncate">
-                            {typeof header === 'string' ? header : header || 'SGA Mobile'}
+                            {typeof header === 'string' ? header : header || 'Painel'}
                         </h1>
                     </div>
 
@@ -252,7 +255,7 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
                         </nav>
 
                         <div className="p-3 border-t border-gray-200 text-[10px] text-gray-400 text-center">
-                            SGA {new Date().getFullYear()}
+                            &copy; {new Date().getFullYear()}
                         </div>
                     </div>
                 </>

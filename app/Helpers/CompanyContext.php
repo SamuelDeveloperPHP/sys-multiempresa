@@ -81,6 +81,30 @@ class CompanyContext
         return $user->companies()->orderBy('name')->get();
     }
 
+    public static function userCanAccess(Company|int $company): bool
+    {
+        $user = Auth::user();
+        $companyId = $company instanceof Company ? (int) $company->id : $company;
+
+        if (!$user || $companyId < 1) {
+            return false;
+        }
+
+        if (!Company::query()->whereKey($companyId)->exists()) {
+            return false;
+        }
+
+        if (in_array($user->type, ['super_admin', 'admin'], true)) {
+            return true;
+        }
+
+        if ((int) ($user->company_id ?? 0) === $companyId) {
+            return true;
+        }
+
+        return $user->companies()->whereKey($companyId)->exists();
+    }
+
     /**
      * Helperzinho: verifica se há empresa atual válida.
      */

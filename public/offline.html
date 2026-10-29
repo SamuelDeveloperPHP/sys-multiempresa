@@ -3,10 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Offline · SGA</title>
+    <title>Offline</title>
     <meta name="theme-color" content="#557bbb">
-    <link rel="icon" href="/imagens/logos/icon.png">
-    <link rel="apple-touch-icon" href="/imagens/logos/icon.png">
+    <link rel="icon" type="image/svg+xml" href="/imagens/icons/icon.svg">
     <style>
         * { box-sizing: border-box; }
         html, body {
@@ -34,12 +33,11 @@
             padding: 32px 28px;
             text-align: center;
         }
-        .logo {
+        .brand-icon {
             width: 72px;
             height: 72px;
             margin: 0 auto 18px;
             display: block;
-            object-fit: contain;
         }
         h1 {
             font-size: 22px;
@@ -125,14 +123,17 @@
 <body>
     <div class="wrap">
         <div class="card">
-            <img src="/imagens/logos/adaptive-icon.png" alt="SGA" class="logo" onerror="this.style.display='none'">
+            <svg class="brand-icon" viewBox="0 0 512 512" role="img" aria-label="Gráfico">
+                <rect width="512" height="512" rx="96" fill="#557bbb" />
+                <path fill="#fff" d="M64 64c0-17.7-14.3-32-32-32S0 46.3 0 64L0 400c0 44.2 35.8 80 80 80l400 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 416c-8.8 0-16-7.2-16-16L64 64zm406.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L320 210.7 262.6 153.4c-12.5-12.5-32.8-12.5-45.3 0l-96 96c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0l73.4-73.4 57.4 57.4c12.5 12.5 32.8 12.5 45.3 0l128-128z" transform="translate(48 48) scale(.82)" />
+            </svg>
 
             <div id="status" class="status">
                 <span class="dot"></span>
                 <span id="statusText">Você está offline</span>
             </div>
 
-            <h1>SGA</h1>
+            <h1>Aplicativo</h1>
 
             <p>
                 Sem conexão no momento. Se você já acessou o app antes,

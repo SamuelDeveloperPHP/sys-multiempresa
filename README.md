@@ -68,7 +68,7 @@ Dry-run é o padrão — só apaga com --apply; aborta se não achar o manifest.
 Como fazer a higienização
 No servidor (precisa só de PHP CLI — você já roda artisan por lá), numa janela tranquila (depois que os clientes migraram, ex.: dia seguinte / antes do próximo deploy):
 
-cd ~/newsga
+cd ~/app-gestao
 php scripts/prune-build.php            # 1) revisa a lista de órfãos (não apaga)
 php scripts/prune-build.php --apply    # 2) apaga os órfãos
 Zero downtime: ele preserva tudo que a build atual referencia (manifest.json + precache do sw.js + sw.js/workbox-*/manifest.*) e remove só o resto.

@@ -86,7 +86,7 @@ export default function EtiquetaModal({ isOpen, onClose, funcionario }) {
                             </p>
                             <div className="mt-auto flex items-end justify-between">
                                 <p className="text-blue-600 font-bold text-xs tracking-wide">
-                                    www.engetecnica.com.br
+                                    Sistema de gestão
                                 </p>
                                 <span className="text-xs text-gray-400 font-medium">Mat: {funcionario.matricula || '---'}</span>
                             </div>

@@ -3,7 +3,7 @@
 // Background Sync (arquitetura.md §7) — BÔNUS Android/Chrome.
 //
 // Anexado ao Service Worker gerado pelo VitePWA via workbox.importScripts.
-// Quando o app registra a tag 'sga-sync-pendentes' (syncQueue.js), o browser
+// Quando o app registra a etiqueta configurada no cliente (syncQueue.js), o browser
 // dispara o evento 'sync' assim que houver conectividade — MESMO com o app
 // fechado — e este handler reenvia a fila de mutações pendentes.
 //
@@ -23,23 +23,23 @@
 
 /* eslint-disable no-restricted-globals */
 
-const SGA_SYNC_TAG = 'sga-sync-pendentes';
-const SGA_DB_NAME = 'sys_multiempresa_offline';
-const SGA_QUEUE_STORE = 'sync_queue';
-const SGA_API_BASE = '/api/mobile';
-const SGA_MAX_POR_SYNC = 30; // orçamento de execução do evento é limitado
+const BACKGROUND_SYNC_TAG = 'sga-sync-pendentes';
+const OFFLINE_DB_NAME = 'sys_multiempresa_offline';
+const QUEUE_STORE = 'sync_queue';
+const API_BASE = '/api/mobile';
+const MAX_ITEMS_PER_SYNC = 30; // orçamento de execução do evento é limitado
 
 self.addEventListener('sync', (event) => {
-    if (event.tag === SGA_SYNC_TAG) {
-        event.waitUntil(sgaProcessarFilaPendentes());
+    if (event.tag === BACKGROUND_SYNC_TAG) {
+        event.waitUntil(processPendingQueue());
     }
 });
 
 // Abre o IndexedDB SEM versão (não cria/upgrada — se o app nunca rodou aqui,
 // não há o que sincronizar).
-function sgaOpenDb() {
+function openOfflineDb() {
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open(SGA_DB_NAME);
+        const req = indexedDB.open(OFFLINE_DB_NAME);
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
         req.onupgradeneeded = () => {
@@ -50,19 +50,19 @@ function sgaOpenDb() {
     });
 }
 
-function sgaGetAll(db) {
+function getQueuedItems(db) {
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(SGA_QUEUE_STORE, 'readonly');
-        const req = tx.objectStore(SGA_QUEUE_STORE).getAll();
+        const tx = db.transaction(QUEUE_STORE, 'readonly');
+        const req = tx.objectStore(QUEUE_STORE).getAll();
         req.onsuccess = () => resolve(req.result || []);
         req.onerror = () => reject(req.error);
     });
 }
 
-function sgaPut(db, item) {
+function putQueuedItem(db, item) {
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(SGA_QUEUE_STORE, 'readwrite');
-        const req = tx.objectStore(SGA_QUEUE_STORE).put(item);
+        const tx = db.transaction(QUEUE_STORE, 'readwrite');
+        const req = tx.objectStore(QUEUE_STORE).put(item);
         req.onsuccess = () => resolve();
         req.onerror = () => reject(req.error);
     });
@@ -72,7 +72,7 @@ function sgaPut(db, item) {
 // mas o Cookie Store API existe em todo browser que suporta Background Sync
 // (Chrome/Edge/Android). Laravel aceita o valor do cookie XSRF-TOKEN no header
 // X-XSRF-TOKEN (mesmo mecanismo do axios).
-async function sgaCsrfHeader() {
+async function readCsrfToken() {
     try {
         if (!self.cookieStore) return null;
         const c = await self.cookieStore.get('XSRF-TOKEN');
@@ -82,24 +82,24 @@ async function sgaCsrfHeader() {
     }
 }
 
-async function sgaProcessarFilaPendentes() {
+async function processPendingQueue() {
     let db;
     try {
-        db = await sgaOpenDb();
+        db = await openOfflineDb();
     } catch (_) {
         return; // sem DB local — nada a fazer
     }
 
     try {
-        const todos = await sgaGetAll(db);
+        const todos = await getQueuedItems(db);
         const pendentes = todos
             .filter((i) => i && (i.status === 'pending' || i.status === 'failed'))
             .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
-            .slice(0, SGA_MAX_POR_SYNC);
+            .slice(0, MAX_ITEMS_PER_SYNC);
 
         if (!pendentes.length) return;
 
-        const xsrf = await sgaCsrfHeader();
+        const xsrf = await readCsrfToken();
         if (!xsrf) return; // sem CSRF não há como enviar — o app envia depois
 
         const METODO = { create: 'POST', update: 'PUT', delete: 'DELETE' };
@@ -111,7 +111,7 @@ async function sgaProcessarFilaPendentes() {
 
             let resp;
             try {
-                resp = await fetch(SGA_API_BASE + item.endpoint, {
+                resp = await fetch(API_BASE + item.endpoint, {
                     method: metodo,
                     credentials: 'include',
                     headers: {
@@ -125,7 +125,7 @@ async function sgaProcessarFilaPendentes() {
             } catch (_) {
                 // Rede caiu no meio do sync — marca failed e sinaliza retry
                 houveTransitorio = true;
-                await sgaPut(db, {
+                await putQueuedItem(db, {
                     ...item,
                     status: 'failed',
                     attempts: (item.attempts || 0) + 1,
@@ -141,7 +141,7 @@ async function sgaProcessarFilaPendentes() {
                     const j = await resp.json();
                     serverData = j?.data ?? j?.record ?? j ?? null;
                 } catch (_) { /* corpo vazio (ex.: DELETE) */ }
-                await sgaPut(db, {
+                await putQueuedItem(db, {
                     ...item,
                     status: 'completed',
                     sw_processed: true,     // reconciliado pelo app na próxima abertura
@@ -154,7 +154,7 @@ async function sgaProcessarFilaPendentes() {
                 return;
             } else if (resp.status >= 500 || resp.status === 408 || resp.status === 429) {
                 houveTransitorio = true;
-                await sgaPut(db, {
+                await putQueuedItem(db, {
                     ...item,
                     status: 'failed',
                     attempts: (item.attempts || 0) + 1,
@@ -168,7 +168,7 @@ async function sgaProcessarFilaPendentes() {
                     const j = await resp.json();
                     if (j?.message) msg = j.message;
                 } catch (_) { /* sem corpo */ }
-                await sgaPut(db, {
+                await putQueuedItem(db, {
                     ...item,
                     status: 'rejected',
                     sw_processed: true,     // app aplica markRecordRejected depois

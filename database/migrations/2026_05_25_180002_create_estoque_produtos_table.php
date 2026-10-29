@@ -37,7 +37,7 @@ return new class extends Migration {
             $t->decimal('estoque_maximo', 12, 3)->nullable();
 
             // Mídia
-            $t->string('imagem', 500)->nullable();     // path no disco / OneDrive
+            $t->string('imagem', 500)->nullable();     // caminho relativo no armazenamento de arquivos
 
             // Status
             $t->boolean('ativo')->default(true);

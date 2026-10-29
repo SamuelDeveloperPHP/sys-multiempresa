@@ -31,7 +31,7 @@ export default function InstallPrompt() {
                 <i className="fa-solid fa-download" />
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-800">Instalar SGA no celular</p>
+                <p className="text-sm font-semibold text-gray-800">Instalar aplicativo no celular</p>
                 <p className="text-[11px] text-gray-500 leading-tight">Funciona offline e abre como app.</p>
             </div>
             <button

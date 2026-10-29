@@ -84,7 +84,7 @@ export default function PerfilIndex() {
 
     const matricula = funcionario?.matricula || `USR-${user?.id || '0'}`;
     const fotoUrl = funcionario?.imagem_usuario
-        ? `/build/images/users/${funcionario.id}/${funcionario.imagem_usuario}`
+        ? `/admin/frota/locacoes/funcionario/${funcionario.id}/foto`
         : null;
 
     const initials = (user?.name || 'U')

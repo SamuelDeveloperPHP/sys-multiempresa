@@ -187,14 +187,14 @@ export default function ImportadorDocumento({ onAplicar }) {
                     <input
                         ref={inputRef}
                         type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
+                        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                         className="hidden"
                         onChange={(e) => processar(e.target.files?.[0])}
                     />
                     <p className="text-sm font-medium text-gray-700">
                         Arraste o arquivo aqui ou <span className="text-[#557bbb] underline">clique para selecionar</span>
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG ou WEBP</p>
+                    <p className="text-xs text-gray-400 mt-1">PDF, JPEG, JPG ou PNG</p>
                 </div>
             )}
 

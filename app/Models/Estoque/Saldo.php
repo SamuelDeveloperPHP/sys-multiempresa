@@ -25,7 +25,7 @@ class Saldo extends Model
     protected $table = 'estoque_saldos';
 
     protected $fillable = [
-        'company_id', 'produto_id', 'variante_id', 'obra_id',
+        'company_id', 'produto_id', 'variante_id', 'variante_key', 'obra_id',
         'quantidade', 'valor_medio',
         'ultima_movimentacao_at',
     ];

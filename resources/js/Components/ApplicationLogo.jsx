@@ -1,17 +1,5 @@
-/**
- * ApplicationLogo — logo padrão do SGA.
- *
- * Usa /imagens/logos/adaptive-icon.png. Aceita className para dimensionamento
- * via Tailwind (ex: <ApplicationLogo className="h-10 w-10" />) e demais atributos
- * de <img> (alt, style, onClick, etc).
- */
-export default function ApplicationLogo({ className = 'h-8 w-8', alt = 'SGA', ...props }) {
+export default function ApplicationLogo({ className = 'h-8 w-8', ...props }) {
     return (
-        <img
-            src="/imagens/logos/adaptive-icon.png"
-            alt={alt}
-            className={className}
-            {...props}
-        />
+        <i className={`fa-solid fa-chart-line ${className}`} aria-hidden="true" {...props} />
     );
 }

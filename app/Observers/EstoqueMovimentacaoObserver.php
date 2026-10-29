@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Models\Estoque\Movimentacao;
 use App\Models\Estoque\Saldo;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Observer que mantém estoque_saldos consistente com estoque_movimentacoes.
@@ -79,13 +80,38 @@ class EstoqueMovimentacaoObserver
      */
     private function aplicarDelta(Movimentacao $mov, int $multiplicador): void
     {
-        // Saldo é chaveado por (produto, obra, variante). Para material comum
-        // variante_id = null → mesma chave de antes (retrocompatível).
-        $saldo = Saldo::firstOrNew([
-            'produto_id'  => $mov->produto_id,
-            'obra_id'     => $mov->obra_id,
-            'variante_id' => $mov->variante_id,
-        ]);
+        DB::table('estoque_produtos')
+            ->where('id', $mov->produto_id)
+            ->lockForUpdate()
+            ->first();
+
+        static $hasVariantKey = null;
+        $hasVariantKey ??= Schema::hasColumn('estoque_saldos', 'variante_key');
+
+        $varianteKey = (int) ($mov->variante_id ?? 0);
+        $saldoQuery = Saldo::withoutGlobalScopes()
+            ->where('produto_id', $mov->produto_id)
+            ->where('obra_id', $mov->obra_id);
+        if ($hasVariantKey) {
+            $saldoQuery->where('variante_key', $varianteKey);
+        } elseif ($mov->variante_id === null) {
+            $saldoQuery->whereNull('variante_id');
+        } else {
+            $saldoQuery->where('variante_id', $mov->variante_id);
+        }
+        $saldo = $saldoQuery->lockForUpdate()->first();
+
+        if (!$saldo) {
+            $attributes = [
+                'produto_id' => $mov->produto_id,
+                'obra_id' => $mov->obra_id,
+                'variante_id' => $mov->variante_id,
+            ];
+            if ($hasVariantKey) {
+                $attributes['variante_key'] = $varianteKey;
+            }
+            $saldo = new Saldo($attributes);
+        }
         if (!$saldo->exists) {
             $saldo->company_id  = $mov->company_id;
             $saldo->quantidade  = 0;

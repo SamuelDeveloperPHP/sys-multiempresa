@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import BiometriaPolicyBanner from '@/Components/BiometriaPolicyBanner';
 
 /**
@@ -12,6 +12,28 @@ export default function AuthenticatedLayout({ header, children }) {
     const { user, company, menuSections } = auth || {};
     const [openSections, setOpenSections] = useState({});
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+    const accountMenuRef = useRef(null);
+    const accountMenuButtonRef = useRef(null);
+
+    useEffect(() => {
+        if (!accountMenuOpen) return undefined;
+        const closeOnOutsideClick = (event) => {
+            if (!accountMenuRef.current?.contains(event.target)) setAccountMenuOpen(false);
+        };
+        const closeOnEscape = (event) => {
+            if (event.key === 'Escape') {
+                setAccountMenuOpen(false);
+                accountMenuButtonRef.current?.focus();
+            }
+        };
+        document.addEventListener('mousedown', closeOnOutsideClick);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('mousedown', closeOnOutsideClick);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [accountMenuOpen]);
 
     useEffect(() => {
         if (menuSections) {
@@ -53,15 +75,9 @@ export default function AuthenticatedLayout({ header, children }) {
                 {/* Brand */}
                 <div className="h-16 flex items-center px-4 border-b border-gray-200">
                     <Link href="/dashboard" className="flex items-center gap-2 w-full">
-                        <img
-                            src="/imagens/logos/adaptive-icon.png"
-                            alt="SGA"
-                            className="w-8 h-8 flex-shrink-0 object-contain"
-                        />
+                        <i className="fa-solid fa-chart-line w-8 flex-shrink-0 text-center text-[#557bbb] text-xl" aria-hidden="true" />
                         {!sidebarCollapsed && (
-                            <span className="text-[20px] font-extrabold tracking-tight text-gray-800">
-                                SGA<span className="text-[#557bbb]">·Eng</span>
-                            </span>
+                            <span className="text-[16px] font-bold text-gray-800">Painel</span>
                         )}
                     </Link>
                 </div>
@@ -227,8 +243,13 @@ export default function AuthenticatedLayout({ header, children }) {
 
                         <div className="h-6 w-px bg-gray-200 hidden md:block" />
 
-                        <div className="relative group">
-                            <button className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none" title="Conta">
+                        <div className="relative" ref={accountMenuRef}>
+                            <button ref={accountMenuButtonRef} type="button"
+                                aria-haspopup="menu" aria-expanded={accountMenuOpen}
+                                aria-controls="account-menu"
+                                aria-label={`Menu da conta de ${user?.name || 'usuário'}`}
+                                onClick={() => setAccountMenuOpen(open => !open)}
+                                className="flex items-center gap-2 hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#557bbb]" title="Conta">
                                 <img
                                     src={
                                         user?.profile_photo_url ||
@@ -244,13 +265,17 @@ export default function AuthenticatedLayout({ header, children }) {
                                 <i className="fa-solid fa-chevron-down text-[10px] text-gray-400 hidden lg:inline-block" />
                             </button>
 
-                            <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50">
+                            <div id="account-menu" role="menu" aria-label="Conta"
+                                hidden={!accountMenuOpen}
+                                className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-md shadow-lg py-1 z-50">
                                 <div className="px-4 py-3 border-b border-gray-100">
                                     <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
                                     <p className="text-xs text-gray-500 truncate">{user?.email}</p>
                                 </div>
                                 <Link
                                     href={route('profile.edit')}
+                                    role="menuitem"
+                                    onClick={() => setAccountMenuOpen(false)}
                                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                 >
                                     <i className="fa-solid fa-user-circle mr-2 text-gray-400" /> Meu Perfil
@@ -259,6 +284,8 @@ export default function AuthenticatedLayout({ header, children }) {
                                     href="/logout"
                                     method="post"
                                     as="button"
+                                    role="menuitem"
+                                    onClick={() => setAccountMenuOpen(false)}
                                     className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100 mt-1"
                                 >
                                     <i className="fa-solid fa-right-from-bracket mr-2" /> Sair
@@ -274,7 +301,7 @@ export default function AuthenticatedLayout({ header, children }) {
                 </main>
 
                 <footer className="border-t bg-white px-6 py-2 text-[11px] text-gray-500 flex justify-between items-center flex-shrink-0">
-                    <span>SGA &copy; {new Date().getFullYear()}</span>
+                    <span>&copy; {new Date().getFullYear()}</span>
                     <span className="text-gray-400">{user?.email}</span>
                 </footer>
             </div>

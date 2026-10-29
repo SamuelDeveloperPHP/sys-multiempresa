@@ -32,19 +32,19 @@
 //      empresa/obra já selecionada — senão /mobile/* redireciona para
 //      /companies/select e o boot falha. Passe as credenciais por env (nunca
 //      commite senha):
-//         SGA_BASE_URL   (default http://127.0.0.1:8000)
-//         SGA_TEST_EMAIL
-//         SGA_TEST_PASSWORD
+//         APP_BASE_URL   (default http://127.0.0.1:8000)
+//         APP_TEST_EMAIL
+//         APP_TEST_PASSWORD
 //
 // -----------------------------------------------------------------------------
 // COMO INSTALAR E RODAR (o projeto ainda NÃO tem Playwright):
 //   npm i -D @playwright/test
 //   npx playwright install chromium
 //   # PowerShell (Windows):
-//   $env:SGA_TEST_EMAIL="motorista@empresa.com"; $env:SGA_TEST_PASSWORD="senha"; `
+//   $env:APP_TEST_EMAIL="motorista@empresa.com"; $env:APP_TEST_PASSWORD="senha"; `
 //     npx playwright test tests/pwa/offline-sw.spec.js --project=chromium
 //   # bash:
-//   SGA_TEST_EMAIL=... SGA_TEST_PASSWORD=... npx playwright test tests/pwa/offline-sw.spec.js
+//   APP_TEST_EMAIL=... APP_TEST_PASSWORD=... npx playwright test tests/pwa/offline-sw.spec.js
 //
 // Roda sem playwright.config.js (usa o projeto chromium default). Se preferir um
 // config dedicado, crie tests/pwa/playwright.config.js com, no mínimo:
@@ -57,9 +57,9 @@
 
 import { test, expect } from '@playwright/test';
 
-const BASE_URL  = (process.env.SGA_BASE_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
-const EMAIL     = process.env.SGA_TEST_EMAIL || '';
-const PASSWORD  = process.env.SGA_TEST_PASSWORD || '';
+const BASE_URL  = (process.env.APP_BASE_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+const EMAIL     = process.env.APP_TEST_EMAIL || '';
+const PASSWORD  = process.env.APP_TEST_PASSWORD || '';
 
 // Rota /mobile deliberadamente NUNCA visitada/aquecida (detalhe de veículo com id
 // improvável). Offline, o servidor nunca é alcançado — o catch handler do SW
@@ -145,7 +145,7 @@ async function bootAndWarm(page) {
 // =============================================================================
 test.describe('Service Worker — navegação offline (catch handler + app-shell)', () => {
     test.skip(!EMAIL || !PASSWORD,
-        'Defina SGA_TEST_EMAIL e SGA_TEST_PASSWORD para os testes offline (precisam logar).');
+        'Defina APP_TEST_EMAIL e APP_TEST_PASSWORD para os testes offline (precisam logar).');
 
     test.beforeEach(async ({ page }) => {
         test.setTimeout(120000);

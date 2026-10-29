@@ -6,7 +6,10 @@ import ENDPOINTS from '../api/endpoints';
 
 export async function syncByVeiculo(veiculoId) {
     const { data } = await apiClient.get(ENDPOINTS.locacoes.byVeiculo(veiculoId));
-    const rows = data?.data || data?.locacoes || [];
+    const rows = (data?.data || data?.locacoes || []).map(row => ({
+        ...row,
+        veiculo_id: Number(row.veiculo_id ?? row.id_veiculo ?? veiculoId),
+    }));
     await db.transaction('rw', db.locacoes, async () => {
         await db.locacoes.where('veiculo_id').equals(Number(veiculoId)).delete();
         if (rows.length) await db.locacoes.bulkPut(rows);
@@ -28,7 +31,10 @@ export async function listAll() {
 
 export async function syncAllRecent() {
     const { data } = await apiClient.get(ENDPOINTS.locacoes.list);
-    const rows = data?.data || data?.locacoes || [];
+    const rows = (data?.data || data?.locacoes || []).map(row => ({
+        ...row,
+        veiculo_id: Number(row.veiculo_id ?? row.id_veiculo),
+    }));
     await db.transaction('rw', db.locacoes, async () => {
         await db.locacoes.clear();
         if (rows.length) await db.locacoes.bulkPut(rows);

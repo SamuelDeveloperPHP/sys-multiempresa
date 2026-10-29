@@ -25,7 +25,7 @@ export default function Login() {
                     <form onSubmit={submit} className="space-y-4">
                         <div>
                             <input type="email" value={data.email} onChange={e => setData('email', e.target.value)} required autoFocus
-                                className="w-full px-4 py-3 bg-[#f8f9fa] border border-gray-100 rounded focus:bg-white focus:ring-1 focus:ring-[#e4e5e7] focus:border-[#e4e5e7] transition-colors outline-none text-gray-600 text-sm placeholder-gray-400" placeholder="admin@demo.com" />
+                                className="w-full px-4 py-3 bg-[#f8f9fa] border border-gray-100 rounded focus:bg-white focus:ring-1 focus:ring-[#e4e5e7] focus:border-[#e4e5e7] transition-colors outline-none text-gray-600 text-sm placeholder-gray-400" placeholder="seu@email.com" />
                             {errors.email && <div className="text-red-500 text-xs mt-1 font-medium">{errors.email}</div>}
                         </div>
                         <div>
@@ -40,30 +40,8 @@ export default function Login() {
                             </button>
                         </div>
                         
-                        <div className="flex flex-col space-y-3 pt-4 text-sm text-gray-500">
-                            <a href="#" className="text-[#557bbb] hover:underline">Forgot password?</a>
-                            <div>You don't have an account? <a href="#" className="text-[#557bbb] hover:underline">Sign up</a></div>
-                        </div>
                     </form>
                 </div>
-            </div>
-
-            {/* Painel de Login Falso Estilo Demonstração RISE */}
-            <div className="max-w-md w-full mt-6 bg-white shadow-sm rounded-sm p-6 text-sm text-gray-500 border border-gray-100">
-               <div className="text-center font-medium mb-4 text-gray-800">Sign in as</div>
-               <div className="flex justify-between border-b pb-2 mb-2">
-                   <span>Admin</span>
-                   <span className="text-[#557bbb] cursor-pointer hover:underline">admin@demo.com</span>
-                   <span>riseDemo</span>
-               </div>
-               <div className="flex justify-between border-b pb-2 mb-4">
-                   <span>Client</span>
-                   <span className="text-[#557bbb] cursor-pointer hover:underline">client@demo.com</span>
-                   <span>riseDemo</span>
-               </div>
-               <p className="text-xs text-gray-400 text-center leading-relaxed">
-                   To check team members, use the email addresses from the Team members list. Password is same riseDemo.
-               </p>
             </div>
         </div>
     );

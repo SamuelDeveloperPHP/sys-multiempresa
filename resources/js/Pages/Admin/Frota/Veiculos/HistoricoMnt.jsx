@@ -66,10 +66,9 @@ export default function HistoricoMnt({
           </div>
         </div>
 
-        {/* Logos para impressão e identidade visual */}
+        {/* Identificação visual do relatório impresso */}
         <div className="flex justify-center items-center gap-6 mb-4 print-logos">
-          <img src="/assets/images/logos/LogoMarcaHorizontal.png"
-               alt="SGA" className="h-16 object-contain" />
+          <i className="fa-solid fa-chart-line text-4xl text-rise-600" aria-hidden="true" />
           <img src="/build/images/icones/logo_LEC.png"
                alt="LEC" className="h-16 object-contain" />
         </div>

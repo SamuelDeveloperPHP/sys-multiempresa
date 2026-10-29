@@ -36,7 +36,7 @@ export default function Show({ funcionario, linkedUser, auth }) {
                         <div className="flex items-center gap-6">
                             <div className="relative">
                                 <img
-                                    src={funcionario.imagem_usuario ? `/storage/users/${funcionario.id}/${funcionario.imagem_usuario}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(funcionario.nome)}&background=00b393&color=fff&size=128`}
+                                    src={funcionario.imagem_usuario ? route('admin.funcionarios.foto', funcionario.id) : `https://ui-avatars.com/api/?name=${encodeURIComponent(funcionario.nome)}&background=00b393&color=fff&size=128`}
                                     alt={funcionario.nome}
                                     className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white shadow-xl object-cover"
                                 />

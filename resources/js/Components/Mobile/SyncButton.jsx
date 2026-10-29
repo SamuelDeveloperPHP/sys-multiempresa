@@ -54,10 +54,7 @@ export default function SyncButton({ compact = false }) {
         if (!openDiario) return true;
         return await confirmDialog({
             title: 'Você tem um diário em aberto',
-            html: `<p class="text-left mb-2">📓 Diário de Bordo ABERTO — veículo <strong>${openDiario.prefixo}</strong></p>`
-                + '<p class="text-left">Lembre-se: todo Diário de Bordo precisa de uma '
-                + '<strong>ABERTURA</strong> e um <strong>ENCERRAMENTO</strong>. '
-                + 'Se o turno já terminou, feche o diário antes de enviar.</p>',
+            text: `Diário de Bordo aberto — veículo ${openDiario.prefixo}. Todo diário precisa de abertura e encerramento. Se o turno já terminou, feche o diário antes de enviar.`,
             icon: 'warning',
             confirmText: 'Enviar mesmo assim',
             cancelText: 'Voltar',

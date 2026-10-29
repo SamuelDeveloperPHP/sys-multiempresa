@@ -169,13 +169,6 @@ export default function VeiculoShow({
             </span>
           </h1>
           <div className="flex gap-2">
-            <a
-              href={route('admin.frota.veiculos.zip-docs', veiculo.id)}
-              target="_blank" rel="noreferrer"
-              className="px-3 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 text-sm"
-            >
-              ☁ Baixar ZIP docs
-            </a>
             <Link
               href={route('admin.frota.veiculos.historico-mnt', veiculo.id)}
               className="px-3 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm"
@@ -861,7 +854,7 @@ function TabGaleria({ veiculo }) {
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">Galeria ({veiculo.imagens?.length ?? 0})</h2>
         <div className="flex items-center gap-2">
-          <input type="file" accept="image/*" multiple ref={inputRef} onChange={enviar} className="text-sm" />
+          <input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple ref={inputRef} onChange={enviar} className="text-sm" />
           {upload.processing && <span className="text-sm text-gray-500">Enviando...</span>}
         </div>
       </div>
@@ -1170,16 +1163,16 @@ function DropFileField({ label, hint, onFile, pdfOnly = false, viewHref = null, 
   const [nome, setNome] = useState(null);
   const [dragging, setDragging] = useState(false);
 
-  const accept = pdfOnly ? 'application/pdf,.pdf' : 'application/pdf,image/*';
+  const accept = pdfOnly ? 'application/pdf,.pdf' : 'application/pdf,image/jpeg,image/png,.jpg,.jpeg,.png';
   const valido = (f) => pdfOnly
-    ? (f.type === 'application/pdf' || /\.pdf$/i.test(f.name))
-    : (f.type === 'application/pdf' || f.type.startsWith('image/') || /\.(pdf|jpe?g|png|webp)$/i.test(f.name));
+    ? (f.type === 'application/pdf' && /\.pdf$/i.test(f.name))
+    : (['application/pdf', 'image/jpeg', 'image/png'].includes(f.type) && /\.(pdf|jpe?g|png)$/i.test(f.name));
 
   const aplicar = (f) => {
     setErro(null);
     if (!f) return;
     if (!valido(f)) {
-      setErro(pdfOnly ? 'Apenas PDF.' : 'Apenas PDF ou imagem.');
+      setErro(pdfOnly ? 'Apenas PDF.' : 'Use somente PDF, JPEG, JPG ou PNG.');
       setNome(null); onFile(null);
       if (inputRef.current) inputRef.current.value = '';
       return;
@@ -1309,7 +1302,7 @@ function FilePdfField({ label, subfolder, setData, errors, veiculo, className = 
       />
 
       <p className="text-xs text-gray-500 mt-1">
-        Vai para o OneDrive em <code>veiculos/{veiculo.id}/{subfolder}/</code>
+        Arquivos permitidos: PDF, JPEG, JPG e PNG.
       </p>
       {(erroLocal || errors?.arquivo) && <p className="text-red-600 text-xs mt-1">{erroLocal || errors.arquivo}</p>}
     </div>
@@ -1346,11 +1339,11 @@ function ModalFooter({ onClose, processing, editando }) {
 
 // Mantém a assinatura antiga (manutenção usa 'arquivo', IPVA usa 'anexo'),
 // mas agora com arrastar-e-soltar via DropFileField.
-function FileFieldOneDrive({ label, subfolder, setData, errors, veiculo, className = '' }) {
+function FileField({ label, setData, errors, className = '' }) {
   return (
     <DropFileField
       label={label}
-      hint={`PDF ou imagem — vai para veiculos/${veiculo.id}/${subfolder}/`}
+      hint="PDF, JPEG, JPG ou PNG"
       pdfOnly={false}
       onFile={(f) => { setData('arquivo', f); setData('anexo', f); }}
       error={errors?.arquivo || errors?.anexo}
@@ -1513,6 +1506,10 @@ function ListaArquivos({ arquivos }) {
           <a href={a.href} target="_blank" rel="noreferrer"
              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 transition">
             Abrir
+          </a>
+          <a href={`${a.href}?download=1`}
+             className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-200 rounded-md hover:bg-gray-200 transition">
+            Baixar
           </a>
         </li>
       ))}
@@ -1825,7 +1822,7 @@ function ModalCorretiva({ veiculo, manutencao, fornecedores, obras = [], funcion
           <textarea rows={3} value={data.descricao} onChange={(e) => setData('descricao', e.target.value)} className={inputCls} />
         </div>
 
-        <FileFieldOneDrive label="Anexo (NF, comprovante)" subfolder={`manutencoes/${manutencao?.id ?? 'novo'}`} setData={setData} errors={errors} veiculo={veiculo} className="md:col-span-3" />
+        <FileField label="Anexo (NF, comprovante)" setData={setData} errors={errors} className="md:col-span-3" />
 
         <ModalFooter onClose={onClose} processing={processing} editando={editando} />
       </form>
@@ -2381,7 +2378,7 @@ function ModalIpva({ veiculo, ipva, onClose, onSaved }) {
         <F label="Valor (R$)" name="valor" type="number" step="0.01" data={data} setData={setData} errors={errors} />
         <F label="Data de pagamento" name="data_de_pagamento" type="date" data={data} setData={setData} errors={errors} />
         <F label="Data de vencimento" name="data_de_vencimento" type="date" data={data} setData={setData} errors={errors} />
-        <FileFieldOneDrive label="Anexo (NF/comprovante)" subfolder={`ipvas/${ipva?.id ?? 'novo'}`} setData={setData} errors={errors} veiculo={veiculo} className="md:col-span-2" />
+        <FileField label="Anexo (NF/comprovante)" setData={setData} errors={errors} className="md:col-span-2" />
         <ModalFooter onClose={onClose} processing={processing} editando={editando} />
       </form>
     </ModalShell>
@@ -3644,7 +3641,7 @@ function ModalOsPreventiva({ veiculo, mode = 'create', ciclo = null, osId = null
                 </div>
                 <div className="col-span-2">
                   <label className={osLbl}>Anexo (NF, comprovante)</label>
-                  <input type="file" onChange={(e) => setData('anexo', e.target.files[0] ?? null)} className="text-xs" accept="image/*,.pdf" />
+                  <input type="file" onChange={(e) => setData('anexo', e.target.files[0] ?? null)} className="text-xs" accept="image/jpeg,image/png,.jpg,.jpeg,.png,.pdf" />
                   {errors.anexo && <p className="text-red-600 text-xs mt-0.5">{errors.anexo}</p>}
                 </div>
               </div>

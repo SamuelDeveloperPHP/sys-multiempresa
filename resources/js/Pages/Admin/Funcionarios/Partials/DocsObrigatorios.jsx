@@ -111,7 +111,8 @@ export default function DocsObrigatorios({ funcionario }) {
                                             </td>
                                             <td className="px-3 py-3">
                                                 <input 
-                                                    type="file" 
+                                                    type="file"
+                                                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                                                     onChange={(e) => handleFileChange(qualificacao.id_qualificacao, e.target.files[0])}
                                                     className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-200 rounded-md cursor-pointer"
                                                 />
@@ -151,18 +152,11 @@ export default function DocsObrigatorios({ funcionario }) {
                                                 )}
                                             </td>
                                             <td className="px-3 py-3 text-center">
-                                                {qualificacao.nome_arquivo ? (
-                                                    qualificacao.arquivo_sincronizado ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-rise-50 text-rise-600 border border-rise-200 rounded text-xs font-semibold">
-                                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                                                            OneDrive OK
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded text-xs font-semibold animate-pulse" title="Arquivo perdido ou falha de upload">
-                                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                                            ARQUIVO PERDIDO
-                                                        </span>
-                                                    )
+                                                {qualificacao.arquivo_anexo ? (
+                                                    <>
+                                                        <a href={route('admin.funcionarios.documentos.arquivo', qualificacao.id_anexo)} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline text-xs">Abrir arquivo</a>
+                                                        <a href={`${route('admin.funcionarios.documentos.arquivo', qualificacao.id_anexo)}?download=1`} className="ml-2 text-gray-500 hover:underline text-xs">Baixar</a>
+                                                    </>
                                                 ) : (
                                                     <span className="text-gray-400 text-xs">Sem arquivo</span>
                                                 )}
@@ -173,7 +167,7 @@ export default function DocsObrigatorios({ funcionario }) {
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                     </button>
                                                     {qualificacao.id_anexo && (
-                                                        <button type="button" className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded transition" title="Remover Documento">
+                                                        <button type="button" className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded transition" title="Remover Documento" onClick={() => window.confirm('Excluir este documento?') && router.delete(route('admin.funcionarios.excluir_documento', qualificacao.id_anexo), { preserveScroll: true })}>
                                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                                                         </button>
                                                     )}

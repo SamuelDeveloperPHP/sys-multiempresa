@@ -27,6 +27,7 @@ use App\Models\Obra;
 use App\Models\FuncionarioFuncao;
 use App\Services\Frota\CicloAbertoService;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -195,13 +196,36 @@ class MobileApiController extends Controller
         if ($companyId) {
             $query->where('company_id', $companyId);
         }
-        $veiculos = $query->get()
-            ->map(function ($v) {
-                // Expõe campos "atual" calculados (compatibilidade com o front)
-                $v->quilometragem_atual = $this->ultimaQuilometragem($v->id) ?? (float) $v->quilometragem_inicial;
-                $v->horimetro_atual     = $this->ultimoHorimetro($v->id)     ?? (float) $v->horimetro_inicial;
-                return $v;
-            });
+        $baseQuery = clone $query;
+        try {
+            $query->addSelect([
+                'ultima_quilometragem' => VeiculoQuilometragem::query()
+                    ->selectRaw('COALESCE(quilometragem_nova, quilometragem_atual)')
+                    ->whereColumn('veiculo_id', 'veiculos.id')
+                    ->orderByDesc('data_quilometragem')
+                    ->orderByDesc('id')
+                    ->limit(1),
+                'ultimo_horimetro' => VeiculoHorimetro::query()
+                    ->selectRaw('COALESCE(horimetro_novo, horimetro_atual)')
+                    ->whereColumn('veiculo_id', 'veiculos.id')
+                    ->orderByDesc('data_horimetro')
+                    ->orderByDesc('id')
+                    ->limit(1),
+            ]);
+            $veiculos = $query->get();
+        } catch (QueryException $e) {
+            // Algumas instalações antigas ainda não têm as tabelas de medição.
+            $veiculos = $baseQuery->get();
+        }
+
+        $veiculos = $veiculos->map(function ($veiculo) {
+            $veiculo->quilometragem_atual = $veiculo->ultima_quilometragem
+                ?? (float) $veiculo->quilometragem_inicial;
+            $veiculo->horimetro_atual = $veiculo->ultimo_horimetro
+                ?? (float) $veiculo->horimetro_inicial;
+            unset($veiculo->ultima_quilometragem, $veiculo->ultimo_horimetro);
+            return $veiculo;
+        });
 
         return response()->json([
             'status' => true,
@@ -575,7 +599,7 @@ class MobileApiController extends Controller
     /**
      * Lista templates de checklist do veículo (catálogo + itens).
      * Tabela veiculo_checklist tem id_veiculo (não id_obra) — checklist é
-     * configurado POR VEÍCULO no SGA. Coluna do nome: nome_checklist.
+     * configurado POR VEÍCULO no sistema. Coluna do nome: nome_checklist.
      * Itens em veiculo_checklist_itens com id_checklist + nome_servico.
      */
     public function checklistsByVeiculo($veiculoId)

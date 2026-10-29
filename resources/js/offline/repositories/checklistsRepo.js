@@ -14,16 +14,32 @@ import ENDPOINTS from '../api/endpoints';
 import { localCreate, localUpdate, localDelete } from '../syncQueue';
 
 // -----------------------------------------------------------------------------
-// TEMPLATES — listagem POR VEÍCULO (corrigido: checklist é por veículo no SGA)
+// TEMPLATES — listagem POR VEÍCULO (checklist é por veículo)
 // -----------------------------------------------------------------------------
 export async function syncChecklists(veiculoId = null) {
-    if (!veiculoId) return 0; // sem veículo, não há nada para sincronizar
-    const url = ENDPOINTS.checklists.byVeiculo(veiculoId);
+    const url = veiculoId ? ENDPOINTS.checklists.byVeiculo(veiculoId) : ENDPOINTS.checklists.list;
     const { data } = await apiClient.get(url);
-    const checklists = data?.checklists || data?.data || [];
-    const itens = data?.itens || data?.checklist_itens || [];
+    const checklists = (data?.checklists || data?.data || []).map(checklist => {
+        const rawVehicleId = checklist.veiculo_id ?? checklist.id_veiculo ?? veiculoId;
+        return {
+            ...checklist,
+            ...(rawVehicleId == null ? {} : { veiculo_id: Number(rawVehicleId) }),
+        };
+    });
+    const itens = (data?.itens || data?.checklist_itens || []).map(item => ({
+        ...item,
+        checklist_id: Number(item.checklist_id ?? item.id_checklist),
+    }));
 
     await db.transaction('rw', [db.checklists, db.checklist_itens], async () => {
+        if (!veiculoId) {
+            // Global sync is additive: do not remove local templates while other
+            // screens may be reading them or while an offline workflow is active.
+            if (checklists.length) await db.checklists.bulkPut(checklists);
+            if (itens.length) await db.checklist_itens.bulkPut(itens);
+            return;
+        }
+
         // Remove os antigos desse veículo (checklists e itens vinculados)
         const existing = await db.checklists.where('veiculo_id').equals(Number(veiculoId)).toArray();
         const oldIds = existing.map(c => c.id);
@@ -61,7 +77,8 @@ export async function findChecklist(id) {
 export async function syncServicosByVeiculo(veiculoId) {
     const { data } = await apiClient.get(ENDPOINTS.checklistServicos.byVeiculo(veiculoId));
     const rows = (data?.data || data?.servicos || []).map(r => ({
-        ...r, _sync_status: 'synced', _local_id: null,
+        ...r, veiculo_id: Number(r.veiculo_id ?? r.id_veiculo ?? veiculoId),
+        _sync_status: 'synced', _local_id: null,
     }));
     await db.transaction('rw', db.checklist_servicos, async () => {
         await db.checklist_servicos
@@ -106,7 +123,8 @@ export async function listAllRecentServicos(limit = 100) {
 export async function syncAllRecentServicos() {
     const { data } = await apiClient.get(ENDPOINTS.checklistServicos.list);
     const rows = (data?.data || data?.servicos || []).map(r => ({
-        ...r, _sync_status: 'synced', _local_id: null,
+        ...r, veiculo_id: Number(r.veiculo_id ?? r.id_veiculo),
+        _sync_status: 'synced', _local_id: null,
     }));
     await db.transaction('rw', db.checklist_servicos, async () => {
         await db.checklist_servicos.filter(r => r._sync_status === 'synced').delete();

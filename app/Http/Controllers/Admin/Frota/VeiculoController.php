@@ -389,7 +389,12 @@ class VeiculoController extends Controller
         $veiculo->update($data);
 
         if ($imagem) {
-            $veiculo->update(['imagem' => $this->saveMainImage($veiculo, $imagem)]);
+            FileUploadHelper::replace(
+                $veiculo->imagem,
+                $imagem,
+                "veiculos/{$veiculo->id}/principal",
+                fn ($path) => $veiculo->update(['imagem' => $path])
+            );
         }
 
         return redirect()->route('admin.frota.veiculos.index')
@@ -398,6 +403,8 @@ class VeiculoController extends Controller
 
     public function destroy(Veiculo $veiculo): RedirectResponse
     {
+        FileUploadHelper::delete($veiculo->imagem);
+        foreach ($veiculo->imagens as $imagem) FileUploadHelper::delete($imagem->arquivo);
         $veiculo->delete();
 
         return redirect()->route('admin.frota.veiculos.index')
@@ -418,18 +425,18 @@ class VeiculoController extends Controller
     }
 
     /**
-     * Upload de uma ou mais imagens para a galeria do veiculo (OneDrive).
+     * Upload de imagens para a galeria privada do veículo.
      */
     public function storeImage(Request $request, Veiculo $veiculo): RedirectResponse
     {
         $request->validate([
             'imagens'     => 'required|array|min:1',
-            'imagens.*'   => 'file|image|max:5120',
+            'imagens.*'   => 'required|file|mimes:jpg,jpeg,png|max:5120',
             'descricao'   => 'nullable|string|max:191',
         ]);
 
         foreach ($request->file('imagens') as $file) {
-            $path = $this->uploadOneDrive($file, $veiculo->id, 'galeria');
+            $path = $this->storeVehicleFile($file, $veiculo->id, 'galeria');
             if (!$path) continue;
 
             VeiculoImagem::create([
@@ -444,43 +451,15 @@ class VeiculoController extends Controller
     }
 
     /**
-     * Remove uma imagem da galeria (apaga registro + arquivo no OneDrive).
+     * Remove uma imagem da galeria e seu arquivo privado.
      */
     public function deleteImage(VeiculoImagem $imagem): RedirectResponse
     {
-        if ($imagem->arquivo) {
-            try {
-                $encoded = implode('/', array_map('rawurlencode', explode('/', $imagem->arquivo)));
-                FileUploadHelper::deleteFile($encoded);
-            } catch (\Throwable $e) {
-                Log::warning('Falha ao deletar imagem no OneDrive', [
-                    'path' => $imagem->arquivo,
-                    'ex'   => $e->getMessage(),
-                ]);
-            }
-        }
-
+        Veiculo::findOrFail($imagem->veiculo_id);
+        FileUploadHelper::delete($imagem->arquivo);
         $imagem->delete();
 
         return back()->with('success', 'Imagem removida.');
-    }
-
-    /**
-     * Download de toda a documentação do veículo no OneDrive em ZIP.
-     * Usa o FileUploadHelper::downloadFolderAsZip que percorre recursivamente
-     * a pasta veiculos/{id}/ no SharePoint e empacota num arquivo zip local.
-     */
-    public function downloadZipDocs(Veiculo $veiculo)
-    {
-        try {
-            return FileUploadHelper::downloadFolderAsZip("veiculos/{$veiculo->id}");
-        } catch (\Throwable $e) {
-            Log::error('Falha ao gerar ZIP de docs do veículo', [
-                'veiculo_id' => $veiculo->id,
-                'ex'         => $e->getMessage(),
-            ]);
-            return back()->withErrors(['error' => 'Falha ao gerar ZIP de documentação: ' . $e->getMessage()]);
-        }
     }
 
     /**
@@ -753,7 +732,7 @@ class VeiculoController extends Controller
         });
 
         if ($request->hasFile('anexo')) {
-            $path = $this->uploadOneDrive($request->file('anexo'), $veiculo->id, "preventivas/{$registro->id}");
+            $path = $this->storeVehicleFile($request->file('anexo'), $veiculo->id, "preventivas/{$registro->id}");
             if ($path) $registro->update(['arquivo' => $path]);
         }
 
@@ -816,6 +795,7 @@ class VeiculoController extends Controller
     /** Atualiza cabeçalho + situação + status/observação das linhas do checklist. */
     public function updateOsPreventiva(Request $request, VeiculoPreventivaItemRealizada $osPreventiva): RedirectResponse
     {
+        Veiculo::findOrFail($osPreventiva->id_veiculo);
         $data = $this->validarOsPreventiva($request, true);
 
         // Notas fiscais (lista repetível): total → total_valor_servico. A correlação
@@ -865,8 +845,7 @@ class VeiculoController extends Controller
         });
 
         if ($request->hasFile('anexo')) {
-            $path = $this->uploadOneDrive($request->file('anexo'), $osPreventiva->id_veiculo, "preventivas/{$osPreventiva->id}");
-            if ($path) $osPreventiva->update(['arquivo' => $path]);
+            FileUploadHelper::replace($osPreventiva->arquivo, $request->file('anexo'), "veiculos/{$osPreventiva->id_veiculo}/preventivas/{$osPreventiva->id}", fn ($path) => $osPreventiva->update(['arquivo' => $path]));
         }
 
         return back()->with('success', 'OS preventiva atualizada.');
@@ -889,6 +868,9 @@ class VeiculoController extends Controller
 
     public function destroyOsPreventiva(VeiculoPreventivaItemRealizada $osPreventiva): RedirectResponse
     {
+        Veiculo::findOrFail($osPreventiva->id_veiculo);
+        FileUploadHelper::delete($osPreventiva->arquivo);
+        foreach (($osPreventiva->notas_fiscais ?? []) as $nota) FileUploadHelper::delete($nota['arquivo'] ?? null);
         \Illuminate\Support\Facades\DB::transaction(function () use ($osPreventiva) {
             $osPreventiva->servicos()->delete();
             $osPreventiva->delete();
@@ -973,7 +955,7 @@ class VeiculoController extends Controller
             'descricao'          => 'nullable|string',
             // Anexo (NF/comprovante): PDF ou imagem — nunca tipo arbitrário
             // (upload irrestrito -> XSS armazenado ao servir inline via viewAnexo).
-            'anexo'              => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'anexo'              => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'itens'                          => ($update ? 'nullable' : 'required') . '|array' . ($update ? '' : '|min:1'),
             'itens.*.status'                 => 'required|in:sim,nao',
             'itens.*.observacao'             => 'nullable|string|max:1000',
@@ -996,14 +978,11 @@ class VeiculoController extends Controller
         return $data;
     }
 
-    /**
-     * Stream da imagem da galeria direto do OneDrive (rota proxy).
-     * Permite usar em <img src> sem expor o token Graph.
-     */
+    /** Serve a imagem privada da galeria pela rota autenticada. */
     public function viewImagem(Veiculo $veiculo, VeiculoImagem $imagem)
     {
         if ($imagem->veiculo_id !== $veiculo->id) abort(404);
-        return $this->streamArquivoOneDrive($imagem->arquivo);
+        return FileUploadHelper::serve($imagem->arquivo, false, "veiculos/{$veiculo->id}");
     }
 
     /** Stream da imagem principal do veiculo. */
@@ -1012,7 +991,7 @@ class VeiculoController extends Controller
         if (!$veiculo->imagem) {
             return $this->placeholderImagemResponse();
         }
-        return $this->streamArquivoOneDrive($veiculo->imagem);
+        return FileUploadHelper::serve($veiculo->imagem, false, "veiculos/{$veiculo->id}");
     }
 
     /**
@@ -1054,45 +1033,13 @@ class VeiculoController extends Controller
 
     protected function saveMainImage(Veiculo $veiculo, $file): ?string
     {
-        return $this->uploadOneDrive($file, $veiculo->id, 'principal');
+        return $this->storeVehicleFile($file, $veiculo->id, 'principal');
     }
 
-    /**
-     * Upload generico de um arquivo para o OneDrive sob veiculos/{id}/{subfolder}.
-     * Retorna o path relativo (a SGA-Engeativos) que vai pro banco, ou null em falha.
-     *
-     * O nome do arquivo eh renormalizado com slug + sufixo aleatorio para evitar
-     * colisoes entre uploads do mesmo veiculo.
-     */
-    protected function uploadOneDrive(UploadedFile $file, int $veiculoId, string $subfolder): ?string
+    /** Store a validated PDF or image in the vehicle's private upload folder. */
+    protected function storeVehicleFile(UploadedFile $file, int $veiculoId, string $subfolder): string
     {
-        $ext  = $file->getClientOriginalExtension() ?: 'bin';
-        $base = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-        $safe = Str::slug($base, '_') . '_' . Str::random(6) . '.' . $ext;
-
-        // Reembrulha como UploadedFile para mudar o nome visto pelo helper.
-        $renamed = new UploadedFile(
-            $file->getRealPath(),
-            $safe,
-            $file->getClientMimeType(),
-            null,
-            true
-        );
-
-        $folderName = "{$veiculoId}/{$subfolder}";
-        try {
-            $resp = FileUploadHelper::uploadFilesToFolder($folderName, $renamed, 'veiculos');
-            $primeiro = $resp[0] ?? [];
-            if (($primeiro['status'] ?? '') !== 'success') {
-                Log::error('Falha no upload OneDrive', ['veiculo' => $veiculoId, 'resp' => $primeiro]);
-                return null;
-            }
-        } catch (\Throwable $e) {
-            Log::error('Excecao no upload OneDrive', ['veiculo' => $veiculoId, 'ex' => $e->getMessage()]);
-            return null;
-        }
-
-        return "veiculos/{$folderName}/{$safe}";
+        return FileUploadHelper::store($file, "veiculos/{$veiculoId}/{$subfolder}");
     }
 
     /* =========================================================
@@ -1117,7 +1064,7 @@ class VeiculoController extends Controller
 
             $novo = $request->file("notas_fiscais.$idx.arquivo_novo");
             if ($novo) {
-                $arquivo = $this->uploadOneDrive($novo, $veiculoId, $subpasta);
+                $arquivo = $this->storeVehicleFile($novo, $veiculoId, $subpasta);
             }
 
             // Linha vazia (sem número, valor nem arquivo) é descartada
@@ -1143,7 +1090,7 @@ class VeiculoController extends Controller
         $data['user_create'] = Auth::user()?->email;
         $registro = VeiculoManutencao::create($data + ['arquivo' => null]);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $veiculo->id, "manutencoes/{$registro->id}");
+            $path = $this->storeVehicleFile($request->file('arquivo'), $veiculo->id, "manutencoes/{$registro->id}");
             $registro->update(['arquivo' => $path]);
         }
         return back()->with('success', 'Manutenção cadastrada.');
@@ -1156,8 +1103,7 @@ class VeiculoController extends Controller
         $data['user_edit'] = Auth::user()?->email;
         $manutencao->update($data);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $manutencao->veiculo_id, "manutencoes/{$manutencao->id}");
-            $manutencao->update(['arquivo' => $path]);
+            FileUploadHelper::replace($manutencao->arquivo, $request->file('arquivo'), "veiculos/{$manutencao->veiculo_id}/manutencoes/{$manutencao->id}", fn ($path) => $manutencao->update(['arquivo' => $path]));
         }
         return back()->with('success', 'Manutenção atualizada.');
     }
@@ -1166,22 +1112,26 @@ class VeiculoController extends Controller
      *  A manutenção já vem company-scoped pelo Tenantable (route binding). */
     public function viewNotaArquivo(VeiculoManutencao $manutencao, int $idx)
     {
+        Veiculo::findOrFail($manutencao->veiculo_id);
         $nota = ($manutencao->notas_fiscais ?? [])[$idx] ?? null;
         abort_if(empty($nota['arquivo']), 404, 'Nota fiscal sem arquivo.');
-        return $this->streamArquivoOneDrive($nota['arquivo']);
+        return FileUploadHelper::serve($nota['arquivo'], request()->boolean('download'), "veiculos/{$manutencao->veiculo_id}");
     }
 
     /** Stream do PDF de uma nota fiscal específica da OS preventiva.
      *  A OS já vem company-scoped pelo Tenantable (route binding). */
     public function viewNotaArquivoPreventiva(VeiculoPreventivaItemRealizada $osPreventiva, int $idx)
     {
+        Veiculo::findOrFail($osPreventiva->id_veiculo);
         $nota = ($osPreventiva->notas_fiscais ?? [])[$idx] ?? null;
         abort_if(empty($nota['arquivo']), 404, 'Nota fiscal sem arquivo.');
-        return $this->streamArquivoOneDrive($nota['arquivo']);
+        return FileUploadHelper::serve($nota['arquivo'], request()->boolean('download'), "veiculos/{$osPreventiva->id_veiculo}");
     }
 
     public function destroyManutencao(VeiculoManutencao $manutencao): RedirectResponse
     {
+        FileUploadHelper::delete($manutencao->arquivo);
+        foreach (($manutencao->notas_fiscais ?? []) as $nota) FileUploadHelper::delete($nota['arquivo'] ?? null);
         $manutencao->delete();
         return back()->with('success', 'Manutenção removida.');
     }
@@ -1193,7 +1143,7 @@ class VeiculoController extends Controller
         $data['user_create'] = Auth::user()?->email;
         $registro = VeiculoIpva::create($data + ['nome_anexo_ipva' => null]);
         if ($request->hasFile('anexo')) {
-            $path = $this->uploadOneDrive($request->file('anexo'), $veiculo->id, "ipvas/{$registro->id}");
+            $path = $this->storeVehicleFile($request->file('anexo'), $veiculo->id, "ipvas/{$registro->id}");
             $registro->update(['nome_anexo_ipva' => $path, 'extensao' => pathinfo($path ?? '', PATHINFO_EXTENSION)]);
         }
         return back()->with('success', 'IPVA cadastrado.');
@@ -1205,14 +1155,16 @@ class VeiculoController extends Controller
         $data['user_edit'] = Auth::user()?->email;
         $ipva->update($data);
         if ($request->hasFile('anexo')) {
-            $path = $this->uploadOneDrive($request->file('anexo'), $ipva->veiculo_id, "ipvas/{$ipva->id}");
-            $ipva->update(['nome_anexo_ipva' => $path, 'extensao' => pathinfo($path ?? '', PATHINFO_EXTENSION)]);
+            FileUploadHelper::replace($ipva->nome_anexo_ipva, $request->file('anexo'), "veiculos/{$ipva->veiculo_id}/ipvas/{$ipva->id}", function ($path) use ($ipva) {
+                $ipva->update(['nome_anexo_ipva' => $path, 'extensao' => pathinfo($path, PATHINFO_EXTENSION)]);
+            });
         }
         return back()->with('success', 'IPVA atualizado.');
     }
 
     public function destroyIpva(VeiculoIpva $ipva): RedirectResponse
     {
+        FileUploadHelper::delete($ipva->nome_anexo_ipva);
         $ipva->delete();
         return back()->with('success', 'IPVA removido.');
     }
@@ -1220,12 +1172,12 @@ class VeiculoController extends Controller
     public function storeSeguro(Request $request, Veiculo $veiculo): RedirectResponse
     {
         $data = $this->validarSeguro($request);
-        unset($data['arquivo']); // o arquivo é tratado à parte (upload OneDrive)
+        unset($data['arquivo']); // arquivo tratado separadamente para armazenamento privado
         $data['veiculo_id']  = $veiculo->id;
         $data['user_create'] = Auth::user()?->email;
         $seguro = VeiculoSeguro::create($data);
         if ($request->hasFile('arquivo')) {
-            $seguro->update(['arquivo' => $this->uploadOneDrive($request->file('arquivo'), $veiculo->id, "seguros/{$seguro->id}")]);
+            $seguro->update(['arquivo' => $this->storeVehicleFile($request->file('arquivo'), $veiculo->id, "seguros/{$seguro->id}")]);
         }
         return back()->with('success', 'Seguro cadastrado.');
     }
@@ -1237,13 +1189,14 @@ class VeiculoController extends Controller
         $data['user_edit'] = Auth::user()?->email;
         $seguro->update($data);
         if ($request->hasFile('arquivo')) {
-            $seguro->update(['arquivo' => $this->uploadOneDrive($request->file('arquivo'), $seguro->veiculo_id, "seguros/{$seguro->id}")]);
+            FileUploadHelper::replace($seguro->arquivo, $request->file('arquivo'), "veiculos/{$seguro->veiculo_id}/seguros/{$seguro->id}", fn ($path) => $seguro->update(['arquivo' => $path]));
         }
         return back()->with('success', 'Seguro atualizado.');
     }
 
     public function destroySeguro(VeiculoSeguro $seguro): RedirectResponse
     {
+        FileUploadHelper::delete($seguro->arquivo);
         $seguro->delete();
         return back()->with('success', 'Seguro removido.');
     }
@@ -1597,7 +1550,7 @@ class VeiculoController extends Controller
         $data['user_create'] = Auth::user()?->email;
         $registro = VeiculoDocLegal::create($data + ['arquivo' => null]);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $veiculo->id, 'docs_legais');
+            $path = $this->storeVehicleFile($request->file('arquivo'), $veiculo->id, 'docs_legais');
             $registro->update(['arquivo' => $path]);
         }
         return back()->with('success', 'Documento legal cadastrado.');
@@ -1609,14 +1562,14 @@ class VeiculoController extends Controller
         $data['user_edit'] = Auth::user()?->email;
         $doc->update($data);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $doc->id_veiculo, 'docs_legais');
-            $doc->update(['arquivo' => $path]);
+            FileUploadHelper::replace($doc->arquivo, $request->file('arquivo'), "veiculos/{$doc->id_veiculo}/docs_legais", fn ($path) => $doc->update(['arquivo' => $path]));
         }
         return back()->with('success', 'Documento atualizado.');
     }
 
     public function destroyDocLegal(VeiculoDocLegal $doc): RedirectResponse
     {
+        FileUploadHelper::delete($doc->arquivo);
         $doc->delete();
         return back()->with('success', 'Documento removido.');
     }
@@ -1628,7 +1581,7 @@ class VeiculoController extends Controller
         $data['user_create'] = Auth::user()?->email;
         $registro = VeiculoDocTecnico::create($data + ['arquivo' => null]);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $veiculo->id, 'docs_tecnicos');
+            $path = $this->storeVehicleFile($request->file('arquivo'), $veiculo->id, 'docs_tecnicos');
             $registro->update(['arquivo' => $path]);
         }
         return back()->with('success', 'Documento técnico cadastrado.');
@@ -1640,14 +1593,14 @@ class VeiculoController extends Controller
         $data['user_edit'] = Auth::user()?->email;
         $doc->update($data);
         if ($request->hasFile('arquivo')) {
-            $path = $this->uploadOneDrive($request->file('arquivo'), $doc->id_veiculo, 'docs_tecnicos');
-            $doc->update(['arquivo' => $path]);
+            FileUploadHelper::replace($doc->arquivo, $request->file('arquivo'), "veiculos/{$doc->id_veiculo}/docs_tecnicos", fn ($path) => $doc->update(['arquivo' => $path]));
         }
         return back()->with('success', 'Documento atualizado.');
     }
 
     public function destroyDocTecnico(VeiculoDocTecnico $doc): RedirectResponse
     {
+        FileUploadHelper::delete($doc->arquivo);
         $doc->delete();
         return back()->with('success', 'Documento removido.');
     }
@@ -1669,7 +1622,15 @@ class VeiculoController extends Controller
             default => $registro->arquivo,
         };
         if (!$path) abort(404);
-        return $this->streamArquivoOneDrive($path);
+        $veiculoId = match ($tipo) {
+            'manutencao' => $registro->veiculo_id,
+            'os-preventiva' => $registro->id_veiculo,
+            'ipva', 'seguro' => $registro->veiculo_id,
+            'doc-legal', 'doc-tecnico' => $registro->id_veiculo,
+        };
+        Veiculo::findOrFail($veiculoId);
+
+        return FileUploadHelper::serve($path, request()->boolean('download'), "veiculos/{$veiculoId}");
     }
 
     protected function validarManutencao(Request $request): array
@@ -1698,7 +1659,7 @@ class VeiculoController extends Controller
             'descricao'             => 'nullable|string',
             'situacao'              => 'required|integer|in:1,2,3,4',
             // NF/comprovante: PDF ou imagem (ver nota em storeOsPreventiva)
-            'arquivo'               => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'arquivo'               => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
     }
 
@@ -1710,7 +1671,7 @@ class VeiculoController extends Controller
             'data_de_pagamento'  => 'nullable|date',
             'data_de_vencimento' => 'nullable|date',
             // Comprovante do IPVA: PDF ou imagem
-            'anexo'              => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'anexo'              => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
     }
 
@@ -1722,7 +1683,7 @@ class VeiculoController extends Controller
             'carencia_final'   => 'nullable|date|after_or_equal:carencia_inicial',
             'valor'            => 'nullable|numeric|min:0',
             // Apólice: PDF ou imagem
-            'arquivo'          => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            'arquivo'          => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
     }
 
@@ -2265,40 +2226,4 @@ class VeiculoController extends Controller
         }
     }
 
-    /**
-     * Stream binario de um arquivo no OneDrive para o response,
-     * com Content-Type inferido pela extensao.
-     */
-    protected function streamArquivoOneDrive(string $relPath)
-    {
-        $body = FileUploadHelper::openFileStream($relPath);
-        if (!$body) {
-            // Arquivo não encontrado no OneDrive: devolve SVG "sem foto" com
-            // 200 OK para evitar avalanche de 404 no console e barrar erros
-            // no Service Worker (que aborta cache em response 404).
-            return $this->placeholderImagemResponse();
-        }
-
-        $ext  = strtolower(pathinfo($relPath, PATHINFO_EXTENSION));
-        $mime = match ($ext) {
-            'jpg', 'jpeg' => 'image/jpeg',
-            'png'         => 'image/png',
-            'gif'         => 'image/gif',
-            'webp'        => 'image/webp',
-            'bmp'         => 'image/bmp',
-            'pdf'         => 'application/pdf',
-            default       => 'application/octet-stream',
-        };
-
-        return response()->stream(function () use ($body) {
-            while (!$body->eof()) {
-                echo $body->read(8192);
-            }
-        }, 200, [
-            'Content-Type'  => $mime,
-            // inline: abre no navegador (nova aba), NUNCA força download
-            'Content-Disposition' => 'inline; filename="' . basename($relPath) . '"',
-            'Cache-Control' => 'private, max-age=300',
-        ]);
-    }
 }

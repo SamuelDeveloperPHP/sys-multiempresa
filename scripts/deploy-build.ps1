@@ -178,10 +178,10 @@ if (-not $SkipZip) {
     Write-Host ""
     Write-Host "Proximos passos:" -ForegroundColor Cyan
     Write-Host "  1) Acesse cPanel -> File Manager" -ForegroundColor White
-    Write-Host "  2) Va para o diretorio do projeto (ex: ~/newsga)" -ForegroundColor White
+    Write-Host "  2) Va para o diretorio do projeto (ex: ~/app-gestao)" -ForegroundColor White
     Write-Host "  3) Faca upload do ZIP" -ForegroundColor White
     Write-Host "  4) Use Extract no proprio File Manager" -ForegroundColor White
-    Write-Host "  5) Via SSH: cd ~/newsga && php artisan migrate --force" -ForegroundColor White
+    Write-Host "  5) Via SSH: cd ~/app-gestao && php artisan migrate --force" -ForegroundColor White
     Write-Host "  6) Veja docs/DEPLOY.md para detalhes" -ForegroundColor White
 } else {
     Write-Host "[4/4] ZIP SKIPPED" -ForegroundColor DarkGray

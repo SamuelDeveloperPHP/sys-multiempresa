@@ -32,6 +32,7 @@ class MovimentacaoRequest extends FormRequest
             'tipo' => ['required', Rule::in($tiposPermitidos)],
 
             'produto_id' => ['required', 'integer', Rule::exists('estoque_produtos', 'id')->whereNull('deleted_at')],
+            'variante_id' => ['nullable', 'integer', Rule::exists('estoque_produto_variantes', 'id')],
             'obra_id'    => [
                 'required', 'integer',
                 Rule::exists('obras', 'id')->where(fn ($q) => $companyId ? $q->where('company_id', $companyId) : $q),
@@ -83,9 +84,14 @@ class MovimentacaoRequest extends FormRequest
             // Para SAIDA / TRANSF_OUT: valida saldo suficiente
             $tipo = $this->input('tipo');
             if (in_array($tipo, [Movimentacao::TIPO_SAIDA, Movimentacao::TIPO_TRANSF_OUT], true)) {
-                $saldo = Saldo::where('produto_id', $this->input('produto_id'))
-                    ->where('obra_id', $this->input('obra_id'))
-                    ->value('quantidade') ?? 0;
+                $saldoQuery = Saldo::where('produto_id', $this->input('produto_id'))
+                    ->where('obra_id', $this->input('obra_id'));
+                if ($this->filled('variante_id')) {
+                    $saldoQuery->where('variante_id', $this->input('variante_id'));
+                } else {
+                    $saldoQuery->whereNull('variante_id');
+                }
+                $saldo = $saldoQuery->value('quantidade') ?? 0;
 
                 if ((float) $saldo < (float) $this->input('quantidade')) {
                     $v->errors()->add(

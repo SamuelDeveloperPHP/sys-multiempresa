@@ -35,7 +35,7 @@ O script faz:
 
 **Opção A — File Manager (mais fácil):**
 1. cPanel → **File Manager**
-2. Navegue até `~/newsga/` (ou onde está o projeto no servidor)
+2. Navegue até `~/app-gestao/` (ou onde está o projeto no servidor)
 3. Clique em **Upload** → selecione o ZIP do passo 1
 4. Volte ao File Manager → clique direito no ZIP → **Extract**
 5. Confirme sobrescrever arquivos existentes
@@ -43,8 +43,8 @@ O script faz:
 **Opção B — SFTP (mais rápido para repetir):**
 - FileZilla / WinSCP apontando para `seu-host.com.br:22` (porta SSH-FTP)
 - Login: usuário cPanel + senha
-- Arraste e solte o ZIP para `~/newsga/`
-- No SSH: `cd ~/newsga && unzip -o release_*.zip && rm release_*.zip`
+- Arraste e solte o ZIP para `~/app-gestao/`
+- No SSH: `cd ~/app-gestao && unzip -o release_*.zip && rm release_*.zip`
 
 ### 3. `.env` no servidor
 
@@ -52,7 +52,7 @@ O ZIP **não inclui o `.env`** (por segurança). Crie pela primeira vez via cPan
 
 ```bash
 # Pelo SSH:
-cd ~/newsga
+cd ~/app-gestao
 cp .env.example .env
 nano .env  # editar conforme docs/DEPLOY.md (seção 2)
 
@@ -65,7 +65,7 @@ php artisan key:generate
 ### 4. Migrations + cache via SSH
 
 ```bash
-cd ~/newsga
+cd ~/app-gestao
 
 # Roda migrations no banco de prod
 php artisan migrate --force
@@ -95,13 +95,13 @@ cPanel padrão serve a partir de `~/public_html`. Você tem 3 opções:
 
 **Opção 1 — Subdomínio dedicado (recomendado, mais seguro):**
 - cPanel → **Subdomains** → crie `app.seudominio.com.br`
-- Document Root: `/home/seuuser/newsga/public`
+- Document Root: `/home/seuuser/app-gestao/public`
 - O cPanel cria essa pasta automaticamente, mas você pode mudar
 - Apontar diretamente para a pasta `public/` do Laravel
 
 **Opção 2 — Domínio principal apontando para `public/`:**
 - cPanel → **Domains** → edite o domínio principal
-- Document Root: mude de `~/public_html` para `~/newsga/public`
+- Document Root: mude de `~/public_html` para `~/app-gestao/public`
 
 **Opção 3 — `.htaccess` na raiz (gambiarra, não recomendado):**
 - Suba o projeto INTEIRO em `~/public_html/`
@@ -129,7 +129,7 @@ SESSION_SECURE_COOKIE=true
 cPanel → **Cron Jobs** → adicione:
 
 ```
-* * * * * cd /home/seuuser/newsga && /usr/local/bin/php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /home/seuuser/app-gestao && /usr/local/bin/php artisan schedule:run >> /dev/null 2>&1
 ```
 
 ## ⚡ Deploys futuros (rotina)
@@ -144,7 +144,7 @@ Toda vez que tiver mudança de código:
 Upload o ZIP → Extract → SSH:
 
 ```bash
-cd ~/newsga
+cd ~/app-gestao
 php artisan migrate --force          # se tiver migration nova
 php artisan config:clear
 php artisan route:clear
@@ -159,14 +159,14 @@ php artisan view:cache
 Crie `~/.bash_aliases` no servidor:
 
 ```bash
-alias sga='cd ~/newsga'
-alias sga-migrate='cd ~/newsga && php artisan migrate --force'
-alias sga-cache='cd ~/newsga && php artisan config:cache && php artisan route:cache && php artisan view:cache'
-alias sga-clear='cd ~/newsga && php artisan config:clear && php artisan route:clear && php artisan view:clear'
-alias sga-deploy='cd ~/newsga && unzip -o release_*.zip && rm release_*.zip && php artisan migrate --force && php artisan config:cache && php artisan route:cache'
+alias app='cd ~/app-gestao'
+alias app-migrate='cd ~/app-gestao && php artisan migrate --force'
+alias app-cache='cd ~/app-gestao && php artisan config:cache && php artisan route:cache && php artisan view:cache'
+alias app-clear='cd ~/app-gestao && php artisan config:clear && php artisan route:clear && php artisan view:clear'
+alias app-deploy='cd ~/app-gestao && unzip -o release_*.zip && rm release_*.zip && php artisan migrate --force && php artisan config:cache && php artisan route:cache'
 ```
 
-Depois `source ~/.bash_aliases` (ou abrir sessão SSH nova). Aí basta `sga-deploy` após upload.
+Depois `source ~/.bash_aliases` (ou abrir sessão SSH nova). Aí basta `app-deploy` após upload.
 
 ## ❓ FAQ
 
@@ -174,10 +174,10 @@ Depois `source ~/.bash_aliases` (ou abrir sessão SSH nova). Aí basta `sga-depl
 R: Provavelmente `node_modules` ou `_release/` está sendo incluído. O script exclui, mas confira o `.gitignore` se tem coisas grandes.
 
 **P: cPanel reclama de timeout no extract?**
-R: Use SSH: `cd ~/newsga && unzip -o release_*.zip`.
+R: Use SSH: `cd ~/app-gestao && unzip -o release_*.zip`.
 
 **P: Como ver logs em prod?**
-R: `tail -f ~/newsga/storage/logs/laravel.log` via SSH.
+R: `tail -f ~/app-gestao/storage/logs/laravel.log` via SSH.
 
 **P: Como instalar composer/npm no servidor cPanel?**
 R: Geralmente não dá em shared hosting (precisa root). Solução: ou trocar para VPS, ou usar este fluxo de build-local.

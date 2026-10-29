@@ -1,6 +1,6 @@
 // resources/sw/sw.js
 // -----------------------------------------------------------------------------
-// Service Worker do SGA Mobile — modo injectManifest (Workbox 7).
+// Service Worker do aplicativo móvel — modo injectManifest (Workbox 7).
 //
 // POR QUE INJECTMANIFEST (e não generateSW):
 // generateSW não expõe setCatchHandler. Sem ele, quando o NetworkFirst de

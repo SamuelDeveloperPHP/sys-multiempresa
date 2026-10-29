@@ -111,7 +111,7 @@ O legado utilizava controle de acesso do Laravel atrelado ao `CadastroUsuariosVi
 ### Riscos
 - **Diferença de Estrutura de Models:** `CadastroFuncionario` possui atributos que talvez não existam atualmente no fillable do `App\Models\Funcionario`.
 - **Anexos e Documentos:** Necessário padronizar a lógica de arquivos (armazenamento na AWS S3 / Local `storage` usando validação Multipart via Inertia).
-- Resposta: os anexos são enviados para o Onedrive via Microsoft Graph API utilizando o arquivo o FileUploadHelper do sistema legado
+- Implementação atual: anexos de funcionários e veículos usam armazenamento privado local e validação centralizada de PDF, JPEG, JPG e PNG.
 
 
 ### Itens que NÃO serão alterados

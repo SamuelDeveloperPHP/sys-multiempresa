@@ -59,7 +59,7 @@ Route::get('/sw.js', function () {
     // Resultado: na próxima navegação o HTML vem fresh do Laravel, sem SW.
     if (!app()->environment('production')) {
         $kill = <<<'JS'
-// === SGA Kill-Switch Service Worker (DEV ONLY) ===
+// === Kill-Switch Service Worker (DEV ONLY) ===
 // Auto-desregistra, limpa caches e recarrega clients controlados.
 // Servido pela rota Laravel /sw.js quando APP_ENV != production.
 
@@ -167,7 +167,7 @@ Route::get('/_dev/reset-sw', function () {
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>Reset SW — SGA Dev</title>
+<title>Reset SW — Ambiente de desenvolvimento</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 20px; color: #1f2937; background: #f9fafb; }
@@ -180,7 +180,7 @@ Route::get('/_dev/reset-sw', function () {
 </style>
 </head>
 <body>
-<h1>SGA · Reset Service Worker (DEV)</h1>
+<h1>Reset Service Worker (DEV)</h1>
 <p>Limpa Service Workers, CacheStorage e força nova navegação fresh do servidor.</p>
 <pre id="log">[aguardando…]</pre>
 <button onclick="goHome()">Ir para /</button>
@@ -253,15 +253,14 @@ Route::get('/manifest.webmanifest', function () {
     if (!file_exists($file)) {
         // Fallback inline se o build ainda não rodou
         return response()->json([
-            'name' => 'SGA',
-            'short_name' => 'SGA',
+            'name' => config('app.name'),
+            'short_name' => config('app.name'),
             'theme_color' => '#557bbb',
             'background_color' => '#ffffff',
             'display' => 'standalone',
             'start_url' => '/mobile/veiculos',
             'icons' => [
-                ['src' => '/icons/icon-192.png', 'sizes' => '192x192', 'type' => 'image/png', 'purpose' => 'any maskable'],
-                ['src' => '/icons/icon-512.png', 'sizes' => '512x512', 'type' => 'image/png', 'purpose' => 'any maskable'],
+                ['src' => '/imagens/icons/icon.svg', 'sizes' => 'any', 'type' => 'image/svg+xml', 'purpose' => 'any'],
             ],
         ])->header('Content-Type', 'application/manifest+json');
     }
@@ -523,7 +522,6 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             |------------------------------------------------------------------
             */
             Route::get('cadastros/funcionarios',                 [\App\Http\Controllers\Admin\FuncionarioController::class, 'index'])->name('admin.funcionarios.index');
-            Route::get('cadastros/funcionarios/revisao-onedrive', [\App\Http\Controllers\Admin\FuncionarioController::class, 'revisaoOnedrive'])->name('admin.funcionarios.revisao-onedrive');
             Route::get('cadastros/funcionarios/create',          [\App\Http\Controllers\Admin\FuncionarioController::class, 'create'])->name('admin.funcionarios.create');
             Route::post('cadastros/funcionarios/store',          [\App\Http\Controllers\Admin\FuncionarioController::class, 'store'])->name('admin.funcionarios.store');
             // Importação de cadastro por documento (Ficha de Registro) — pré-preenche o form (sem IA)
@@ -549,6 +547,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             // Funcionários Anexos (Arquivos)
             Route::post('funcionarios/anexos', [\App\Http\Controllers\Admin\FuncionarioController::class, 'adicionarAnexos'])->name('admin.funcionarios.adicionar_anexos');
             Route::post('funcionarios/{funcionario}/foto', [\App\Http\Controllers\Admin\FuncionarioController::class, 'salvarFotoPerfil'])->name('admin.funcionarios.salvar_foto');
+            Route::get('funcionarios/{funcionario}/foto', [\App\Http\Controllers\Admin\FuncionarioController::class, 'foto'])->name('admin.funcionarios.foto');
+            Route::get('funcionarios/documentos/{anexo}/arquivo', [\App\Http\Controllers\Admin\FuncionarioController::class, 'visualizarDocumento'])->name('admin.funcionarios.documentos.arquivo');
             Route::get('funcionarios/{funcionario}/anexos', [\App\Http\Controllers\Admin\FuncionarioController::class, 'anexos'])->name('admin.funcionarios.anexos');
             Route::post('funcionarios/documentos/aprovar', [\App\Http\Controllers\Admin\FuncionarioController::class, 'aprovarDocumentos'])->name('admin.funcionarios.aprovar_documentos');
             Route::delete('funcionarios/documentos/{id}', [\App\Http\Controllers\Admin\FuncionarioController::class, 'excluirDocumento'])->name('admin.funcionarios.excluir_documento');
@@ -579,7 +579,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('veiculos.imagens.store');
                 Route::delete('veiculos/imagens/{imagem}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'deleteImage'])
                     ->name('veiculos.imagens.destroy');
-                // Stream proxy do OneDrive (galeria e imagem principal)
+                // Arquivos privados servidos após autenticação e escopo de empresa.
                 Route::get('veiculos/{veiculo}/imagens/{imagem}/arquivo', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewImagem'])
                     ->name('veiculos.imagens.view');
                 Route::get('veiculos/{veiculo}/imagem-principal', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewImagemPrincipal'])
@@ -733,7 +733,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::delete('docs-tecnicos/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyDocTecnico'])
                     ->name('docs-tecnicos.destroy');
 
-                // Stream proxy de anexos das abas (PDF/imagem direto do OneDrive)
+                // Anexos privados das abas (PDF/imagem).
                 Route::get('anexos/{tipo}/{id}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewAnexo'])
                     ->where('tipo', 'manutencao|os-preventiva|ipva|seguro|doc-legal|doc-tecnico')
                     ->name('anexos.view');
@@ -741,10 +741,6 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 // Caderno Histórico de Manutenção (timeline read-only)
                 Route::get('veiculos/{veiculo}/historico-mnt', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'historicoMnt'])
                     ->name('veiculos.historico-mnt');
-
-                // Download de toda a documentação do veículo em ZIP (OneDrive)
-                Route::get('veiculos/{veiculo}/zip-docs', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'downloadZipDocs'])
-                    ->name('veiculos.zip-docs');
 
                 // Veiculos — CRUD completo (com show)
                 Route::resource('veiculos', \App\Http\Controllers\Admin\Frota\VeiculoController::class);

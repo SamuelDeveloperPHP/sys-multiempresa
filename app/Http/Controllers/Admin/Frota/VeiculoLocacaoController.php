@@ -21,7 +21,7 @@ use Inertia\Response as InertiaResponse;
  *
  * Diferenças vs. legacy:
  *   - Inertia/React em vez de blade.
- *   - Imagens via streamer OneDrive (rotas .imagem-principal e .funcionario.foto)
+ *   - Imagens privadas servidas por rotas autenticadas.
  *     em vez de asset() direto.
  *   - Tenancy: relações já são filtradas pelo trait Tenantable nos models.
  */
@@ -227,7 +227,7 @@ class VeiculoLocacaoController extends Controller
     }
 
     /**
-     * Stream da foto do funcionário (proxy OneDrive ou placeholder SVG).
+     * Serve a foto privada do funcionário ou um placeholder SVG.
      * Mantém a mesma estética do streamer de imagens de veículo.
      */
     public function funcionarioFoto(Funcionario $funcionario)
@@ -236,29 +236,7 @@ class VeiculoLocacaoController extends Controller
             return $this->placeholderUsuarioSvg();
         }
 
-        $body = FileUploadHelper::openFileStream($funcionario->imagem_usuario);
-        if (!$body) {
-            return $this->placeholderUsuarioSvg();
-        }
-
-        $ext  = strtolower(pathinfo($funcionario->imagem_usuario, PATHINFO_EXTENSION));
-        $mime = match ($ext) {
-            'jpg', 'jpeg' => 'image/jpeg',
-            'png'         => 'image/png',
-            'gif'         => 'image/gif',
-            'webp'        => 'image/webp',
-            'bmp'         => 'image/bmp',
-            default       => 'application/octet-stream',
-        };
-
-        return response()->stream(function () use ($body) {
-            while (!$body->eof()) {
-                echo $body->read(8192);
-            }
-        }, 200, [
-            'Content-Type'  => $mime,
-            'Cache-Control' => 'private, max-age=300',
-        ]);
+        return FileUploadHelper::serve($funcionario->imagem_usuario, false, "funcionarios/{$funcionario->id}");
     }
 
     protected function placeholderUsuarioSvg()

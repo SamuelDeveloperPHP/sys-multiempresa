@@ -190,7 +190,7 @@
         </div>
 
         <div class="footer">
-            Página pública de identificação — <strong>www.engetecnica.com.br</strong>
+            Página pública de identificação do funcionário
         </div>
     </div>
 </body>
