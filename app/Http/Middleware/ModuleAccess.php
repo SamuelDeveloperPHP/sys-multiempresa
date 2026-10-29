@@ -6,9 +6,15 @@ use App\Helpers\CompanyContext;
 use App\Models\Module;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
+use LogicException;
 
 class ModuleAccess
 {
+    public const ROUTE_ABILITY_KEY = 'module_ability';
+
+    public const ABILITIES = ['list', 'view', 'create', 'edit', 'delete'];
+
     /**
      * Telas operacionais que pertencem ao mesmo domínio de permissão,
      * embora usem controllers e nomes de rota dedicados.
@@ -93,17 +99,7 @@ class ModuleAccess
             abort(403, 'Empresa não selecionada.');
         }
 
-        // Descobre habilidade com base no método da action
-        $action = $route->getActionMethod();
-
-        $ability = match ($action) {
-            'index', 'active', 'inactive', 'list'     => 'list',
-            'show', 'details', 'detalhes'             => 'view',
-            'create', 'store'                         => 'create',
-            'edit', 'update'                          => 'edit',
-            'destroy', 'delete', 'remove', 'remover'  => 'delete',
-            default                                   => 'view',
-        };
+        $ability = self::abilityForRoute($route);
 
         $permission = $user->modulePermissions()
             ->where('company_id', $company->id)
@@ -134,5 +130,52 @@ class ModuleAccess
         ]);
 
         return $next($request);
+    }
+
+    /**
+     * Resolve a habilidade sem permitir que uma mutação desconhecida caia em view.
+     * Rotas customizadas devem declarar moduleAbility(); o fallback por verbo é
+     * apenas a última barreira de segurança para rotas legadas.
+     */
+    public static function abilityForRoute(Route $route): string
+    {
+        $explicit = $route->getAction(self::ROUTE_ABILITY_KEY);
+
+        if ($explicit !== null) {
+            if (! in_array($explicit, self::ABILITIES, true)) {
+                throw new LogicException(sprintf(
+                    'Habilidade de módulo inválida [%s] na rota [%s].',
+                    (string) $explicit,
+                    $route->getName() ?? $route->uri(),
+                ));
+            }
+
+            return $explicit;
+        }
+
+        $actionAbility = match ($route->getActionMethod()) {
+            'index', 'active', 'inactive', 'list' => 'list',
+            'show', 'details', 'detalhes' => 'view',
+            'create', 'store' => 'create',
+            'edit', 'update' => 'edit',
+            'destroy', 'delete', 'remove', 'remover' => 'delete',
+            default => null,
+        };
+
+        if ($actionAbility !== null) {
+            return $actionAbility;
+        }
+
+        $methods = $route->methods();
+
+        if (in_array('DELETE', $methods, true)) {
+            return 'delete';
+        }
+
+        if (array_intersect(['POST', 'PUT', 'PATCH'], $methods) !== []) {
+            return 'edit';
+        }
+
+        return 'view';
     }
 }

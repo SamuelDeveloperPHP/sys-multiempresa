@@ -576,8 +576,10 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::get('veiculos/subcategorias/{categoria}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'pesquisarSubcategoria'])
                     ->name('veiculos.subcategorias');
                 Route::post('veiculos/{veiculo}/imagens', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeImage'])
+                    ->moduleAbility('create')
                     ->name('veiculos.imagens.store');
                 Route::delete('veiculos/imagens/{imagem}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'deleteImage'])
+                    ->moduleAbility('delete')
                     ->name('veiculos.imagens.destroy');
                 // Arquivos privados servidos após autenticação e escopo de empresa.
                 Route::get('veiculos/{veiculo}/imagens/{imagem}/arquivo', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewImagem'])
@@ -586,6 +588,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('veiculos.imagem-principal');
                 // OS preventiva: cadastro a partir do Dashboard de Ciclos
                 Route::post('veiculos/{veiculo}/os-preventiva', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeOsPreventiva'])
+                    ->moduleAbility('create')
                     ->name('veiculos.os-preventiva.store');
                 // Checklist de itens do ciclo (+ pendências herdadas) para o modal de OS
                 Route::get('veiculos/{veiculo}/os-preventiva/itens', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'osPreventivaItens'])
@@ -597,10 +600,13 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::get('os-preventiva/{osPreventiva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'showOsPreventiva'])
                     ->name('os-preventiva.show');
                 Route::put('os-preventiva/{osPreventiva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateOsPreventiva'])
+                    ->moduleAbility('edit')
                     ->name('os-preventiva.update');
                 Route::patch('os-preventiva/{osPreventiva}/status', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateStatusOsPreventiva'])
+                    ->moduleAbility('edit')
                     ->name('os-preventiva.status');
                 Route::delete('os-preventiva/{osPreventiva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyOsPreventiva'])
+                    ->moduleAbility('delete')
                     ->name('os-preventiva.destroy');
                 // Stream do PDF de uma nota fiscal específica da OS preventiva (inline)
                 Route::get('os-preventiva/{osPreventiva}/notas/{idx}/arquivo', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewNotaArquivoPreventiva'])
@@ -610,10 +616,13 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::get('veiculos/{veiculo}/manutencoes/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listManutencoes'])
                     ->name('veiculos.manutencoes.list');
                 Route::post('veiculos/{veiculo}/manutencoes', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeManutencao'])
+                    ->moduleAbility('create')
                     ->name('veiculos.manutencoes.store');
                 Route::put('manutencoes/{manutencao}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateManutencao'])
+                    ->moduleAbility('edit')
                     ->name('manutencoes.update');
                 Route::delete('manutencoes/{manutencao}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyManutencao'])
+                    ->moduleAbility('delete')
                     ->name('manutencoes.destroy');
                 Route::get('manutencoes/{manutencao}/notas/{idx}/arquivo', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'viewNotaArquivo'])
                     ->whereNumber('idx')->name('manutencoes.nota-arquivo');
@@ -628,8 +637,10 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::get('veiculos/{veiculo}/depreciacao/estimativa', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'estimativaDepreciacao'])
                     ->name('veiculos.depreciacao.estimativa');
                 Route::put('veiculos/{veiculo}/depreciacao/parametros', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'salvarParametrosDepreciacao'])
+                    ->moduleAbility('edit')
                     ->name('veiculos.depreciacao.parametros');
                 Route::post('veiculos/{veiculo}/depreciacao/recalcular', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'recalcularDepreciacao'])
+                    ->moduleAbility('edit')
                     ->name('veiculos.depreciacao.recalcular');
                 Route::get('veiculos/{veiculo}/tacografos/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listTacografos'])
                     ->name('veiculos.tacografos.list');
@@ -640,18 +651,22 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 // Abastecimentos: CRUD a partir da aba (modal), redireciona back().
                 // Aninhado sob veiculos p/ não colidir com o resource legado.
                 Route::post('veiculos/{veiculo}/abastecimentos', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeAbastecimento'])
+                    ->moduleAbility('create')
                     ->name('veiculos.abastecimentos.store');
                 Route::put('veiculos/{veiculo}/abastecimentos/{abastecimento}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateAbastecimento'])
+                    ->moduleAbility('edit')
                     ->name('veiculos.abastecimentos.update');
                 Route::delete('veiculos/{veiculo}/abastecimentos/{abastecimento}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyAbastecimento'])
+                    ->moduleAbility('delete')
                     ->name('veiculos.abastecimentos.destroy');
                 // Medições (hodômetro/horímetro): CRUD via id cru (2 tabelas por tipo_hr)
                 Route::post('veiculos/{veiculo}/medicoes', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeMedicao'])
+                    ->moduleAbility('create')
                     ->name('veiculos.medicoes.store');
                 Route::put('veiculos/{veiculo}/medicoes/{id}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateMedicao'])
-                    ->whereNumber('id')->name('veiculos.medicoes.update');
+                    ->whereNumber('id')->moduleAbility('edit')->name('veiculos.medicoes.update');
                 Route::delete('veiculos/{veiculo}/medicoes/{id}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyMedicao'])
-                    ->whereNumber('id')->name('veiculos.medicoes.destroy');
+                    ->whereNumber('id')->moduleAbility('delete')->name('veiculos.medicoes.destroy');
                 Route::get('veiculos/{veiculo}/servicos-preventiva/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listServicosPreventiva'])
                     ->name('veiculos.servicos-preventiva.list');
 
@@ -669,68 +684,93 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                 Route::delete('combustiveis/{combustivel}', [\App\Http\Controllers\Admin\Frota\CombustivelController::class, 'destroy'])->name('combustiveis.destroy');
 
                 Route::post('veiculos/{veiculo}/ipvas', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeIpva'])
+                    ->moduleAbility('create')
                     ->name('veiculos.ipvas.store');
                 Route::put('ipvas/{ipva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateIpva'])
+                    ->moduleAbility('edit')
                     ->name('ipvas.update');
                 Route::delete('ipvas/{ipva}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyIpva'])
+                    ->moduleAbility('delete')
                     ->name('ipvas.destroy');
 
                 Route::post('veiculos/{veiculo}/seguros', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeSeguro'])
+                    ->moduleAbility('create')
                     ->name('veiculos.seguros.store');
                 Route::put('seguros/{seguro}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateSeguro'])
+                    ->moduleAbility('edit')
                     ->name('seguros.update');
                 Route::delete('seguros/{seguro}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroySeguro'])
+                    ->moduleAbility('delete')
                     ->name('seguros.destroy');
 
                 Route::post('veiculos/{veiculo}/depreciacoes', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeDepreciacao'])
+                    ->moduleAbility('create')
                     ->name('veiculos.depreciacoes.store');
                 Route::put('depreciacoes/{depreciacao}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateDepreciacao'])
+                    ->moduleAbility('edit')
                     ->name('depreciacoes.update');
                 Route::delete('depreciacoes/{depreciacao}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyDepreciacao'])
+                    ->moduleAbility('delete')
                     ->name('depreciacoes.destroy');
 
                 Route::post('veiculos/{veiculo}/tacografos', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeTacografo'])
+                    ->moduleAbility('create')
                     ->name('veiculos.tacografos.store');
                 Route::put('tacografos/{tacografo}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateTacografo'])
+                    ->moduleAbility('edit')
                     ->name('tacografos.update');
                 Route::delete('tacografos/{tacografo}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyTacografo'])
+                    ->moduleAbility('delete')
                     ->name('tacografos.destroy');
 
                 // Pneus (aba do veículo: mapa de posições + montagem/rodízio/desmontagem)
                 Route::get('veiculos/{veiculo}/pneus/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listPneusVeiculo'])
                     ->name('veiculos.pneus.list');
                 Route::put('veiculos/{veiculo}/pneus/config', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'salvarConfigPneus'])
+                    ->moduleAbility('edit')
                     ->name('veiculos.pneus.config');
                 Route::post('veiculos/{veiculo}/pneus/montar', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'montarPneu'])
+                    ->moduleAbility('edit')
                     ->name('veiculos.pneus.montar');
                 Route::post('veiculos/{veiculo}/pneus/desmontar', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'desmontarPneu'])
+                    ->moduleAbility('edit')
                     ->name('veiculos.pneus.desmontar');
                 Route::post('veiculos/{veiculo}/pneus/rodiziar', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'rodiziarPneu'])
+                    ->moduleAbility('edit')
                     ->name('veiculos.pneus.rodiziar');
                 Route::post('veiculos/{veiculo}/pneus/trocar', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'trocarPneu'])
+                    ->moduleAbility('edit')
                     ->name('veiculos.pneus.trocar');
 
                 // Listagem paginada (GET JSON): busca as-you-type + filtro obsoletos
                 Route::get('veiculos/{veiculo}/docs-legais/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listDocsLegais'])
                     ->name('veiculos.docs-legais.list');
                 Route::post('veiculos/{veiculo}/docs-legais', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeDocLegal'])
+                    ->moduleAbility('create')
                     ->name('veiculos.docs-legais.store');
                 Route::put('docs-legais/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateDocLegal'])
+                    ->moduleAbility('edit')
                     ->name('docs-legais.update');
                 Route::patch('docs-legais/{doc}/obsoleto', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'toggleObsoletoDocLegal'])
+                    ->moduleAbility('edit')
                     ->name('docs-legais.obsoleto');
                 Route::delete('docs-legais/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyDocLegal'])
+                    ->moduleAbility('delete')
                     ->name('docs-legais.destroy');
 
                 Route::get('veiculos/{veiculo}/docs-tecnicos/list', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'listDocsTecnicos'])
                     ->name('veiculos.docs-tecnicos.list');
                 Route::post('veiculos/{veiculo}/docs-tecnicos', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'storeDocTecnico'])
+                    ->moduleAbility('create')
                     ->name('veiculos.docs-tecnicos.store');
                 Route::put('docs-tecnicos/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'updateDocTecnico'])
+                    ->moduleAbility('edit')
                     ->name('docs-tecnicos.update');
                 Route::patch('docs-tecnicos/{doc}/obsoleto', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'toggleObsoletoDocTecnico'])
+                    ->moduleAbility('edit')
                     ->name('docs-tecnicos.obsoleto');
                 Route::delete('docs-tecnicos/{doc}', [\App\Http\Controllers\Admin\Frota\VeiculoController::class, 'destroyDocTecnico'])
+                    ->moduleAbility('delete')
                     ->name('docs-tecnicos.destroy');
 
                 // Anexos privados das abas (PDF/imagem).
@@ -761,6 +801,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
 
                 // Modelos de checklist (catalogo)
                 Route::post('checklists/{checklist}/duplicar', [\App\Http\Controllers\Admin\Frota\VeiculoChecklistController::class, 'duplicar'])
+                    ->moduleAbility('create')
                     ->name('checklists.duplicar');
                 Route::resource('checklists', \App\Http\Controllers\Admin\Frota\VeiculoChecklistController::class)
                     ->except(['show']);
@@ -791,14 +832,15 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
 
                 // Preventivas (catalogo + execucoes)
                 Route::post('preventivas/{preventiva}/duplicar', [\App\Http\Controllers\Admin\Frota\VeiculoPreventivaController::class, 'duplicar'])
+                    ->moduleAbility('create')
                     ->name('preventivas.duplicar');
                 Route::resource('preventivas', \App\Http\Controllers\Admin\Frota\VeiculoPreventivaController::class);
 
                 // Pneus (catálogo + ficha + ações de ciclo de vida)
-                Route::post('pneus/{pneu}/recapar',     [\App\Http\Controllers\Admin\Frota\PneuController::class, 'recapar'])->name('pneus.recapar');
-                Route::post('pneus/{pneu}/consertar',   [\App\Http\Controllers\Admin\Frota\PneuController::class, 'consertar'])->name('pneus.consertar');
-                Route::post('pneus/{pneu}/sucatear',    [\App\Http\Controllers\Admin\Frota\PneuController::class, 'sucatear'])->name('pneus.sucatear');
-                Route::post('pneus/{pneu}/inspecionar', [\App\Http\Controllers\Admin\Frota\PneuController::class, 'inspecionar'])->name('pneus.inspecionar');
+                Route::post('pneus/{pneu}/recapar',     [\App\Http\Controllers\Admin\Frota\PneuController::class, 'recapar'])->moduleAbility('edit')->name('pneus.recapar');
+                Route::post('pneus/{pneu}/consertar',   [\App\Http\Controllers\Admin\Frota\PneuController::class, 'consertar'])->moduleAbility('edit')->name('pneus.consertar');
+                Route::post('pneus/{pneu}/sucatear',    [\App\Http\Controllers\Admin\Frota\PneuController::class, 'sucatear'])->moduleAbility('edit')->name('pneus.sucatear');
+                Route::post('pneus/{pneu}/inspecionar', [\App\Http\Controllers\Admin\Frota\PneuController::class, 'inspecionar'])->moduleAbility('edit')->name('pneus.inspecionar');
                 Route::resource('pneus', \App\Http\Controllers\Admin\Frota\PneuController::class);
 
                 // Lookups (cadastros auxiliares: categorias, subcategorias, marcas, modelos, tipos)
