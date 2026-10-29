@@ -23,3 +23,11 @@
 - Dependências, critérios de aceite, gates de dados e definição de pronto documentados.
 - Estado: pronto para refinamento/execução; nenhuma correção funcional iniciada.
 
+## 2026-10-29 — FRT-000 concluído
+
+- Suíte-base Admin de Frota criada com helpers reutilizáveis de tenancy e permissões.
+- Comando `frota:diagnosticar-integridade` entregue em modo somente leitura, com filtro por empresa, JSON e falha opcional para CI.
+- Banco local diagnosticado: 3 veículos com locações ativas duplicadas, 1 checklist invisível e 0 motoristas com diários abertos duplicados.
+- Validação completa: 61 testes e 203 asserções; nenhuma regressão.
+- Próximo item: `FRT-001` — autorização explícita das rotas mutáveis.
+

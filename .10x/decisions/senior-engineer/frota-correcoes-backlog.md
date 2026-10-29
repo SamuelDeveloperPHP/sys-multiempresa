@@ -1,7 +1,7 @@
 # Backlog sênior — Correções dos módulos de Frota
 
 Data: 2026-10-29  
-Status: pronto para refinamento e execução  
+Status: em execução — `FRT-000` concluído
 Origem: `frota-gestao-veiculos-review.md`
 
 ## Objetivo
@@ -32,7 +32,7 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 
 | Ordem | ID | Item | Prioridade | Esforço | Dependências |
 |---:|---|---|:---:|:---:|---|
-| 0 | FRT-000 | Baseline de testes e diagnóstico repetível | P1 | M | — |
+| 0 | FRT-000 | Baseline de testes e diagnóstico repetível — concluído | P1 | M | — |
 | 1 | FRT-001 | Autorização explícita das rotas mutáveis | P1 | M | FRT-000 |
 | 2 | FRT-002 | Ownership nas mutações mobile | P1 | M | FRT-000 |
 | 3 | FRT-003 | Contrato canônico de checklist Admin/PWA | P1 | L | FRT-000 |
@@ -54,6 +54,8 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 
 ### FRT-000 — Baseline de testes e diagnóstico repetível
 
+**Status:** concluído em 2026-10-29 no commit `22fb5c4`.
+
 **Resultado esperado:** congelar o comportamento útil e tornar os dados inconsistentes mensuráveis antes de qualquer migration.
 
 **Escopo:**
@@ -69,6 +71,16 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 - nenhum teste depende de dados locais preexistentes;
 - diagnóstico informa IDs afetados por empresa, sem alterar registros;
 - baseline atual continua verde: 17 testes e 67 asserções mobile.
+
+**Implementação entregue:**
+
+- `app/Services/Frota/DiagnosticoIntegridadeFrota.php`: verificações reutilizáveis e somente leitura;
+- `app/Console/Commands/DiagnosticarIntegridadeFrota.php`: comando com `--company`, `--json` e `--fail-on-issues`;
+- `tests/Feature/Frota/AdminFrotaTestCase.php`: helpers isolados de empresa, usuário, veículo, permissão e contexto;
+- `tests/Feature/Frota/AdminFrotaBaselineTest.php`: baseline real da listagem Admin, autorização e tenancy;
+- `tests/Feature/Frota/FrotaDiagnosticoIntegridadeTest.php`: detecção, filtro empresarial, saída para CI e prova de não mutação.
+
+**Validação:** suíte completa com 61 testes e 203 asserções; recorte Frota + Mobile com 20 testes e 89 asserções. O diagnóstico MySQL encontrou 3 veículos com locações ativas duplicadas, 1 checklist invisível no Admin e nenhum motorista com múltiplos diários abertos. Nenhum registro foi alterado.
 
 ## Onda 1 — Segurança e fronteiras de acesso
 
