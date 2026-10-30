@@ -6,6 +6,8 @@ use App\Models\Company;
 use App\Models\Frota\Veiculo;
 use App\Models\Frota\VeiculoChecklist;
 use App\Models\Frota\VeiculoChecklistItem;
+use App\Models\Module;
+use App\Models\ModulePermission;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -34,7 +36,7 @@ abstract class MobileTestCase extends TestCase
             'veiculo_checklist', 'veiculo_checklist_itens',
             'veiculo_checklist_itens_servicos', 'veiculos_diario_bordo',
             'veiculo_abastecimentos', 'veiculos_locacaos',
-            'modules', 'module_permissions',
+            'audit_logs', 'modules', 'module_permissions',
         ] as $tabela) {
             Schema::dropIfExists($tabela);
         }
@@ -44,6 +46,9 @@ abstract class MobileTestCase extends TestCase
         Schema::create('modules', function (Blueprint $t) {
             $t->id();
             $t->string('name')->nullable();
+            $t->string('slug')->nullable();
+            $t->string('route_name')->nullable();
+            $t->string('url')->nullable();
             $t->unsignedBigInteger('parent_id')->nullable();
             $t->integer('sort_order')->nullable();
             $t->boolean('is_active')->default(true);
@@ -56,6 +61,27 @@ abstract class MobileTestCase extends TestCase
             $t->unsignedBigInteger('user_id')->nullable();
             $t->unsignedBigInteger('company_id')->nullable();
             $t->boolean('can_list')->default(false);
+            $t->boolean('can_view')->default(false);
+            $t->boolean('can_create')->default(false);
+            $t->boolean('can_edit')->default(false);
+            $t->boolean('can_delete')->default(false);
+            $t->timestamps();
+        });
+
+        Schema::create('audit_logs', function (Blueprint $t) {
+            $t->id();
+            $t->unsignedBigInteger('user_id')->nullable();
+            $t->unsignedBigInteger('company_id')->nullable();
+            $t->string('module')->nullable();
+            $t->string('action');
+            $t->string('route_name')->nullable();
+            $t->string('model_type')->nullable();
+            $t->unsignedBigInteger('model_id')->nullable();
+            $t->text('description')->nullable();
+            $t->json('before')->nullable();
+            $t->json('after')->nullable();
+            $t->string('ip_address')->nullable();
+            $t->string('user_agent')->nullable();
             $t->timestamps();
         });
 
@@ -283,6 +309,27 @@ abstract class MobileTestCase extends TestCase
             'prefixo' => $prefixo,
             'placa' => 'ABC1D23',
             'tipo_km' => 1,
+        ]);
+    }
+
+    protected function concederPermissao(
+        User $user,
+        Company $company,
+        string $moduleSlug,
+        string $ability,
+    ): void {
+        $module = Module::forceCreate([
+            'name' => $moduleSlug,
+            'slug' => $moduleSlug,
+            'is_active' => true,
+            'show_in_menu' => false,
+        ]);
+
+        ModulePermission::forceCreate([
+            'company_id' => $company->id,
+            'user_id' => $user->id,
+            'module_id' => $module->id,
+            "can_{$ability}" => true,
         ]);
     }
 

@@ -3,7 +3,14 @@
 namespace App\Providers;
 
 use App\Http\Middleware\ModuleAccess;
+use App\Models\Frota\VeiculoAbastecimento;
+use App\Models\Frota\VeiculoChecklistServico;
+use App\Models\Frota\VeiculoDiarioBordo;
+use App\Policies\Frota\VeiculoAbastecimentoPolicy;
+use App\Policies\Frota\VeiculoChecklistServicoPolicy;
+use App\Policies\Frota\VeiculoDiarioBordoPolicy;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
@@ -25,6 +32,10 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
         \Carbon\Carbon::setLocale('pt_BR');
+
+        Gate::policy(VeiculoAbastecimento::class, VeiculoAbastecimentoPolicy::class);
+        Gate::policy(VeiculoDiarioBordo::class, VeiculoDiarioBordoPolicy::class);
+        Gate::policy(VeiculoChecklistServico::class, VeiculoChecklistServicoPolicy::class);
 
         Route::macro('moduleAbility', function (string $ability): Route {
             if (! in_array($ability, ModuleAccess::ABILITIES, true)) {

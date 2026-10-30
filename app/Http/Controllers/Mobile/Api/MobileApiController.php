@@ -25,10 +25,15 @@ use App\Models\Frota\VeiculoQuilometragem;
 use App\Models\Funcionario;
 use App\Models\Obra;
 use App\Models\FuncionarioFuncao;
+use App\Policies\Frota\VeiculoAbastecimentoPolicy;
+use App\Policies\Frota\VeiculoChecklistServicoPolicy;
+use App\Policies\Frota\VeiculoDiarioBordoPolicy;
 use App\Services\Frota\CicloAbertoService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
@@ -67,6 +72,32 @@ class MobileApiController extends Controller
         $veiculo = $query->first();
         abort_if(!$veiculo, 403, 'Veículo não encontrado ou não pertence à sua empresa.');
         return $veiculo;
+    }
+
+    /**
+     * Gestores podem atuar em registro alheio somente pela policy. A exceção
+     * é registrada depois da mutação, com os valores anterior e resultante.
+     */
+    private function auditMobileOwnershipOverride(
+        bool $isOverride,
+        string $action,
+        string $module,
+        Model $record,
+        array $before,
+        array $after,
+    ): void {
+        if (! $isOverride) {
+            return;
+        }
+
+        log_activity("mobile_ownership_override_{$action}", [
+            'module' => $module,
+            'model_type' => $record::class,
+            'model_id' => $record->getKey(),
+            'description' => 'Exceção gerencial em registro mobile de outro usuário.',
+            'before' => $before,
+            'after' => $after,
+        ]);
     }
 
     /**
@@ -377,7 +408,10 @@ class MobileApiController extends Controller
     public function abastecimentosUpdate(UpdateAbastecimentoRequest $request, $id)
     {
         $rec = VeiculoAbastecimento::findOrFail($id);
-        $this->veiculoDaEmpresa((int) $rec->veiculo_id);  // ownership check
+        $this->veiculoDaEmpresa((int) $rec->veiculo_id);
+        $isOverride = ! app(VeiculoAbastecimentoPolicy::class)->isOwner($request->user(), $rec);
+        Gate::authorize('update', $rec);
+        $before = $rec->toArray();
         $payload = $this->normalizeAbastecimento($request->validated(), false);
         // Edição via sync também é uma recepção no servidor: recarimba.
         $payload['sync_status'] = 1;
@@ -389,14 +423,36 @@ class MobileApiController extends Controller
             $payload['arquivo_servidor'] = $foto['url'];
         }
         $rec->update($payload);
-        return response()->json(['status' => true, 'data' => $this->mapAbastecimento($rec->fresh())]);
+        $rec = $rec->fresh();
+        $this->auditMobileOwnershipOverride(
+            $isOverride,
+            'update',
+            'frota.abastecimentos',
+            $rec,
+            $before,
+            $rec->toArray(),
+        );
+
+        return response()->json(['status' => true, 'data' => $this->mapAbastecimento($rec)]);
     }
 
     public function abastecimentosDestroy($id)
     {
         $rec = VeiculoAbastecimento::findOrFail($id);
         $this->veiculoDaEmpresa((int) $rec->veiculo_id);
+        $user = Auth::user();
+        $isOverride = ! app(VeiculoAbastecimentoPolicy::class)->isOwner($user, $rec);
+        Gate::authorize('delete', $rec);
+        $before = $rec->toArray();
         $rec->delete();
+        $this->auditMobileOwnershipOverride(
+            $isOverride,
+            'delete',
+            'frota.abastecimentos',
+            $rec,
+            $before,
+            $rec->toArray(),
+        );
         return response()->json(['status' => true]);
     }
 
@@ -504,6 +560,9 @@ class MobileApiController extends Controller
     {
         $rec = VeiculoDiarioBordo::findOrFail($id);
         $this->veiculoDaEmpresa((int) $rec->id_veiculo);
+        $isOverride = ! app(VeiculoDiarioBordoPolicy::class)->isOwner($request->user(), $rec);
+        Gate::authorize('update', $rec);
+        $before = $rec->toArray();
         $payload = $this->normalizeDiario($request->validated(), false);
 
         // Fechamento de ciclo: explícito (ciclo_status) ou implícito (horário/hr/km final).
@@ -526,14 +585,36 @@ class MobileApiController extends Controller
         }
 
         $rec->update($payload);
-        return response()->json(['status' => true, 'data' => $this->mapDiario($rec->fresh())]);
+        $rec = $rec->fresh();
+        $this->auditMobileOwnershipOverride(
+            $isOverride,
+            'update',
+            'frota.diario',
+            $rec,
+            $before,
+            $rec->toArray(),
+        );
+
+        return response()->json(['status' => true, 'data' => $this->mapDiario($rec)]);
     }
 
     public function diarioDestroy($id)
     {
         $rec = VeiculoDiarioBordo::findOrFail($id);
         $this->veiculoDaEmpresa((int) $rec->id_veiculo);
+        $user = Auth::user();
+        $isOverride = ! app(VeiculoDiarioBordoPolicy::class)->isOwner($user, $rec);
+        Gate::authorize('delete', $rec);
+        $before = $rec->toArray();
         $rec->delete();
+        $this->auditMobileOwnershipOverride(
+            $isOverride,
+            'delete',
+            'frota.diario',
+            $rec,
+            $before,
+            $rec->toArray(),
+        );
         return response()->json(['status' => true]);
     }
 
@@ -769,6 +850,9 @@ class MobileApiController extends Controller
     {
         $rec = VeiculoChecklistServico::findOrFail($id);
         $this->veiculoDaEmpresa((int) $rec->id_veiculo);
+        $isOverride = ! app(VeiculoChecklistServicoPolicy::class)->isOwner($request->user(), $rec);
+        Gate::authorize('update', $rec);
+        $before = $rec->toArray();
 
         $payload = $request->only([
             'data', 'responsavel', 'km_atual', 'hr_atual', 'observacao_geral'
@@ -786,14 +870,36 @@ class MobileApiController extends Controller
         // Checklist não tem mais ciclo — status_ciclo não é alterado em edição.
         $payload['user_edit'] = Auth::user()?->email;
         $rec->update($payload);
-        return response()->json(['status' => true, 'data' => $this->mapChecklistServico($rec->fresh())]);
+        $rec = $rec->fresh();
+        $this->auditMobileOwnershipOverride(
+            $isOverride,
+            'update',
+            'frota.checklist-execucoes',
+            $rec,
+            $before,
+            $rec->toArray(),
+        );
+
+        return response()->json(['status' => true, 'data' => $this->mapChecklistServico($rec)]);
     }
 
     public function checklistServicosDestroy($id)
     {
         $rec = VeiculoChecklistServico::findOrFail($id);
         $this->veiculoDaEmpresa((int) $rec->id_veiculo);
+        $user = Auth::user();
+        $isOverride = ! app(VeiculoChecklistServicoPolicy::class)->isOwner($user, $rec);
+        Gate::authorize('delete', $rec);
+        $before = $rec->toArray();
         $rec->delete();
+        $this->auditMobileOwnershipOverride(
+            $isOverride,
+            'delete',
+            'frota.checklist-execucoes',
+            $rec,
+            $before,
+            $rec->toArray(),
+        );
         return response()->json(['status' => true]);
     }
 
