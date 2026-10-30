@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Admin\Frota;
 
 use App\Http\Controllers\Controller;
 use App\Models\Frota\Veiculo;
-use App\Models\Frota\VeiculoChecklistRealizado;
 use App\Models\Frota\VeiculoChecklistServico;
 use App\Models\Obra;
+use App\Services\Frota\ChecklistExecutionContract;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
@@ -28,10 +29,10 @@ class VeiculoChecklistServicoController extends Controller
     public function index(Request $request): InertiaResponse
     {
         $termo = trim((string) $request->input('q', ''));
-        $hoje  = now()->startOfDay();
+        $hoje = now()->startOfDay();
 
-        $dias    = collect(range(self::DIAS_HISTORICO - 1, 0))->map(fn ($i) => $hoje->copy()->subDays($i)->toDateString());
-        $inicio  = $dias->first();
+        $dias = collect(range(self::DIAS_HISTORICO - 1, 0))->map(fn ($i) => $hoje->copy()->subDays($i)->toDateString());
+        $inicio = $dias->first();
         $hojeStr = $hoje->toDateString();
 
         // Toda a frota ativa por padrão (o gerente vê tudo)
@@ -44,10 +45,10 @@ class VeiculoChecklistServicoController extends Controller
                 $q->whereNull('data_fim')->where('id_obraDestino', $obraId);
             });
         }
-        $filtroCiclo = strtoupper((string) $request->input('ciclo_status', ''));
+        $filtroStatus = strtoupper((string) $request->input('status', $request->input('ciclo_status', '')));
 
         if ($termo !== '') {
-            $like = '%' . $termo . '%';
+            $like = '%'.$termo.'%';
             $veiculosQ->where(function ($q) use ($like) {
                 $q->where('prefixo', 'like', $like)->orWhere('placa', 'like', $like)
                     ->orWhere('modelo', 'like', $like)->orWhere('marca', 'like', $like)
@@ -58,71 +59,91 @@ class VeiculoChecklistServicoController extends Controller
 
         // Execuções no período: por veículo+dia guardamos o ciclo (aberto|encerrado)
         // e, por veículo, o operador do lançamento mais recente.
-        $porDia = []; $operadorPor = [];
+        $porDia = [];
+        $operadorPor = [];
         VeiculoChecklistServico::whereNotNull('id_veiculo')
-            ->whereDate('data_cadastro', '>=', $inicio)
+            ->executadasDesde($inicio)
             ->with('user:id,name')
             ->orderBy('id')
-            ->get(['id', 'id_veiculo', 'data_cadastro', 'status_ciclo', 'id_user', 'user_create'])
+            ->get(['id', 'id_veiculo', 'data_execucao', 'data_cadastro', 'id_user', 'user_create', 'created_at'])
             ->each(function ($d) use (&$porDia, &$operadorPor) {
-                $dia = optional($d->data_cadastro)->toDateString();
-                if (! $dia) return;
-                $porDia[$d->id_veiculo][$dia] = strtoupper((string) $d->status_ciclo) === 'ABERTO' ? 'aberto' : 'encerrado';
+                $dia = $d->dataCanonica()?->toDateString();
+                if (! $dia) {
+                    return;
+                }
+                $porDia[$d->id_veiculo][$dia] = [
+                    'status' => strtolower(ChecklistExecutionContract::STATUS_CONCLUIDO),
+                    'execucao_id' => $d->id,
+                ];
                 $operadorPor[$d->id_veiculo] = optional($d->user)->name ?: ($d->user_create ?: '—');
             });
 
         $linhas = $veiculos->map(fn ($v) => [
-            'id'             => $v->id,
-            'prefixo'        => $v->prefixo,
-            'veiculo'        => $v->veiculo ?: (trim("{$v->marca} {$v->modelo}") ?: '—'),
-            'placa_chassi'   => $v->placa ?: ($v->nun_serie_chassi ?: '—'),
-            'dias'           => $dias->map(fn ($ds) => $porDia[$v->id][$ds] ?? null)->all(),
+            'id' => $v->id,
+            'prefixo' => $v->prefixo,
+            'veiculo' => $v->veiculo ?: (trim("{$v->marca} {$v->modelo}") ?: '—'),
+            'placa_chassi' => $v->placa ?: ($v->nun_serie_chassi ?: '—'),
+            'dias' => $dias->map(fn ($ds) => $porDia[$v->id][$ds] ?? null)->all(),
             'cadastrado_por' => $operadorPor[$v->id] ?? null,
-            'ciclo_hoje'     => $porDia[$v->id][$hojeStr] ?? null,
+            'ciclo_hoje' => $porDia[$v->id][$hojeStr] ?? null,
+            'execucao_hoje_id' => $porDia[$v->id][$hojeStr]['execucao_id'] ?? null,
         ]);
 
-        if ($filtroCiclo === 'ABERTO' || $filtroCiclo === 'ENCERRADO') {
-            $alvo = $filtroCiclo === 'ABERTO' ? 'aberto' : 'encerrado';
-            $linhas = $linhas->filter(fn ($l) => $l['ciclo_hoje'] === $alvo)->values();
+        if ($filtroStatus === 'CONCLUIDO') {
+            $linhas = $linhas->filter(fn ($l) => $l['ciclo_hoje'] !== null)->values();
+        } elseif ($filtroStatus === 'PENDENTE') {
+            $linhas = $linhas->filter(fn ($l) => $l['ciclo_hoje'] === null)->values();
         }
 
         $realizados = $linhas->filter(fn ($l) => $l['ciclo_hoje'] !== null)->values();
-        $pendentes  = $linhas->reject(fn ($l) => $l['ciclo_hoje'] !== null)->values();
-        $total      = $linhas->count();
-        $nReal      = $realizados->count();
+        $pendentes = $linhas->reject(fn ($l) => $l['ciclo_hoje'] !== null)->values();
+        $total = $linhas->count();
+        $nReal = $realizados->count();
 
         return Inertia::render('Admin/Frota/ChecklistExecucoes/Index', [
-            'dias'       => $dias->all(),
+            'dias' => $dias->all(),
             'realizados' => $realizados,
-            'pendentes'  => $pendentes,
-            'kpis'       => [
-                'total'           => $total,
+            'pendentes' => $pendentes,
+            'kpis' => [
+                'total' => $total,
                 'realizados_hoje' => $nReal,
-                'pendentes_hoje'  => $total - $nReal,
-                'cumprimento'     => $total > 0 ? round($nReal / $total * 100, 1) : 0.0,
+                'pendentes_hoje' => $total - $nReal,
+                'cumprimento' => $total > 0 ? round($nReal / $total * 100, 1) : 0.0,
             ],
-            'obras'   => Obra::orderBy('nome_fantasia')->get(['id', 'nome_fantasia', 'code']),
-            'filtros' => ['q' => $termo, 'obra_id' => $obraId, 'ciclo_status' => $filtroCiclo ?: null],
-            'agora'   => now()->format('d/m/Y H:i:s'),
+            'obras' => Obra::orderBy('nome_fantasia')->get(['id', 'nome_fantasia', 'code']),
+            'filtros' => ['q' => $termo, 'obra_id' => $obraId, 'status' => $filtroStatus ?: null],
+            'agora' => now()->format('d/m/Y H:i:s'),
         ]);
     }
 
-    public function show(VeiculoChecklistServico $execucao): InertiaResponse
-    {
-        $itens = VeiculoChecklistRealizado::where('id_checklist_realizado', $execucao->id_local)
-            ->with('item:id,nome_servico')
-            ->orderBy('id')
-            ->get();
+    public function show(
+        VeiculoChecklistServico $execucao,
+        ChecklistExecutionContract $contract,
+    ): InertiaResponse {
+        $execucao->load([
+            'veiculo:id,prefixo,placa,marca,modelo',
+            'obra:id,nome_fantasia',
+            'checklist:id,nome_checklist',
+            'user:id,name',
+            'itensRealizados.item:id,nome_servico',
+        ]);
+
+        $canonical = $contract->toArray($execucao);
+        $canonical['veiculo'] = $execucao->veiculo;
+        $canonical['obra'] = $execucao->obra;
+        $canonical['checklist'] = $execucao->checklist;
+        $canonical['user'] = $execucao->user;
+        $canonical['created_at'] = $execucao->created_at?->toIso8601String();
 
         return Inertia::render('Admin/Frota/ChecklistExecucoes/Show', [
-            'execucao' => $execucao->load(['veiculo:id,prefixo,placa', 'obra:id,nome_fantasia', 'checklist:id,nome_checklist']),
-            'itens'    => $itens,
+            'execucao' => $canonical,
         ]);
     }
 
-    public function destroy(VeiculoChecklistServico $execucao): \Illuminate\Http\RedirectResponse
+    public function destroy(VeiculoChecklistServico $execucao): RedirectResponse
     {
         $execucao->delete();
+
         return redirect()->route('admin.frota.checklist-execucoes.index')->with('success', 'Execução removida.');
     }
 }

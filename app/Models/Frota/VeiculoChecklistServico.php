@@ -3,16 +3,17 @@
 namespace App\Models\Frota;
 
 use App\Models\Obra;
-use App\Models\User;
 use App\Models\Traits\Syncable;
 use App\Models\Traits\Tenantable;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class VeiculoChecklistServico extends Model
 {
-    use HasFactory, SoftDeletes, Tenantable, Syncable;
+    use HasFactory, SoftDeletes, Syncable, Tenantable;
 
     protected $table = 'veiculo_checklist_itens_servicos';
 
@@ -40,11 +41,68 @@ class VeiculoChecklistServico extends Model
         'respostas' => 'array',
     ];
 
-    public function veiculo() { return $this->belongsTo(Veiculo::class, 'id_veiculo'); }
-    public function obra() { return $this->belongsTo(Obra::class, 'id_obra'); }
-    public function checklist() { return $this->belongsTo(VeiculoChecklist::class, 'id_checklist'); }
-    public function user() { return $this->belongsTo(User::class, 'id_user'); }
-    public function itensRealizados() { return $this->hasMany(VeiculoChecklistRealizado::class, 'id_checklist_realizado', 'id_local'); }
-    public function horimetro() { return $this->belongsTo(VeiculoHorimetro::class, 'id_horimetro'); }
-    public function quilometragem() { return $this->belongsTo(VeiculoQuilometragem::class, 'id_quilometragem'); }
+    protected static function booted(): void
+    {
+        static::saving(function (self $execution): void {
+            if ($execution->isDirty('data_execucao')) {
+                $execution->data_cadastro = $execution->data_execucao;
+            } elseif ($execution->isDirty('data_cadastro')) {
+                $execution->data_execucao = $execution->data_cadastro;
+            } elseif (! $execution->data_execucao && $execution->data_cadastro) {
+                $execution->data_execucao = $execution->data_cadastro;
+            } elseif (! $execution->data_cadastro && $execution->data_execucao) {
+                $execution->data_cadastro = $execution->data_execucao;
+            }
+        });
+    }
+
+    public function scopeExecutadasDesde(Builder $query, mixed $date): Builder
+    {
+        return $query->where(function (Builder $query) use ($date): void {
+            $query->where('data_execucao', '>=', $date)
+                ->orWhere(function (Builder $legacy) use ($date): void {
+                    $legacy->whereNull('data_execucao')->where('data_cadastro', '>=', $date);
+                });
+        });
+    }
+
+    public function dataCanonica()
+    {
+        return $this->data_execucao ?? $this->data_cadastro ?? $this->created_at;
+    }
+
+    public function veiculo()
+    {
+        return $this->belongsTo(Veiculo::class, 'id_veiculo');
+    }
+
+    public function obra()
+    {
+        return $this->belongsTo(Obra::class, 'id_obra');
+    }
+
+    public function checklist()
+    {
+        return $this->belongsTo(VeiculoChecklist::class, 'id_checklist');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'id_user');
+    }
+
+    public function itensRealizados()
+    {
+        return $this->hasMany(VeiculoChecklistRealizado::class, 'id_checklist_realizado', 'id_local');
+    }
+
+    public function horimetro()
+    {
+        return $this->belongsTo(VeiculoHorimetro::class, 'id_horimetro');
+    }
+
+    public function quilometragem()
+    {
+        return $this->belongsTo(VeiculoQuilometragem::class, 'id_quilometragem');
+    }
 }

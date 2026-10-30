@@ -12,13 +12,13 @@ import SearchableSelect from '@/Components/SearchableSelect';
 export default function ChecklistExecucoesIndex({ dias = [], realizados = [], pendentes = [], kpis = {}, obras = [], filtros = {}, agora = '' }) {
   const [busca, setBusca] = useState(filtros.q ?? '');
   const [obraId, setObraId] = useState(filtros.obra_id ? String(filtros.obra_id) : '');
-  const [ciclo, setCiclo] = useState(filtros.ciclo_status ?? '');
+  const [status, setStatus] = useState(filtros.status ?? '');
 
   const aplicar = (extra = {}) => {
     router.get(route('admin.frota.checklist-execucoes.index'), {
       q: busca || undefined,
       obra_id: obraId || undefined,
-      ciclo_status: ciclo || undefined,
+      status: status || undefined,
       ...extra,
     }, { preserveState: true, preserveScroll: true });
   };
@@ -30,12 +30,12 @@ export default function ChecklistExecucoesIndex({ dias = [], realizados = [], pe
     return () => clearTimeout(t);
   }, [busca]); // eslint-disable-line react-hooks/exhaustive-deps
   const limpar = () => {
-    setBusca(''); setObraId(''); setCiclo('');
+    setBusca(''); setObraId(''); setStatus('');
     router.get(route('admin.frota.checklist-execucoes.index'), {}, { preserveScroll: true });
   };
 
   const optObras = useMemo(() => obras.map((o) => ({ value: o.id, label: `${o.code ? o.code + ' — ' : ''}${o.nome_fantasia}` })), [obras]);
-  const optCiclos = [{ value: 'ABERTO', label: 'Aberto' }, { value: 'ENCERRADO', label: 'Encerrado' }];
+  const optStatus = [{ value: 'CONCLUIDO', label: 'Concluído hoje' }, { value: 'PENDENTE', label: 'Pendente hoje' }];
 
   const fmtDia = (ds) => `${ds.slice(8, 10)}/${ds.slice(5, 7)}`;
 
@@ -68,7 +68,7 @@ export default function ChecklistExecucoesIndex({ dias = [], realizados = [], pe
             className="flex-1 min-w-[220px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-rise-500 focus:border-rise-500"
           />
           <SearchableSelect value={obraId} onChange={(v) => { setObraId(v); aplicar({ obra_id: v || undefined }); }} options={optObras} placeholder="Todas as obras" className="min-w-[220px]" />
-          <SearchableSelect value={ciclo} onChange={(v) => { setCiclo(v); aplicar({ ciclo_status: v || undefined }); }} options={optCiclos} placeholder="Todos os ciclos" className="min-w-[170px]" />
+          <SearchableSelect value={status} onChange={(v) => { setStatus(v); aplicar({ status: v || undefined }); }} options={optStatus} placeholder="Todos os status" className="min-w-[190px]" />
           <button type="button" onClick={limpar} className="px-5 py-2 bg-rise-600 text-white rounded-lg text-sm font-medium hover:bg-rise-700">Limpar</button>
         </div>
 
@@ -130,16 +130,16 @@ function Lista({ titulo, icone, corTitulo, corHead, linhas, dias, fmtDia, vazio 
                 <td className="px-3 py-2 text-gray-600">{l.placa_chassi}</td>
                 {l.dias.map((c, i) => (
                   <td key={i} className="px-3 py-2 text-center">
-                    {c === 'encerrado'
-                      ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">Encerrado</span>
-                      : c === 'aberto'
-                        ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">Aberto</span>
-                        : <span className="text-gray-300">–</span>}
+                    {c?.status === 'concluido'
+                      ? <Link href={route('admin.frota.checklist-execucoes.show', c.execucao_id)} className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200">Concluído</Link>
+                      : <span className="text-gray-300">–</span>}
                   </td>
                 ))}
                 <td className="px-3 py-2 text-gray-600 text-xs">{l.cadastrado_por ?? '—'}</td>
                 <td className="px-3 py-2 text-right">
-                  <Link href={route('admin.frota.veiculos.show', l.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100">Detalhes</Link>
+                  {l.execucao_hoje_id
+                    ? <Link href={route('admin.frota.checklist-execucoes.show', l.execucao_hoje_id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rise-700 bg-rise-50 border border-rise-200 rounded-md hover:bg-rise-100">Ver checklist</Link>
+                    : <Link href={route('admin.frota.veiculos.show', l.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100">Ver veículo</Link>}
                 </td>
               </tr>
             ))}

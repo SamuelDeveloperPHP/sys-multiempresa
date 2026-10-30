@@ -56,12 +56,14 @@ class FrotaDiagnosticoIntegridadeTest extends AdminFrotaTestCase
             'ciclo_status' => 'FECHADO',
         ]);
 
-        $checklistInvisivel = VeiculoChecklistServico::withoutGlobalScopes()->create([
+        $checklistId = DB::table('veiculo_checklist_itens_servicos')->insertGetId([
             'company_id' => $empresa->id,
             'id_veiculo' => $veiculo->id,
             'id_user' => $usuario->id,
             'data_execucao' => '2026-10-29 08:00:00',
             'data_cadastro' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         VeiculoChecklistServico::withoutGlobalScopes()->create([
@@ -89,7 +91,7 @@ class FrotaDiagnosticoIntegridadeTest extends AdminFrotaTestCase
         $this->assertSame($diarios->pluck('id')->sort()->values()->all(), $diarioCheck['records'][0]['diario_ids']);
 
         $checklistCheck = $resultado['checks']['checklists_invisiveis_no_admin'];
-        $this->assertSame($checklistInvisivel->id, $checklistCheck['records'][0]['id']);
+        $this->assertSame($checklistId, $checklistCheck['records'][0]['id']);
     }
 
     public function test_comando_pode_emitir_json_e_falhar_no_ci_quando_ha_inconsistencia(): void

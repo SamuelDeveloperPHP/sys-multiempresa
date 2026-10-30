@@ -812,6 +812,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
 
                 // Execucoes de checklist (auditoria do que o mobile enviou)
                 Route::resource('checklist-execucoes', \App\Http\Controllers\Admin\Frota\VeiculoChecklistServicoController::class)
+                    ->parameters(['checklist-execucoes' => 'execucao'])
                     ->only(['index', 'show', 'destroy']);
 
                 // Abastecimentos

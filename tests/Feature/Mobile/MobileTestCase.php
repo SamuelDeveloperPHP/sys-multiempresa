@@ -34,7 +34,7 @@ abstract class MobileTestCase extends TestCase
         foreach ([
             'users', 'companies', 'veiculos',
             'veiculo_checklist', 'veiculo_checklist_itens',
-            'veiculo_checklist_itens_servicos', 'veiculos_diario_bordo',
+            'veiculo_checklist_itens_realizados', 'veiculo_checklist_itens_servicos', 'veiculos_diario_bordo',
             'veiculo_abastecimentos', 'veiculos_locacaos',
             'audit_logs', 'modules', 'module_permissions',
         ] as $tabela) {
@@ -210,6 +210,20 @@ abstract class MobileTestCase extends TestCase
             $t->integer('sync_attempts')->nullable();
             $t->dateTime('synced_at')->nullable();
             $t->string('client_uuid', 64)->nullable()->unique();
+            $t->timestamps();
+            $t->softDeletes();
+        });
+
+        Schema::create('veiculo_checklist_itens_realizados', function (Blueprint $t) {
+            $t->id();
+            $t->unsignedBigInteger('company_id')->nullable();
+            $t->string('id_local')->nullable();
+            $t->string('id_checklist_realizado')->nullable();
+            $t->unsignedBigInteger('id_checklist_itens')->nullable();
+            $t->string('status')->nullable();
+            $t->string('arquivo_app')->nullable();
+            $t->string('arquivo_servidor')->nullable();
+            $t->text('observacao')->nullable();
             $t->timestamps();
             $t->softDeletes();
         });

@@ -29,6 +29,7 @@ use App\Policies\Frota\VeiculoAbastecimentoPolicy;
 use App\Policies\Frota\VeiculoChecklistServicoPolicy;
 use App\Policies\Frota\VeiculoDiarioBordoPolicy;
 use App\Services\Frota\CicloAbertoService;
+use App\Services\Frota\ChecklistExecutionContract;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
@@ -182,23 +183,6 @@ class MobileApiController extends Controller
             }
         }
         return array_values($respostas);
-    }
-
-    /**
-     * Complementa cada resposta com 'foto_url' navegável a partir do
-     * 'foto_path' persistido (para o front exibir a foto sincronizada).
-     */
-    private function respostasComFotoUrl(?array $respostas): ?array
-    {
-        if (!$respostas) {
-            return $respostas;
-        }
-        return array_map(function ($r) {
-            if (is_array($r) && !empty($r['foto_path'])) {
-                $r['foto_url'] = url('storage/' . ltrim($r['foto_path'], '/'));
-            }
-            return $r;
-        }, $respostas);
     }
 
     // -------------------------------------------------------------------------
@@ -772,6 +756,7 @@ class MobileApiController extends Controller
         $userEmail = Auth::user()?->email;
         $rows = VeiculoChecklistServico::where('id_veiculo', $veiculoId)
             ->where('user_create', $userEmail)                  // ISOLAMENTO POR USUÁRIO
+            ->with(['checklist', 'user', 'itensRealizados.item'])
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(fn($r) => $this->mapChecklistServico($r));
@@ -905,26 +890,7 @@ class MobileApiController extends Controller
 
     private function mapChecklistServico(VeiculoChecklistServico $r): array
     {
-        $respostas = $r->respostas;
-        if (is_string($respostas)) {
-            $respostas = json_decode($respostas, true) ?: [];
-        }
-        $respostas = $this->respostasComFotoUrl($respostas);
-        return [
-            'id'              => $r->id,
-            'client_uuid'     => $r->client_uuid,
-            'veiculo_id'      => $r->id_veiculo,
-            'checklist_id'    => $r->id_checklist,
-            'user_id'         => $r->id_user,
-            'ciclo_status'    => $r->status_ciclo,   // front (Dexie) usa 'ciclo_status'
-            'template_nome'   => optional($r->checklist)->nome ?? optional($r->checklist)->titulo,
-            'data'            => optional($r->data_execucao ?? $r->created_at)->toIso8601String(),
-            'responsavel'     => $r->responsavel,
-            'km_atual'        => $r->km_atual,
-            'hr_atual'        => $r->hr_atual,
-            'respostas'       => $respostas,
-            'observacao_geral'=> $r->observacao_geral,
-        ];
+        return app(ChecklistExecutionContract::class)->toArray($r);
     }
 
     // -------------------------------------------------------------------------
@@ -976,7 +942,8 @@ class MobileApiController extends Controller
         $limit = min((int) $request->get('limit', 100), 500);
         $userEmail = Auth::user()?->email;
         $q = VeiculoChecklistServico::query()
-            ->where('user_create', $userEmail);                 // ISOLAMENTO POR USUÁRIO
+            ->where('user_create', $userEmail)                  // ISOLAMENTO POR USUÁRIO
+            ->with(['checklist', 'user', 'itensRealizados.item']);
         if ($cid = $this->companyId()) $q->where('company_id', $cid);
         $rows = $q->orderBy('created_at', 'desc')
             ->limit($limit)
