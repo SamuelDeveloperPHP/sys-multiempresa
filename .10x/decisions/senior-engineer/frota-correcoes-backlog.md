@@ -1,7 +1,7 @@
 # Backlog sênior — Correções dos módulos de Frota
 
 Data: 2026-10-29  
-Status: em execução — `FRT-000` a `FRT-003` concluídos
+Status: em execução — `FRT-000` a `FRT-004` concluídos
 Origem: `frota-gestao-veiculos-review.md`
 
 ## Objetivo
@@ -36,7 +36,7 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 | 1 | FRT-001 | Autorização explícita das rotas mutáveis — concluído | P1 | M | FRT-000 |
 | 2 | FRT-002 | Ownership nas mutações mobile — concluído | P1 | M | FRT-000 |
 | 3 | FRT-003 | Contrato canônico de checklist Admin/PWA — concluído | P1 | L | FRT-000 |
-| 4 | FRT-004 | Completude e versionamento do checklist | P1 | L | FRT-003 |
+| 4 | FRT-004 | Completude e versionamento do checklist — concluído | P1 | L | FRT-003 |
 | 5 | FRT-005 | Máquina de estados do diário de bordo | P1 | L | FRT-000 |
 | 6 | FRT-006 | Locação tenant-safe e sem sobreposição | P1 | L | FRT-000 |
 | 7 | FRT-007 | Estado transacional de montagem de pneus | P1 | XL | FRT-000 |
@@ -182,6 +182,8 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 
 ### FRT-004 — Completude e versionamento do checklist
 
+**Status:** concluído em 2026-10-30.
+
 **Resultado esperado:** inspeção não pode omitir, duplicar ou inventar itens.
 
 **Escopo:** validar pertencimento, unicidade e conjunto completo; versionar template; salvar snapshot do texto/criticidade aplicável à execução.
@@ -192,6 +194,21 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 - item duplicado ou obrigatório ausente retorna 422;
 - alteração futura do template não muda uma execução histórica;
 - itens críticos reprovados geram o estado/encaminhamento operacional definido.
+
+**Implementação entregue:**
+
+- validação server-side impede item alheio, item repetido e ausência de qualquer item obrigatório, tanto no cadastro quanto na edição;
+- cada modelo possui versão incremental e cada execução congela nome, regras e itens em `template_snapshot`;
+- respostas persistem o texto, a obrigatoriedade e a criticidade vigentes no momento da inspeção;
+- itens agora possuem configurações explícitas `obrigatorio` e `critico`, editáveis na tela administrativa;
+- resultados usam `CONFORME`, `NAO_CONFORME` ou `REPROVADO_CRITICO`; qualquer reprovação define `requer_acao`;
+- reprovação crítica exige encaminhamento operacional, sem indisponibilizar automaticamente o veículo enquanto não houver fluxo formal de bloqueio/liberação;
+- comando `frota:versionar-checklists` oferece dry-run, filtro empresarial e execução idempotente para o legado.
+- o sincronizador genérico não aceita novas execuções parciais; gravações devem usar o endpoint canônico com validação integral.
+
+**Saneamento local:** 3.912 execuções foram versionadas; a segunda execução alterou zero registros. Permaneceram 85.212 respostas relacionais e 1 execução com JSON, sem duplicação. O histórico resultou em 3.724 inspeções conformes e 188 não conformes; itens legados foram tratados como não críticos por ausência de classificação histórica confiável.
+
+**Validação:** suíte específica com 17 testes e 63 asserções; suíte completa com 81 testes e 480 asserções; build de produção e inspeção no navegador aprovados. A tela de itens mostrou as regras explícitas sem erros de console.
 
 ### FRT-005 — Máquina de estados do diário de bordo
 

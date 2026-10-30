@@ -58,3 +58,12 @@
 - Suíte completa: 73 testes e 448 asserções; build e teste visual no navegador aprovados.
 - Próximo item: `FRT-004` — completude e versionamento do checklist.
 
+## 2026-10-30 — FRT-004 concluído
+
+- API rejeita itens alheios, repetidos e obrigatórios ausentes no cadastro e na edição.
+- Versão e snapshot preservam o modelo, o texto e as regras históricas de cada execução.
+- Obrigatoriedade e criticidade são configuráveis no Admin; reprovação crítica gera encaminhamento sem bloqueio automático do veículo.
+- As 3.912 execuções foram versionadas de forma idempotente, preservando 85.212 respostas legadas e o JSON existente.
+- Suíte completa com 81 testes e 480 asserções, build e teste visual no navegador aprovados.
+- Próximo item: `FRT-005` — máquina de estados do diário de bordo.
+
