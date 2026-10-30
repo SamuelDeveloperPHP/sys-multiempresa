@@ -15,14 +15,25 @@ class VeiculoChecklistItem extends Model
 
     protected $fillable = [
         'company_id', 'id_checklist', 'id_veiculo',
-        'nome_servico', 'periodo_maq_vei', 'alerta_venci', 'tipo_itens',
+        'nome_servico', 'obrigatorio', 'critico', 'periodo_maq_vei', 'alerta_venci', 'tipo_itens',
         'periodo_dias', 'alert_venc_dias',
         'user_create', 'user_edit', 'situacao',
         'data_sincronizacao', 'sync_status',
     ];
 
-    protected $casts = ['data_sincronizacao' => 'datetime'];
+    protected $casts = [
+        'data_sincronizacao' => 'datetime',
+        'obrigatorio' => 'boolean',
+        'critico' => 'boolean',
+    ];
 
-    public function checklist() { return $this->belongsTo(VeiculoChecklist::class, 'id_checklist'); }
-    public function veiculo() { return $this->belongsTo(Veiculo::class, 'id_veiculo'); }
+    public function checklist()
+    {
+        return $this->belongsTo(VeiculoChecklist::class, 'id_checklist');
+    }
+
+    public function veiculo()
+    {
+        return $this->belongsTo(Veiculo::class, 'id_veiculo');
+    }
 }

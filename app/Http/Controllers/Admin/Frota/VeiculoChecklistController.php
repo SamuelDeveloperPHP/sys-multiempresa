@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Admin\Frota;
 use App\Http\Controllers\Controller;
 use App\Models\Frota\Veiculo;
 use App\Models\Frota\VeiculoChecklist;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -30,7 +30,7 @@ class VeiculoChecklistController extends Controller
 
         return Inertia::render('Admin/Frota/Checklists/Index', [
             'checklists' => $query->orderBy('nome_checklist')->paginate(20)->withQueryString(),
-            'filtros'    => ['q' => $q ?? ''],
+            'filtros' => ['q' => $q ?? ''],
         ]);
     }
 
@@ -38,13 +38,14 @@ class VeiculoChecklistController extends Controller
     {
         return Inertia::render('Admin/Frota/Checklists/Form', [
             'checklist' => null,
-            'veiculos'  => Veiculo::orderBy('prefixo')->get(['id', 'prefixo', 'placa']),
+            'veiculos' => Veiculo::orderBy('prefixo')->get(['id', 'prefixo', 'placa']),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         VeiculoChecklist::create($this->validar($request));
+
         return redirect()->route('admin.frota.checklists.index')->with('success', 'Checklist criado.');
     }
 
@@ -52,19 +53,25 @@ class VeiculoChecklistController extends Controller
     {
         return Inertia::render('Admin/Frota/Checklists/Form', [
             'checklist' => $checklist->load('itens'),
-            'veiculos'  => Veiculo::orderBy('prefixo')->get(['id', 'prefixo', 'placa']),
+            'veiculos' => Veiculo::orderBy('prefixo')->get(['id', 'prefixo', 'placa']),
         ]);
     }
 
     public function update(Request $request, VeiculoChecklist $checklist): RedirectResponse
     {
-        $checklist->update($this->validar($request));
+        $checklist->fill($this->validar($request));
+        if ($checklist->isDirty()) {
+            $checklist->save();
+            $checklist->increment('versao');
+        }
+
         return redirect()->route('admin.frota.checklists.index')->with('success', 'Checklist atualizado.');
     }
 
     public function destroy(VeiculoChecklist $checklist): RedirectResponse
     {
         $checklist->delete();
+
         return redirect()->route('admin.frota.checklists.index')->with('success', 'Checklist removido.');
     }
 
@@ -77,16 +84,17 @@ class VeiculoChecklistController extends Controller
             $checklist->loadMissing('itens');
 
             $novo = $checklist->replicate(['user_edit', 'data_sincronizacao']);
-            $novo->nome_checklist = $checklist->nome_checklist . '_copia';
-            $novo->situacao       = 'Ativo';
-            $novo->sync_status    = 0;
-            $novo->user_create    = Auth::user()?->email;
+            $novo->nome_checklist = $checklist->nome_checklist.'_copia';
+            $novo->situacao = 'Ativo';
+            $novo->versao = 1;
+            $novo->sync_status = 0;
+            $novo->user_create = Auth::user()?->email;
             $novo->save();
 
             foreach ($checklist->itens as $item) {
                 $novoItem = $item->replicate(['user_edit']);
                 $novoItem->id_checklist = $novo->id;
-                $novoItem->user_create  = Auth::user()?->email;
+                $novoItem->user_create = Auth::user()?->email;
                 $novoItem->save();
             }
         });
@@ -97,11 +105,11 @@ class VeiculoChecklistController extends Controller
     protected function validar(Request $request): array
     {
         return $request->validate([
-            'id_veiculo'     => 'nullable|exists:veiculos,id',
+            'id_veiculo' => 'nullable|exists:veiculos,id',
             'nome_checklist' => 'required|string|max:191',
-            'situacao'       => 'nullable|string|max:30',
-            'user_create'    => 'nullable|string|max:191',
-            'user_edit'      => 'nullable|string|max:191',
+            'situacao' => 'nullable|string|max:30',
+            'user_create' => 'nullable|string|max:191',
+            'user_edit' => 'nullable|string|max:191',
         ]);
     }
 }

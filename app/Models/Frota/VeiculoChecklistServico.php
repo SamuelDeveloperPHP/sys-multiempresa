@@ -27,6 +27,7 @@ class VeiculoChecklistServico extends Model
         'id_horimetro', 'id_quilometragem',
         // Campos adicionados para módulo Mobile (offline-first)
         'responsavel', 'km_atual', 'hr_atual', 'respostas', 'observacao_geral', 'data_execucao',
+        'template_versao', 'template_snapshot', 'resultado_inspecao', 'requer_acao',
         'sync_status', 'data_sincronizacao', 'sync_error', 'sync_attempts', 'synced_at',
         'client_uuid', // idempotência do sync mobile (dedupe por UUID do device)
     ];
@@ -39,6 +40,9 @@ class VeiculoChecklistServico extends Model
         'data_sincronizacao' => 'datetime',
         'synced_at' => 'datetime',
         'respostas' => 'array',
+        'template_snapshot' => 'array',
+        'template_versao' => 'integer',
+        'requer_acao' => 'boolean',
     ];
 
     protected static function booted(): void

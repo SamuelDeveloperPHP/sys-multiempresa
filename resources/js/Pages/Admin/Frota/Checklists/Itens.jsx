@@ -12,6 +12,8 @@ export default function ChecklistsItens({ checklist, itens }) {
     periodo_dias: '',
     alerta_venci: '',
     situacao: 'Ativo',
+    obrigatorio: true,
+    critico: false,
   });
 
   const salvarNovo = (e) => {
@@ -43,7 +45,7 @@ export default function ChecklistsItens({ checklist, itens }) {
         {/* Form de novo item */}
         <form onSubmit={salvarNovo} className="bg-white rounded-lg shadow border p-4 mb-6">
           <h2 className="font-semibold mb-2">Adicionar item</h2>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
             <input placeholder="Nome do serviço *" value={novo.data.nome_servico}
                    onChange={(e) => novo.setData('nome_servico', e.target.value)}
                    className="md:col-span-2 border border-gray-300 rounded px-3 py-2" />
@@ -53,6 +55,16 @@ export default function ChecklistsItens({ checklist, itens }) {
             <input placeholder="Período (dias)" type="number" value={novo.data.periodo_dias}
                    onChange={(e) => novo.setData('periodo_dias', e.target.value)}
                    className="border border-gray-300 rounded px-3 py-2" />
+            <fieldset className="flex flex-col justify-center gap-1 rounded border border-gray-200 px-3 py-1.5 text-xs text-gray-700">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={novo.data.obrigatorio}
+                       onChange={(e) => novo.setData('obrigatorio', e.target.checked)} /> Obrigatório
+              </label>
+              <label className="flex items-center gap-2 text-amber-800">
+                <input type="checkbox" checked={novo.data.critico}
+                       onChange={(e) => novo.setData('critico', e.target.checked)} /> Item crítico
+              </label>
+            </fieldset>
             <button type="submit" disabled={novo.processing}
                     className="bg-rise-600 text-white rounded px-4 py-2 hover:bg-rise-700 disabled:opacity-50">
               {novo.processing ? '...' : 'Adicionar'}
@@ -69,13 +81,14 @@ export default function ChecklistsItens({ checklist, itens }) {
                 <th className="px-4 py-3">Nome do serviço</th>
                 <th className="px-4 py-3">Tipo</th>
                 <th className="px-4 py-3">Período (dias)</th>
+                <th className="px-4 py-3">Regras</th>
                 <th className="px-4 py-3">Situação</th>
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {itens.length === 0 ? (
-                <tr><td colSpan={5} className="text-center text-gray-500 py-8">Nenhum item cadastrado ainda.</td></tr>
+                <tr><td colSpan={6} className="text-center text-gray-500 py-8">Nenhum item cadastrado ainda.</td></tr>
               ) : itens.map((item) => (
                 <ItemRow key={item.id} checklist={checklist} item={item}
                          editingId={editingId} setEditingId={setEditingId}
@@ -97,6 +110,8 @@ function ItemRow({ checklist, item, editingId, setEditingId, onDelete }) {
     periodo_dias: item.periodo_dias ?? '',
     alerta_venci: item.alerta_venci ?? '',
     situacao: item.situacao ?? 'Ativo',
+    obrigatorio: item.obrigatorio !== false,
+    critico: item.critico === true,
   });
 
   const salvar = (e) => {
@@ -113,6 +128,14 @@ function ItemRow({ checklist, item, editingId, setEditingId, onDelete }) {
         <td className="px-4 py-3 font-medium">{item.nome_servico}</td>
         <td className="px-4 py-3">{item.tipo_itens || '—'}</td>
         <td className="px-4 py-3">{item.periodo_dias ?? '—'}</td>
+        <td className="px-4 py-3">
+          <div className="flex flex-wrap gap-1.5">
+            <span className={`rounded px-2 py-0.5 text-xs font-medium ${item.obrigatorio !== false ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+              {item.obrigatorio !== false ? 'Obrigatório' : 'Opcional'}
+            </span>
+            {item.critico && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Crítico</span>}
+          </div>
+        </td>
         <td className="px-4 py-3">{item.situacao || '—'}</td>
         <td className="px-4 py-3 text-right space-x-2">
           <button onClick={() => setEditingId(item.id)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition">Editar</button>
@@ -133,6 +156,16 @@ function ItemRow({ checklist, item, editingId, setEditingId, onDelete }) {
       <td className="px-4 py-3"><input type="number" value={edit.data.periodo_dias}
         onChange={(e) => edit.setData('periodo_dias', e.target.value)}
         className="w-full border rounded px-2 py-1" /></td>
+      <td className="px-4 py-3">
+        <label className="mb-1 flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={edit.data.obrigatorio}
+            onChange={(e) => edit.setData('obrigatorio', e.target.checked)} /> Obrigatório
+        </label>
+        <label className="flex items-center gap-2 text-xs text-amber-800">
+          <input type="checkbox" checked={edit.data.critico}
+            onChange={(e) => edit.setData('critico', e.target.checked)} /> Crítico
+        </label>
+      </td>
       <td className="px-4 py-3">
         <select value={edit.data.situacao} onChange={(e) => edit.setData('situacao', e.target.value)}
                 className="w-full border rounded px-2 py-1">

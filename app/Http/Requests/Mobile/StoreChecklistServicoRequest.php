@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Mobile;
 
+use App\Helpers\CompanyContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -12,41 +13,45 @@ class StoreChecklistServicoRequest extends FormRequest
     // payloads abusivos na coluna/requisição.
     public const FOTO_MAX_CHARS = 2000000;
 
-    public function authorize(): bool { return $this->user() !== null; }
+    public function authorize(): bool
+    {
+        return $this->user() !== null;
+    }
 
     public function rules(): array
     {
-        $companyId = \App\Helpers\CompanyContext::current()?->id;
+        $companyId = CompanyContext::current()?->id;
+
         return [
             // Idempotência: UUID gerado no device; o servidor deduplica por ele.
-            'client_uuid'      => ['nullable', 'string', 'max:64'],
-            'veiculo_id'       => [
+            'client_uuid' => ['nullable', 'string', 'max:64'],
+            'veiculo_id' => [
                 'required', 'integer',
-                Rule::exists('veiculos', 'id')->where(fn($q) => $companyId ? $q->where('company_id', $companyId) : $q),
+                Rule::exists('veiculos', 'id')->where(fn ($q) => $companyId ? $q->where('company_id', $companyId) : $q),
             ],
             // Amarrado ao veículo: impede usar template de outro veículo/empresa.
-            'checklist_id'     => [
+            'checklist_id' => [
                 'required', 'integer',
                 Rule::exists('veiculo_checklist', 'id')
-                    ->where(fn($q) => $q->where('id_veiculo', (int) $this->input('veiculo_id'))),
+                    ->where(fn ($q) => $q->where('id_veiculo', (int) $this->input('veiculo_id'))),
             ],
-            'data'             => ['required', 'date'],
-            'responsavel'      => ['nullable', 'string', 'max:255'],
-            'km_atual'         => ['nullable', 'numeric', 'min:0'],
-            'hr_atual'         => ['nullable', 'numeric', 'min:0'],
+            'data' => ['required', 'date'],
+            'responsavel' => ['nullable', 'string', 'max:255'],
+            'km_atual' => ['nullable', 'numeric', 'min:0'],
+            'hr_atual' => ['nullable', 'numeric', 'min:0'],
             'observacao_geral' => ['nullable', 'string', 'max:2000'],
             // Ciclo (abertura/encerramento). 'tipo' é o sinal do front legado.
-            'ciclo_status'     => ['nullable', 'string', 'in:ABERTO,FECHADO'],
-            'tipo'             => ['nullable', 'string', 'in:ABERTURA,ENCERRAMENTO'],
-            'respostas'        => ['required', 'array', 'min:1', 'max:200'],
-            'respostas.*.item_id'   => ['required', 'integer'],
+            'ciclo_status' => ['nullable', 'string', 'in:ABERTO,FECHADO'],
+            'tipo' => ['nullable', 'string', 'in:ABERTURA,ENCERRAMENTO'],
+            'respostas' => ['required', 'array', 'min:1', 'max:200'],
+            'respostas.*.item_id' => ['required', 'integer'],
             'respostas.*.item_nome' => ['nullable', 'string', 'max:500'],
-            'respostas.*.ok'        => ['nullable', 'boolean'],
-            'respostas.*.obs'       => ['nullable', 'string', 'max:1000'],
+            'respostas.*.ok' => ['required', 'boolean'],
+            'respostas.*.obs' => ['nullable', 'string', 'max:1000'],
             // Foto do item: data URL de imagem, com teto de tamanho. O controller
             // extrai para arquivo (foto_path) — o JSON nunca persiste o base64.
             'respostas.*.foto_data_url' => [
-                'nullable', 'string', 'max:' . self::FOTO_MAX_CHARS,
+                'nullable', 'string', 'max:'.self::FOTO_MAX_CHARS,
                 'regex:/^data:image\/(jpeg|jpg|png|webp);base64,/',
             ],
             // Caminho de foto já extraída (reenvio/edição) — restrito ao diretório

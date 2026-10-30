@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Mobile\Api;
 
+use App\Helpers\CompanyContext;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mobile\StoreAbastecimentoRequest;
 use App\Http\Requests\Mobile\StoreChecklistServicoRequest;
@@ -9,7 +10,6 @@ use App\Http\Requests\Mobile\StoreDiarioBordoRequest;
 use App\Http\Requests\Mobile\UpdateAbastecimentoRequest;
 use App\Http\Requests\Mobile\UpdateChecklistServicoRequest;
 use App\Http\Requests\Mobile\UpdateDiarioBordoRequest;
-use App\Helpers\CompanyContext;
 use App\Models\Frota\Veiculo;
 use App\Models\Frota\VeiculoAbastecimento;
 use App\Models\Frota\VeiculoChecklist;
@@ -18,21 +18,22 @@ use App\Models\Frota\VeiculoChecklistServico;
 use App\Models\Frota\VeiculoDiarioBordo;
 use App\Models\Frota\VeiculoHorimetro;
 use App\Models\Frota\VeiculoLocacao;
-use App\Models\Frota\VeiculoPreventiva;
 use App\Models\Frota\VeiculoPreventivaItem;
 use App\Models\Frota\VeiculoPreventivaItemRealizada;
 use App\Models\Frota\VeiculoQuilometragem;
 use App\Models\Funcionario;
-use App\Models\Obra;
 use App\Models\FuncionarioFuncao;
+use App\Models\Obra;
 use App\Policies\Frota\VeiculoAbastecimentoPolicy;
 use App\Policies\Frota\VeiculoChecklistServicoPolicy;
 use App\Policies\Frota\VeiculoDiarioBordoPolicy;
-use App\Services\Frota\CicloAbertoService;
 use App\Services\Frota\ChecklistExecutionContract;
+use App\Services\Frota\ChecklistSubmission;
+use App\Services\Frota\CicloAbertoService;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
@@ -71,7 +72,8 @@ class MobileApiController extends Controller
             $query->where('company_id', $companyId);
         }
         $veiculo = $query->first();
-        abort_if(!$veiculo, 403, 'Veículo não encontrado ou não pertence à sua empresa.');
+        abort_if(! $veiculo, 403, 'Veículo não encontrado ou não pertence à sua empresa.');
+
         return $veiculo;
     }
 
@@ -108,13 +110,14 @@ class MobileApiController extends Controller
      */
     private function findByClientUuid(string $modelClass, ?string $uuid)
     {
-        if (!$uuid) {
+        if (! $uuid) {
             return null;
         }
         $query = $modelClass::query()->where('client_uuid', $uuid);
         if ($companyId = $this->companyId()) {
             $query->where('company_id', $companyId);
         }
+
         return $query->first();
     }
 
@@ -127,7 +130,7 @@ class MobileApiController extends Controller
     {
         try {
             return [$modelClass::create($payload), false];
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             $existing = $this->findByClientUuid($modelClass, $payload['client_uuid'] ?? null);
             if ($existing) {
                 return [$existing, true];
@@ -144,21 +147,22 @@ class MobileApiController extends Controller
      */
     private function salvarFotoBase64(?string $dataUrl, string $contexto, string $prefixo = 'img'): ?array
     {
-        if (!$dataUrl || !is_string($dataUrl)) {
+        if (! $dataUrl || ! is_string($dataUrl)) {
             return null;
         }
-        if (!preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,/', $dataUrl, $m)) {
+        if (! preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,/', $dataUrl, $m)) {
             return null;
         }
         $conteudo = base64_decode(substr($dataUrl, strpos($dataUrl, ',') + 1), true);
-        if (!$conteudo) {
+        if (! $conteudo) {
             return null;
         }
         $ext = $m[1] === 'jpg' ? 'jpeg' : $m[1];
-        $nome = uniqid($prefixo . '_', true) . '.' . $ext;
+        $nome = uniqid($prefixo.'_', true).'.'.$ext;
         $caminho = "uploads/aplicativo/{$contexto}/{$nome}";
         Storage::disk('public')->put($caminho, $conteudo);
-        return ['nome' => $nome, 'path' => $caminho, 'url' => url('storage/' . $caminho)];
+
+        return ['nome' => $nome, 'path' => $caminho, 'url' => url('storage/'.$caminho)];
     }
 
     /**
@@ -171,7 +175,7 @@ class MobileApiController extends Controller
      */
     private function extrairFotosRespostas(?array $respostas): ?array
     {
-        if (!$respostas) {
+        if (! $respostas) {
             return $respostas;
         }
         foreach ($respostas as $i => $r) {
@@ -182,6 +186,7 @@ class MobileApiController extends Controller
                 $respostas[$i]['foto_path'] = $foto['path'];
             }
         }
+
         return array_values($respostas);
     }
 
@@ -205,8 +210,8 @@ class MobileApiController extends Controller
         $companyId = $this->companyId();
         $query = Veiculo::query()
             ->select(['id', 'company_id', 'obra_id', 'prefixo', 'placa', 'marca', 'modelo',
-                      'imagem', 'tipo', 'tipo_km', 'tipo_hr',
-                      'quilometragem_inicial', 'horimetro_inicial'])
+                'imagem', 'tipo', 'tipo_km', 'tipo_hr',
+                'quilometragem_inicial', 'horimetro_inicial'])
             ->orderBy('prefixo');
         if ($companyId) {
             $query->where('company_id', $companyId);
@@ -239,6 +244,7 @@ class MobileApiController extends Controller
             $veiculo->horimetro_atual = $veiculo->ultimo_horimetro
                 ?? (float) $veiculo->horimetro_inicial;
             unset($veiculo->ultima_quilometragem, $veiculo->ultimo_horimetro);
+
             return $veiculo;
         });
 
@@ -282,11 +288,11 @@ class MobileApiController extends Controller
 
         // Calcula medição atual a partir das tabelas de leitura (última)
         $kmAtual = $this->ultimaQuilometragem($id) ?? (float) ($veiculo->quilometragem_inicial ?? 0);
-        $hrAtual = $this->ultimoHorimetro($id)     ?? (float) ($veiculo->horimetro_inicial ?? 0);
+        $hrAtual = $this->ultimoHorimetro($id) ?? (float) ($veiculo->horimetro_inicial ?? 0);
 
         // Anexa pseudo-fields esperados pelo front
         $veiculo->quilometragem_atual = $kmAtual;
-        $veiculo->horimetro_atual     = $hrAtual;
+        $veiculo->horimetro_atual = $hrAtual;
 
         $medicaoAtual = ($veiculo->tipo_hr ?? 0) == 1 ? $hrAtual : $kmAtual;
 
@@ -310,6 +316,7 @@ class MobileApiController extends Controller
                 ->orderByDesc('data_horimetro')
                 ->orderByDesc('id')
                 ->first();
+
             return $row ? (float) ($row->horimetro_novo ?? $row->horimetro_atual ?? 0) : null;
         } catch (\Throwable $e) {
             return null;
@@ -327,6 +334,7 @@ class MobileApiController extends Controller
                 ->orderByDesc('data_quilometragem')
                 ->orderByDesc('id')
                 ->first();
+
             return $row ? (float) ($row->quilometragem_nova ?? $row->quilometragem_atual ?? 0) : null;
         } catch (\Throwable $e) {
             return null;
@@ -344,7 +352,8 @@ class MobileApiController extends Controller
             ->where('user_create', $userEmail)                   // ISOLAMENTO POR USUÁRIO
             ->orderBy('data_abastecimento', 'desc')
             ->get()
-            ->map(fn($r) => $this->mapAbastecimento($r));
+            ->map(fn ($r) => $this->mapAbastecimento($r));
+
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
@@ -383,6 +392,7 @@ class MobileApiController extends Controller
             $payload['arquivo_servidor'] = $foto['url'];
         }
         [$rec, $jaExistia] = $this->createComClientUuid(VeiculoAbastecimento::class, $payload);
+
         return response()->json(
             ['status' => true, 'data' => $this->mapAbastecimento($rec), 'deduplicated' => $jaExistia],
             $jaExistia ? 200 : 201
@@ -437,6 +447,7 @@ class MobileApiController extends Controller
             $before,
             $rec->toArray(),
         );
+
         return response()->json(['status' => true]);
     }
 
@@ -444,44 +455,45 @@ class MobileApiController extends Controller
     {
         $user = Auth::user();
         $out = [
-            'veiculo_id'         => $in['veiculo_id'] ?? null,
-            'id_obra'            => $in['id_obra'] ?? null,
+            'veiculo_id' => $in['veiculo_id'] ?? null,
+            'id_obra' => $in['id_obra'] ?? null,
             'data_abastecimento' => $in['data'] ?? $in['data_abastecimento'] ?? null,
-            'fornecedor'         => $in['fornecedor'] ?? null,
-            'combustivel'        => $in['combustivel'] ?? null,
-            'quantidade'         => $in['quantidade'] ?? null,
-            'valor_do_litro'     => $in['valor_do_litro'] ?? null,
-            'valor_total'        => $in['valor_total'] ?? null,
-            'km_atual'           => $in['km_atual'] ?? null,
-            'hr_atual'           => $in['hr_atual'] ?? null,
+            'fornecedor' => $in['fornecedor'] ?? null,
+            'combustivel' => $in['combustivel'] ?? null,
+            'quantidade' => $in['quantidade'] ?? null,
+            'valor_do_litro' => $in['valor_do_litro'] ?? null,
+            'valor_total' => $in['valor_total'] ?? null,
+            'km_atual' => $in['km_atual'] ?? null,
+            'hr_atual' => $in['hr_atual'] ?? null,
         ];
         if ($create) {
             $out['user_create'] = $user?->email;
         } else {
             $out['user_edit'] = $user?->email;
         }
-        return array_filter($out, fn($v) => $v !== null);
+
+        return array_filter($out, fn ($v) => $v !== null);
     }
 
     private function mapAbastecimento(VeiculoAbastecimento $r): array
     {
         return [
-            'id'             => $r->id,
-            'client_uuid'    => $r->client_uuid,
-            'veiculo_id'     => $r->veiculo_id,
-            'data'           => optional($r->data_abastecimento)->toIso8601String(),
-            'fornecedor'     => $r->fornecedor,
-            'combustivel'    => $r->combustivel,
-            'quantidade'     => (float) $r->quantidade,
+            'id' => $r->id,
+            'client_uuid' => $r->client_uuid,
+            'veiculo_id' => $r->veiculo_id,
+            'data' => optional($r->data_abastecimento)->toIso8601String(),
+            'fornecedor' => $r->fornecedor,
+            'combustivel' => $r->combustivel,
+            'quantidade' => (float) $r->quantidade,
             'valor_do_litro' => (float) $r->valor_do_litro,
-            'valor_total'    => (float) $r->valor_total,
-            'km_atual'       => $r->km_atual,
-            'hr_atual'       => $r->hr_atual,
-            'observacao'     => null,
+            'valor_total' => (float) $r->valor_total,
+            'km_atual' => $r->km_atual,
+            'hr_atual' => $r->hr_atual,
+            'observacao' => null,
             // URL do comprovante salvo no servidor (foto capturada no app)
             'comprovante_url' => $r->arquivo_servidor,
-            'created_at'     => $r->created_at?->toIso8601String(),
-            'updated_at'     => $r->updated_at?->toIso8601String(),
+            'created_at' => $r->created_at?->toIso8601String(),
+            'updated_at' => $r->updated_at?->toIso8601String(),
         ];
     }
 
@@ -496,7 +508,8 @@ class MobileApiController extends Controller
             ->where('id_user', $userId)                       // ISOLAMENTO POR USUÁRIO
             ->orderBy('data_cadastro', 'desc')
             ->get()
-            ->map(fn($r) => $this->mapDiario($r));
+            ->map(fn ($r) => $this->mapDiario($r));
+
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
@@ -518,7 +531,7 @@ class MobileApiController extends Controller
         }
 
         $payload = $this->normalizeDiario($request->validated());
-        $payload['company_id']  = $this->companyId();
+        $payload['company_id'] = $this->companyId();
         $payload['ciclo_status'] = strtoupper($request->input('ciclo_status', CicloAbertoService::STATUS_ABERTO));
         // AUTORITATIVO: o responsável é quem abriu o diário (usuário autenticado).
         // Qualquer 'responsavel' vindo do cliente é ignorado — o app exibe o
@@ -534,6 +547,7 @@ class MobileApiController extends Controller
             $payload['arquivo_servidor'] = $foto['url'];
         }
         [$rec, $jaExistia] = $this->createComClientUuid(VeiculoDiarioBordo::class, $payload);
+
         return response()->json(
             ['status' => true, 'data' => $this->mapDiario($rec), 'deduplicated' => $jaExistia],
             $jaExistia ? 200 : 201
@@ -599,6 +613,7 @@ class MobileApiController extends Controller
             $before,
             $rec->toArray(),
         );
+
         return response()->json(['status' => true]);
     }
 
@@ -606,19 +621,19 @@ class MobileApiController extends Controller
     {
         $user = Auth::user();
         $out = [
-            'id_veiculo'            => $in['veiculo_id'] ?? $in['id_veiculo'] ?? null,
-            'id_obra'               => $in['id_obra'] ?? null,
-            'data_cadastro'         => $in['data'] ?? $in['data_cadastro'] ?? null,
-            'horario_inicial'       => $in['horario_inicial'] ?? null,
-            'horario_final'         => $in['horario_final'] ?? null,
-            'descricao_atividade'   => $in['descricao'] ?? $in['descricao_atividade'] ?? null,
-            'km_anterior'           => $in['km_inicial'] ?? null,
-            'km_atual'              => $in['km_final']   ?? $in['km_atual'] ?? null,
-            'hr_anterior'           => $in['hr_inicial'] ?? null,
-            'hr_atual'              => $in['hr_final']   ?? $in['hr_atual'] ?? null,
+            'id_veiculo' => $in['veiculo_id'] ?? $in['id_veiculo'] ?? null,
+            'id_obra' => $in['id_obra'] ?? null,
+            'data_cadastro' => $in['data'] ?? $in['data_cadastro'] ?? null,
+            'horario_inicial' => $in['horario_inicial'] ?? null,
+            'horario_final' => $in['horario_final'] ?? null,
+            'descricao_atividade' => $in['descricao'] ?? $in['descricao_atividade'] ?? null,
+            'km_anterior' => $in['km_inicial'] ?? null,
+            'km_atual' => $in['km_final'] ?? $in['km_atual'] ?? null,
+            'hr_anterior' => $in['hr_inicial'] ?? null,
+            'hr_atual' => $in['hr_final'] ?? $in['hr_atual'] ?? null,
             // Campos do encerramento (Close.jsx)
             'horas_trabalhadas_minutos' => $in['horas_trabalhadas_minutos'] ?? null,
-            'descricao_encerramento'    => $in['observacao_fechamento'] ?? $in['descricao_encerramento'] ?? null,
+            'descricao_encerramento' => $in['observacao_fechamento'] ?? $in['descricao_encerramento'] ?? null,
         ];
         if ($create) {
             $out['user_create'] = $user?->email;
@@ -626,35 +641,36 @@ class MobileApiController extends Controller
         } else {
             $out['user_edit'] = $user?->email;
         }
-        return array_filter($out, fn($v) => $v !== null);
+
+        return array_filter($out, fn ($v) => $v !== null);
     }
 
     private function mapDiario(VeiculoDiarioBordo $r): array
     {
         return [
-            'id'           => $r->id,
-            'client_uuid'  => $r->client_uuid,
-            'veiculo_id'   => $r->id_veiculo,
-            'user_id'      => $r->id_user,
+            'id' => $r->id,
+            'client_uuid' => $r->client_uuid,
+            'veiculo_id' => $r->id_veiculo,
+            'user_id' => $r->id_user,
             'ciclo_status' => $r->ciclo_status,
-            'data'         => optional($r->data_cadastro)->toIso8601String(),
+            'data' => optional($r->data_cadastro)->toIso8601String(),
             // Snapshot persistido; registros antigos caem no nome do usuário vinculado
-            'responsavel'  => $r->responsavel ?: $r->user?->name,
-            'descricao'    => $r->descricao_atividade,
+            'responsavel' => $r->responsavel ?: $r->user?->name,
+            'descricao' => $r->descricao_atividade,
             'descricao_atividade' => $r->descricao_atividade,
             'horario_inicial' => optional($r->horario_inicial)->toIso8601String(),
-            'horario_final'   => optional($r->horario_final)->toIso8601String(),
+            'horario_final' => optional($r->horario_final)->toIso8601String(),
             'horas_trabalhadas_minutos' => $r->horas_trabalhadas_minutos,
-            'km_inicial'   => $r->km_anterior,
-            'km_final'     => $r->km_atual,
-            'hr_inicial'   => $r->hr_anterior,
-            'hr_final'     => $r->hr_atual,
-            'observacao'   => $r->descricao_encerramento,
+            'km_inicial' => $r->km_anterior,
+            'km_final' => $r->km_atual,
+            'hr_inicial' => $r->hr_anterior,
+            'hr_final' => $r->hr_atual,
+            'observacao' => $r->descricao_encerramento,
             'observacao_fechamento' => $r->descricao_encerramento,
             // Fotos: abertura e fechamento (colunas separadas)
-            'foto_url'            => $r->arquivo_servidor,
+            'foto_url' => $r->arquivo_servidor,
             'foto_fechamento_url' => $r->arquivo_fechamento_servidor,
-            'created_at'   => $r->created_at?->toIso8601String(),
+            'created_at' => $r->created_at?->toIso8601String(),
         ];
     }
 
@@ -686,13 +702,14 @@ class MobileApiController extends Controller
 
         return response()->json([
             'status' => true,
-            'checklists' => $checklists->map(fn($c) => [
+            'checklists' => $checklists->map(fn ($c) => [
                 'id' => $c->id,
                 'veiculo_id' => $c->id_veiculo,
                 'nome' => $c->nome_checklist ?? "Checklist #{$c->id}",
                 'descricao' => $c->descricao ?? null,
+                'versao' => (int) ($c->versao ?: 1),
             ]),
-            'itens' => $itens->map(fn($i) => [
+            'itens' => $itens->map(fn ($i) => [
                 'id' => $i->id,
                 'checklist_id' => $i->id_checklist,
                 'veiculo_id' => $i->id_veiculo,
@@ -700,10 +717,8 @@ class MobileApiController extends Controller
                 'descricao' => $i->descricao ?? null,
                 'periodo_maq_vei' => $i->periodo_maq_vei ?? null,
                 'tipo_itens' => $i->tipo_itens ?? null,
-                // Não existe config por item no schema (veiculo_checklist_itens
-                // não tem coluna 'obrigatorio'). Regra de negócio vigente:
-                // TODOS os itens do checklist devem ser respondidos.
-                'obrigatorio' => true,
+                'obrigatorio' => (bool) $i->obrigatorio,
+                'critico' => (bool) $i->critico,
             ]),
         ]);
     }
@@ -759,11 +774,12 @@ class MobileApiController extends Controller
             ->with(['checklist', 'user', 'itensRealizados.item'])
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(fn($r) => $this->mapChecklistServico($r));
+            ->map(fn ($r) => $this->mapChecklistServico($r));
+
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
-    public function checklistServicosStore(StoreChecklistServicoRequest $request)
+    public function checklistServicosStore(StoreChecklistServicoRequest $request, ChecklistSubmission $submission)
     {
         $veiculoId = (int) $request->veiculo_id;
         $this->veiculoDaEmpresa($veiculoId);
@@ -781,7 +797,7 @@ class MobileApiController extends Controller
         // outro motorista no mesmo veículo não é bloqueado — troca de turno).
         // Compara por data_execucao (hora do PREENCHIMENTO), não pela hora do
         // sync — registros feitos offline sincronizam muito depois.
-        $dataExecucao = \Illuminate\Support\Carbon::parse($request->input('data'));
+        $dataExecucao = Carbon::parse($request->input('data'));
         $recente = VeiculoChecklistServico::query()
             ->where('id_veiculo', $veiculoId)
             ->where(function ($q) use ($user) {
@@ -796,43 +812,58 @@ class MobileApiController extends Controller
 
         if ($recente) {
             $minutosRestantes = max(1, 60 - abs($dataExecucao->diffInMinutes($recente->data_execucao)));
+
             return response()->json([
-                'status'  => false,
-                'message' => "Você já registrou um checklist deste veículo há pouco. "
-                           . "Aguarde {$minutosRestantes} min para registrar um novo.",
-                'errors'  => ['cooldown' => ['minutos_restantes' => $minutosRestantes]],
+                'status' => false,
+                'message' => 'Você já registrou um checklist deste veículo há pouco. '
+                           ."Aguarde {$minutosRestantes} min para registrar um novo.",
+                'errors' => ['cooldown' => ['minutos_restantes' => $minutosRestantes]],
             ], 422);
         }
 
+        $prepared = $submission->prepareForTemplate(
+            (int) $request->checklist_id,
+            $veiculoId,
+            $request->validated()['respostas'],
+        );
+
         // Usa as respostas VALIDADAS (whitelist de chaves) e extrai as fotos
         // base64 para arquivos — o JSON persiste apenas foto_path.
-        $respostas = $this->extrairFotosRespostas($request->validated()['respostas'] ?? null);
+        $respostas = $this->extrairFotosRespostas($prepared['respostas']);
 
         [$rec, $jaExistia] = $this->createComClientUuid(VeiculoChecklistServico::class, [
-            'company_id'    => $this->companyId(),
-            'client_uuid'   => $request->input('client_uuid'),
-            'id_veiculo'    => $veiculoId,
-            'id_checklist'  => $request->checklist_id,
+            'company_id' => $this->companyId(),
+            'client_uuid' => $request->input('client_uuid'),
+            'id_veiculo' => $veiculoId,
+            'id_checklist' => $request->checklist_id,
+            'template_versao' => $prepared['template_versao'],
+            'template_snapshot' => $prepared['template_snapshot'],
+            'resultado_inspecao' => $prepared['resultado_inspecao'],
+            'requer_acao' => $prepared['requer_acao'],
             // Registro nasce concluído (sem ciclo). 'tipo'/'ciclo_status' do
             // payload são aceitos por compatibilidade e ignorados.
-            'status_ciclo'  => CicloAbertoService::STATUS_FECHADO,
+            'status_ciclo' => CicloAbertoService::STATUS_FECHADO,
             'data_execucao' => $request->data,
-            'responsavel'   => $request->responsavel,
-            'km_atual'      => $request->km_atual,
-            'hr_atual'      => $request->hr_atual,
-            'respostas'     => $respostas,
+            'responsavel' => $request->responsavel,
+            'km_atual' => $request->km_atual,
+            'hr_atual' => $request->hr_atual,
+            'respostas' => $respostas,
             'observacao_geral' => $request->observacao_geral,
-            'user_create'   => $user?->email,
-            'id_user'       => $user?->id,
+            'user_create' => $user?->email,
+            'id_user' => $user?->id,
         ]);
+
         return response()->json(
             ['status' => true, 'data' => $this->mapChecklistServico($rec), 'deduplicated' => $jaExistia],
             $jaExistia ? 200 : 201
         );
     }
 
-    public function checklistServicosUpdate(UpdateChecklistServicoRequest $request, $id)
-    {
+    public function checklistServicosUpdate(
+        UpdateChecklistServicoRequest $request,
+        $id,
+        ChecklistSubmission $submission,
+    ) {
         $rec = VeiculoChecklistServico::findOrFail($id);
         $this->veiculoDaEmpresa((int) $rec->id_veiculo);
         $isOverride = ! app(VeiculoChecklistServicoPolicy::class)->isOwner($request->user(), $rec);
@@ -840,13 +871,16 @@ class MobileApiController extends Controller
         $before = $rec->toArray();
 
         $payload = $request->only([
-            'data', 'responsavel', 'km_atual', 'hr_atual', 'observacao_geral'
+            'data', 'responsavel', 'km_atual', 'hr_atual', 'observacao_geral',
         ]);
         if ($request->has('respostas')) {
             // Validadas + fotos base64 extraídas para arquivo (foto_path).
-            $payload['respostas'] = $this->extrairFotosRespostas(
-                $request->validated()['respostas'] ?? []
-            );
+            $prepared = $submission->prepareForExecution($rec, $request->validated()['respostas']);
+            $payload['respostas'] = $this->extrairFotosRespostas($prepared['respostas']);
+            $payload['template_versao'] = $prepared['template_versao'];
+            $payload['template_snapshot'] = $prepared['template_snapshot'];
+            $payload['resultado_inspecao'] = $prepared['resultado_inspecao'];
+            $payload['requer_acao'] = $prepared['requer_acao'];
         }
         if (isset($payload['data'])) {
             $payload['data_execucao'] = $payload['data'];
@@ -885,6 +919,7 @@ class MobileApiController extends Controller
             $before,
             $rec->toArray(),
         );
+
         return response()->json(['status' => true]);
     }
 
@@ -902,6 +937,7 @@ class MobileApiController extends Controller
         $rows = VeiculoLocacao::where('id_veiculo', $veiculoId)
             ->orderBy('id', 'desc')
             ->get();
+
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
@@ -915,11 +951,14 @@ class MobileApiController extends Controller
         $user = Auth::user();
         $q = VeiculoAbastecimento::query()
             ->where('user_create', $user?->email);              // ISOLAMENTO POR USUÁRIO
-        if ($cid = $this->companyId()) $q->where('company_id', $cid);
+        if ($cid = $this->companyId()) {
+            $q->where('company_id', $cid);
+        }
         $rows = $q->orderBy('data_abastecimento', 'desc')
             ->limit($limit)
             ->get()
-            ->map(fn($r) => $this->mapAbastecimento($r));
+            ->map(fn ($r) => $this->mapAbastecimento($r));
+
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
@@ -929,11 +968,14 @@ class MobileApiController extends Controller
         $userId = Auth::id();
         $q = VeiculoDiarioBordo::query()
             ->where('id_user', $userId);                        // ISOLAMENTO POR USUÁRIO
-        if ($cid = $this->companyId()) $q->where('company_id', $cid);
+        if ($cid = $this->companyId()) {
+            $q->where('company_id', $cid);
+        }
         $rows = $q->orderBy('data_cadastro', 'desc')
             ->limit($limit)
             ->get()
-            ->map(fn($r) => $this->mapDiario($r));
+            ->map(fn ($r) => $this->mapDiario($r));
+
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
@@ -944,11 +986,14 @@ class MobileApiController extends Controller
         $q = VeiculoChecklistServico::query()
             ->where('user_create', $userEmail)                  // ISOLAMENTO POR USUÁRIO
             ->with(['checklist', 'user', 'itensRealizados.item']);
-        if ($cid = $this->companyId()) $q->where('company_id', $cid);
+        if ($cid = $this->companyId()) {
+            $q->where('company_id', $cid);
+        }
         $rows = $q->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get()
-            ->map(fn($r) => $this->mapChecklistServico($r));
+            ->map(fn ($r) => $this->mapChecklistServico($r));
+
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
@@ -956,8 +1001,11 @@ class MobileApiController extends Controller
     {
         $limit = min((int) $request->get('limit', 200), 500);
         $q = VeiculoLocacao::query();
-        if ($cid = $this->companyId()) $q->where('company_id', $cid);
+        if ($cid = $this->companyId()) {
+            $q->where('company_id', $cid);
+        }
         $rows = $q->orderBy('id', 'desc')->limit($limit)->get();
+
         return response()->json(['status' => true, 'data' => $rows]);
     }
 
@@ -968,7 +1016,7 @@ class MobileApiController extends Controller
     public function me()
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['status' => false, 'message' => 'Não autenticado'], 401);
         }
 
@@ -1001,30 +1049,30 @@ class MobileApiController extends Controller
         return response()->json([
             'status' => true,
             'user' => [
-                'id'              => $user->id,
-                'name'            => $user->name,
-                'email'           => $user->email,
-                'type'            => $user->type ?? null,
-                'profile_photo'   => $user->profile_photo_url ?? null,
-                'two_factor'      => !empty($user->two_factor_confirmed_at),
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'type' => $user->type ?? null,
+                'profile_photo' => $user->profile_photo_url ?? null,
+                'two_factor' => ! empty($user->two_factor_confirmed_at),
             ],
             'funcionario' => $funcionario ? [
-                'id'             => $funcionario->id,
-                'matricula'      => $funcionario->matricula,
-                'nome'           => $funcionario->nome,
-                'cpf'            => $funcionario->cpf,
-                'celular'        => $funcionario->celular,
-                'email'          => $funcionario->email,
+                'id' => $funcionario->id,
+                'matricula' => $funcionario->matricula,
+                'nome' => $funcionario->nome,
+                'cpf' => $funcionario->cpf,
+                'celular' => $funcionario->celular,
+                'email' => $funcionario->email,
                 'imagem_usuario' => $funcionario->imagem_usuario,
-                'situacao'       => $funcionario->situacao,
+                'situacao' => $funcionario->situacao,
             ] : null,
             'obra' => $obra ? [
-                'id'          => $obra->id,
+                'id' => $obra->id,
                 'codigo_obra' => $obra->codigo_obra ?? null,
-                'nome'        => $obra->nome ?? $obra->descricao ?? null,
+                'nome' => $obra->nome ?? $obra->descricao ?? null,
             ] : null,
             'funcao' => $funcao ? [
-                'id'     => $funcao->id,
+                'id' => $funcao->id,
                 'funcao' => $funcao->funcao ?? $funcao->nome ?? null,
             ] : null,
         ]);
@@ -1042,7 +1090,7 @@ class MobileApiController extends Controller
     public function changePassword(Request $request)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['status' => false, 'message' => 'Não autenticado'], 401);
         }
 

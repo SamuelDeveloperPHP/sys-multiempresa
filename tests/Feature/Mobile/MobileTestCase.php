@@ -147,6 +147,7 @@ abstract class MobileTestCase extends TestCase
             $t->unsignedBigInteger('id_veiculo')->nullable();
             $t->string('nome_checklist')->nullable();
             $t->string('situacao')->nullable();
+            $t->unsignedInteger('versao')->default(1);
             $t->string('user_create')->nullable();
             $t->string('user_edit')->nullable();
             $t->dateTime('data_sincronizacao')->nullable();
@@ -161,6 +162,8 @@ abstract class MobileTestCase extends TestCase
             $t->unsignedBigInteger('id_checklist')->nullable();
             $t->unsignedBigInteger('id_veiculo')->nullable();
             $t->string('nome_servico')->nullable();
+            $t->boolean('obrigatorio')->default(true);
+            $t->boolean('critico')->default(false);
             $t->string('periodo_maq_vei')->nullable();
             $t->string('alerta_venci')->nullable();
             $t->string('tipo_itens')->nullable();
@@ -181,8 +184,12 @@ abstract class MobileTestCase extends TestCase
             $t->unsignedBigInteger('id_obra')->nullable();
             $t->unsignedBigInteger('id_veiculo')->nullable();
             $t->unsignedBigInteger('id_checklist')->nullable();
+            $t->unsignedInteger('template_versao')->nullable();
+            $t->text('template_snapshot')->nullable();
             $t->string('id_local')->nullable();
             $t->string('status')->nullable();
+            $t->string('resultado_inspecao')->nullable();
+            $t->boolean('requer_acao')->default(false);
             $t->string('status_ciclo')->nullable();
             $t->string('tipo_checklist')->nullable();
             $t->unsignedBigInteger('id_abertura_vinculada')->nullable();
@@ -309,7 +316,7 @@ abstract class MobileTestCase extends TestCase
     {
         return User::forceCreate([
             'name' => 'Motorista Teste',
-            'email' => uniqid('user_') . '@teste.dev',
+            'email' => uniqid('user_').'@teste.dev',
             'password' => 'secret-password',
             'type' => $type,
             'company_id' => $company->id,
@@ -363,6 +370,7 @@ abstract class MobileTestCase extends TestCase
             'nome_servico' => 'Farol dianteiro',
             'situacao' => 'Ativo',
         ]);
+
         return [$checklist, $item];
     }
 
@@ -380,6 +388,7 @@ abstract class MobileTestCase extends TestCase
         $user = $this->criarUsuario($company);
         $veiculo = $this->criarVeiculo($company);
         [$checklist, $item] = $this->criarChecklist($company, $veiculo);
+
         return compact('company', 'user', 'veiculo', 'checklist', 'item');
     }
 }

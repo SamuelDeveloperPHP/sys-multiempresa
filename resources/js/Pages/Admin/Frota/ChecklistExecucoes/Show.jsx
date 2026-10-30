@@ -13,6 +13,7 @@ export default function ChecklistExecucaoShow({ execucao }) {
   const respostas = Array.isArray(execucao.respostas) ? execucao.respostas : [];
   const conformes = respostas.filter((resposta) => resposta.ok === true).length;
   const naoConformes = respostas.filter((resposta) => resposta.ok === false).length;
+  const criticosReprovados = respostas.filter((resposta) => resposta.ok === false && resposta.critico).length;
   const identificacao = execucao.veiculo?.prefixo || execucao.veiculo?.placa || `#${execucao.veiculo_id}`;
 
   return (
@@ -32,8 +33,8 @@ export default function ChecklistExecucaoShow({ execucao }) {
             <div className="flex flex-col gap-4 border-b border-gray-200 bg-slate-50 px-5 py-5 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-                    Concluído
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${execucao.requer_acao ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                    {execucao.requer_acao ? 'Requer ação' : 'Concluído'}
                   </span>
                   <span className="text-sm text-gray-500">Execução #{execucao.id}</span>
                 </div>
@@ -80,6 +81,7 @@ export default function ChecklistExecucaoShow({ execucao }) {
                       </span>
                       <div className="min-w-0">
                         <p className="font-medium text-gray-900">{resposta.item_nome || 'Item sem identificação'}</p>
+                        {resposta.critico && <span className="mt-1 inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Item crítico</span>}
                         {resposta.obs && <p className="mt-1 whitespace-pre-line text-sm text-gray-600">{resposta.obs}</p>}
                         {resposta.foto_url && (
                           <a href={resposta.foto_url} target="_blank" rel="noreferrer" className="mt-3 inline-block">
@@ -102,8 +104,16 @@ export default function ChecklistExecucaoShow({ execucao }) {
                 <div className="mt-4 space-y-3">
                   <Result label="Conformes" value={conformes} color="emerald" />
                   <Result label="Não conformes" value={naoConformes} color="red" />
+                  {criticosReprovados > 0 && <Result label="Críticos reprovados" value={criticosReprovados} color="red" />}
                 </div>
               </div>
+
+              {execucao.requer_acao && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                  <h2 className="font-semibold">Encaminhamento necessário</h2>
+                  <p className="mt-1 text-sm leading-5">Registre a correção e avalie a liberação do veículo conforme o procedimento operacional.</p>
+                </div>
+              )}
 
               {execucao.observacao_geral && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">

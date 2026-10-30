@@ -2,7 +2,12 @@
 
 namespace Tests\Feature\Mobile;
 
+use App\Http\Controllers\Api\SyncController;
+use App\Models\Frota\VeiculoChecklistItem;
+use App\Models\Frota\VeiculoChecklistRealizado;
 use App\Models\Frota\VeiculoChecklistServico;
+use App\Services\Frota\ChecklistExecutionContract;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -19,13 +24,13 @@ class ChecklistServicoApiTest extends MobileTestCase
     private function payloadBase(array $c, array $extra = []): array
     {
         return array_merge([
-            'client_uuid'  => 'local_' . fake()->uuid(),
-            'veiculo_id'   => $c['veiculo']->id,
+            'client_uuid' => 'local_'.fake()->uuid(),
+            'veiculo_id' => $c['veiculo']->id,
             'checklist_id' => $c['checklist']->id,
-            'data'         => now()->toIso8601String(),
-            'tipo'         => 'ABERTURA',
+            'data' => now()->toIso8601String(),
+            'tipo' => 'ABERTURA',
             'ciclo_status' => 'ABERTO',
-            'respostas'    => [
+            'respostas' => [
                 ['item_id' => $c['item']->id, 'item_nome' => 'Farol dianteiro', 'ok' => true],
             ],
         ], $extra);
@@ -117,12 +122,12 @@ class ChecklistServicoApiTest extends MobileTestCase
         $veiculoB = $this->criarVeiculo($c['company'], 'VT-02');
 
         VeiculoChecklistServico::forceCreate([
-            'company_id'   => $c['company']->id,
-            'id_veiculo'   => $veiculoB->id,
+            'company_id' => $c['company']->id,
+            'id_veiculo' => $veiculoB->id,
             'id_checklist' => $c['checklist']->id,
             'status_ciclo' => 'ABERTO', // legado — deve ser ignorado
-            'id_user'      => $c['user']->id,
-            'user_create'  => $c['user']->email,
+            'id_user' => $c['user']->id,
+            'user_create' => $c['user']->email,
         ]);
 
         $resp = $this->comContexto($c['user'], $c['company'])
@@ -165,11 +170,11 @@ class ChecklistServicoApiTest extends MobileTestCase
         [$checklistB, $itemB] = $this->criarChecklist($c['company'], $veiculoB);
         $this->comContexto($c['user'], $c['company'])
             ->postJson('/api/mobile/checklist-servicos', [
-                'client_uuid'  => 'local_' . fake()->uuid(),
-                'veiculo_id'   => $veiculoB->id,
+                'client_uuid' => 'local_'.fake()->uuid(),
+                'veiculo_id' => $veiculoB->id,
                 'checklist_id' => $checklistB->id,
-                'data'         => $agora->copy()->addMinutes(10)->toIso8601String(),
-                'respostas'    => [['item_id' => $itemB->id, 'ok' => true]],
+                'data' => $agora->copy()->addMinutes(10)->toIso8601String(),
+                'respostas' => [['item_id' => $itemB->id, 'ok' => true]],
             ])
             ->assertStatus(201);
     }
@@ -215,5 +220,163 @@ class ChecklistServicoApiTest extends MobileTestCase
         $this->comContexto($a['user'], $a['company'])
             ->getJson("/api/mobile/veiculos/{$veiculoB->id}/checklists")
             ->assertStatus(403);
+    }
+
+    public function test_item_de_outro_template_retorna_422(): void
+    {
+        $c = $this->cenarioBase();
+        [, $foreignItem] = $this->criarChecklist($c['company'], $c['veiculo']);
+        $payload = $this->payloadBase($c, [
+            'respostas' => [['item_id' => $foreignItem->id, 'ok' => true]],
+        ]);
+
+        $this->comContexto($c['user'], $c['company'])
+            ->postJson('/api/mobile/checklist-servicos', $payload)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['respostas.0.item_id', 'respostas']);
+    }
+
+    public function test_item_duplicado_retorna_422(): void
+    {
+        $c = $this->cenarioBase();
+        $answer = ['item_id' => $c['item']->id, 'ok' => true];
+
+        $this->comContexto($c['user'], $c['company'])
+            ->postJson('/api/mobile/checklist-servicos', $this->payloadBase($c, [
+                'respostas' => [$answer, $answer],
+            ]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['respostas.0.item_id', 'respostas.1.item_id']);
+    }
+
+    public function test_item_obrigatorio_ausente_retorna_422(): void
+    {
+        $c = $this->cenarioBase();
+        VeiculoChecklistItem::forceCreate([
+            'company_id' => $c['company']->id,
+            'id_checklist' => $c['checklist']->id,
+            'id_veiculo' => $c['veiculo']->id,
+            'nome_servico' => 'Freio de estacionamento',
+            'obrigatorio' => true,
+            'situacao' => 'Ativo',
+        ]);
+
+        $this->comContexto($c['user'], $c['company'])
+            ->postJson('/api/mobile/checklist-servicos', $this->payloadBase($c))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['respostas']);
+    }
+
+    public function test_edicao_tambem_preserva_o_conjunto_obrigatorio_da_versao(): void
+    {
+        $c = $this->cenarioBase();
+        $secondItem = VeiculoChecklistItem::forceCreate([
+            'company_id' => $c['company']->id,
+            'id_checklist' => $c['checklist']->id,
+            'id_veiculo' => $c['veiculo']->id,
+            'nome_servico' => 'Freio de estacionamento',
+            'obrigatorio' => true,
+            'situacao' => 'Ativo',
+        ]);
+        $create = $this->comContexto($c['user'], $c['company'])
+            ->postJson('/api/mobile/checklist-servicos', $this->payloadBase($c, [
+                'respostas' => [
+                    ['item_id' => $c['item']->id, 'ok' => true],
+                    ['item_id' => $secondItem->id, 'ok' => true],
+                ],
+            ]));
+        $create->assertStatus(201);
+
+        $this->comContexto($c['user'], $c['company'])
+            ->putJson('/api/mobile/checklist-servicos/'.$create->json('data.id'), [
+                'respostas' => [['item_id' => $c['item']->id, 'ok' => true]],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['respostas']);
+    }
+
+    public function test_snapshot_preserva_texto_apos_alteracao_do_template(): void
+    {
+        $c = $this->cenarioBase();
+        $response = $this->comContexto($c['user'], $c['company'])
+            ->postJson('/api/mobile/checklist-servicos', $this->payloadBase($c));
+        $response->assertStatus(201);
+
+        $c['item']->update(['nome_servico' => 'Texto alterado depois']);
+        $c['checklist']->update(['nome_checklist' => 'Modelo alterado', 'versao' => 2]);
+
+        $execution = VeiculoChecklistServico::withoutGlobalScopes()->findOrFail($response->json('data.id'));
+        $contract = app(ChecklistExecutionContract::class)->toArray($execution);
+
+        $this->assertSame(1, $contract['template_versao']);
+        $this->assertSame('Farol dianteiro', $contract['respostas'][0]['item_nome']);
+        $this->assertSame('Checklist Diário', $execution->template_snapshot['template_nome']);
+    }
+
+    public function test_reprovacao_critica_exige_acao_sem_bloquear_veiculo(): void
+    {
+        $c = $this->cenarioBase();
+        $c['item']->update(['critico' => true]);
+
+        $response = $this->comContexto($c['user'], $c['company'])
+            ->postJson('/api/mobile/checklist-servicos', $this->payloadBase($c, [
+                'respostas' => [[
+                    'item_id' => $c['item']->id,
+                    'ok' => false,
+                    'obs' => 'Falha que exige avaliação antes da liberação.',
+                ]],
+            ]));
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.resultado_inspecao', 'REPROVADO_CRITICO')
+            ->assertJsonPath('data.requer_acao', true)
+            ->assertJsonPath('data.respostas.0.critico', true);
+        $this->assertDatabaseHas('veiculos', ['id' => $c['veiculo']->id]);
+    }
+
+    public function test_versionamento_legado_e_idempotente_e_nao_duplica_respostas(): void
+    {
+        $c = $this->cenarioBase();
+        $execution = VeiculoChecklistServico::forceCreate([
+            'company_id' => $c['company']->id,
+            'id_veiculo' => $c['veiculo']->id,
+            'id_checklist' => $c['checklist']->id,
+            'id_local' => 'legacy-versioning-1',
+            'status_ciclo' => 'FECHADO',
+            'data_execucao' => now(),
+        ]);
+        VeiculoChecklistRealizado::forceCreate([
+            'company_id' => $c['company']->id,
+            'id_checklist_realizado' => $execution->id_local,
+            'id_checklist_itens' => $c['item']->id,
+            'status' => 'sim',
+        ]);
+
+        $this->artisan('frota:versionar-checklists', ['--execute' => true, '--json' => true])
+            ->assertSuccessful();
+        $this->assertNotNull($execution->fresh()->template_snapshot);
+        $this->assertNull($execution->fresh()->respostas);
+
+        $this->artisan('frota:versionar-checklists', ['--execute' => true, '--json' => true])
+            ->expectsOutputToContain('"updated": 0')
+            ->assertSuccessful();
+        $this->assertSame(1, VeiculoChecklistRealizado::withoutGlobalScopes()->count());
+    }
+
+    public function test_sync_generico_nao_contorna_a_validacao_canonica(): void
+    {
+        $c = $this->cenarioBase();
+        $request = Request::create('/api/upload/veiculo_checklist_itens_servicos', 'POST', [
+            'registros' => [[
+                'id_local' => 'partial-checklist',
+                'id_veiculo' => $c['veiculo']->id,
+                'id_checklist' => $c['checklist']->id,
+            ]],
+        ]);
+
+        $response = app(SyncController::class)->upload('veiculo_checklist_itens_servicos', $request);
+
+        $this->assertSame(409, $response->getStatusCode());
+        $this->assertSame('canonical_checklist_endpoint_required', $response->getData(true)['code']);
     }
 }

@@ -14,13 +14,23 @@ class VeiculoChecklist extends Model
     protected $table = 'veiculo_checklist';
 
     protected $fillable = [
-        'company_id', 'id_veiculo', 'nome_checklist', 'situacao',
+        'company_id', 'id_veiculo', 'nome_checklist', 'situacao', 'versao',
         'user_create', 'user_edit',
         'data_sincronizacao', 'sync_status',
     ];
 
-    protected $casts = ['data_sincronizacao' => 'datetime'];
+    protected $casts = [
+        'data_sincronizacao' => 'datetime',
+        'versao' => 'integer',
+    ];
 
-    public function veiculo() { return $this->belongsTo(Veiculo::class, 'id_veiculo'); }
-    public function itens() { return $this->hasMany(VeiculoChecklistItem::class, 'id_checklist'); }
+    public function veiculo()
+    {
+        return $this->belongsTo(Veiculo::class, 'id_veiculo');
+    }
+
+    public function itens()
+    {
+        return $this->hasMany(VeiculoChecklistItem::class, 'id_checklist');
+    }
 }

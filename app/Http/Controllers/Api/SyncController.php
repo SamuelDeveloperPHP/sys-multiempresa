@@ -58,10 +58,10 @@ class SyncController extends Controller
         'veiculos' => ['id','obra_id','prefixo','tipo','placa','modelo','marca','ano','imagem','tipo_km','tipo_hr','data_sincronizacao','sync_status','created_at'],
         'veiculos_locacaos' => ['id','id_obra','veiculo_id','id_obraDestino','id_funcionario','id_funcionario_destino','tipo_veiculo','data_inicio','data_prevista','data_fim','data_sincronizacao','sync_status','created_at'],
 
-        'veiculo_checklist' => ['id','id_veiculo','nome_checklist','situacao','user_create','user_edit','sync_status','data_sincronizacao','created_at','updated_at','deleted_at'],
-        'veiculo_checklist_itens' => ['id','id_checklist','id_veiculo','nome_servico','periodo_maq_vei','alerta_venci','tipo_itens','periodo_dias','alert_venc_dias','user_create','user_edit','situacao','sync_status','data_sincronizacao','created_at','updated_at','deleted_at'],
+        'veiculo_checklist' => ['id','id_veiculo','nome_checklist','situacao','versao','user_create','user_edit','sync_status','data_sincronizacao','created_at','updated_at','deleted_at'],
+        'veiculo_checklist_itens' => ['id','id_checklist','id_veiculo','nome_servico','obrigatorio','critico','periodo_maq_vei','alerta_venci','tipo_itens','periodo_dias','alert_venc_dias','user_create','user_edit','situacao','sync_status','data_sincronizacao','created_at','updated_at','deleted_at'],
 
-        'veiculo_checklist_itens_servicos' => ['id','id_obra','id_veiculo','id_checklist','id_local','status','status_ciclo','tipo_checklist','id_abertura_vinculada','data_fechamento','anomalia_offline','foto_extra_1','desc_extra_1','foto_extra_2','desc_extra_2','foto_extra_3','desc_extra_3','foto_extra_4','desc_extra_4','data_cadastro','user_create','user_edit','sync_status','data_sincronizacao','created_at','deleted_at','updated_at'],
+        'veiculo_checklist_itens_servicos' => ['id','id_obra','id_veiculo','id_checklist','template_versao','template_snapshot','id_local','status','resultado_inspecao','requer_acao','status_ciclo','tipo_checklist','id_abertura_vinculada','data_fechamento','anomalia_offline','foto_extra_1','desc_extra_1','foto_extra_2','desc_extra_2','foto_extra_3','desc_extra_3','foto_extra_4','desc_extra_4','data_cadastro','user_create','user_edit','sync_status','data_sincronizacao','created_at','deleted_at','updated_at'],
 
         'veiculo_checklist_itens_realizados' => ['id','id_obra','id_checklist','id_local','id_checklist_realizado','id_checklist_itens','id_veiculo','data_cadastro','status','arquivo_app','arquivo_servidor','user_create','horimetro_atual','horimetro_novo','quilometragem_atual','quilometragem_nova','observacao','sync_status','data_sincronizacao','created_at','deleted_at','updated_at'],
 
@@ -96,6 +96,14 @@ class SyncController extends Controller
     {
         if (!in_array($tabela, $this->tabelasPermitidas, true)) {
             return response()->json(['status' => 'error', 'message' => "Tabela '{$tabela}' nao permitida"], 403);
+        }
+
+        if (in_array($tabela, ['veiculo_checklist_itens_servicos', 'veiculo_checklist_itens_realizados'], true)) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 'canonical_checklist_endpoint_required',
+                'message' => 'Envie checklists por /api/mobile/checklist-servicos para validar todos os itens e preservar a versão do modelo.',
+            ], 409);
         }
 
         $validator = Validator::make($request->all(), ['registros' => 'required|array|min:1']);

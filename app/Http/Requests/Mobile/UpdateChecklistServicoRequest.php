@@ -6,27 +6,30 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateChecklistServicoRequest extends FormRequest
 {
-    public function authorize(): bool { return $this->user() !== null; }
+    public function authorize(): bool
+    {
+        return $this->user() !== null;
+    }
 
     public function rules(): array
     {
         return [
-            'data'             => ['sometimes', 'date'],
-            'responsavel'      => ['nullable', 'string', 'max:255'],
-            'km_atual'         => ['nullable', 'numeric', 'min:0'],
-            'hr_atual'         => ['nullable', 'numeric', 'min:0'],
+            'data' => ['sometimes', 'date'],
+            'responsavel' => ['nullable', 'string', 'max:255'],
+            'km_atual' => ['nullable', 'numeric', 'min:0'],
+            'hr_atual' => ['nullable', 'numeric', 'min:0'],
             'observacao_geral' => ['nullable', 'string', 'max:2000'],
-            'ciclo_status'     => ['nullable', 'string', 'in:ABERTO,FECHADO'],
-            'tipo'             => ['nullable', 'string', 'in:ABERTURA,ENCERRAMENTO'],
-            'respostas'        => ['sometimes', 'array', 'max:200'],
-            'respostas.*.item_id'   => ['required_with:respostas', 'integer'],
+            'ciclo_status' => ['nullable', 'string', 'in:ABERTO,FECHADO'],
+            'tipo' => ['nullable', 'string', 'in:ABERTURA,ENCERRAMENTO'],
+            'respostas' => ['sometimes', 'array', 'min:1', 'max:200'],
+            'respostas.*.item_id' => ['required_with:respostas', 'integer'],
             'respostas.*.item_nome' => ['nullable', 'string', 'max:500'],
-            'respostas.*.ok'        => ['nullable', 'boolean'],
-            'respostas.*.obs'       => ['nullable', 'string', 'max:1000'],
+            'respostas.*.ok' => ['required_with:respostas', 'boolean'],
+            'respostas.*.obs' => ['nullable', 'string', 'max:1000'],
             // Ver StoreChecklistServicoRequest: base64 é extraído para arquivo;
             // foto_path preserva fotos já extraídas em edições.
             'respostas.*.foto_data_url' => [
-                'nullable', 'string', 'max:' . StoreChecklistServicoRequest::FOTO_MAX_CHARS,
+                'nullable', 'string', 'max:'.StoreChecklistServicoRequest::FOTO_MAX_CHARS,
                 'regex:/^data:image\/(jpeg|jpg|png|webp);base64,/',
             ],
             'respostas.*.foto_path' => [
@@ -42,7 +45,7 @@ class UpdateChecklistServicoRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($v) {
-            if (!$this->has('respostas')) {
+            if (! $this->has('respostas')) {
                 return;
             }
             foreach ((array) $this->input('respostas', []) as $i => $r) {

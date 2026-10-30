@@ -20,9 +20,13 @@ final class ChecklistExecutionContract
             'checklist_id' => $execution->id_checklist,
             'user_id' => $execution->id_user,
             'status' => self::STATUS_CONCLUIDO,
+            'resultado_inspecao' => $execution->resultado_inspecao,
+            'requer_acao' => (bool) $execution->requer_acao,
+            'template_versao' => $execution->template_versao,
             // Compatibilidade temporária com o cache Dexie e clientes antigos.
             'ciclo_status' => $execution->status_ciclo ?: CicloAbertoService::STATUS_FECHADO,
-            'template_nome' => $execution->checklist?->nome_checklist,
+            'template_nome' => $execution->template_snapshot['template_nome']
+                ?? $execution->checklist?->nome_checklist,
             'data' => $date?->toIso8601String(),
             'data_execucao' => $date?->toIso8601String(),
             'responsavel' => $execution->responsavel ?: $execution->user?->name ?: $execution->user_create,
@@ -55,14 +59,22 @@ final class ChecklistExecutionContract
         }
 
         $execution->loadMissing('itensRealizados.item');
+        $snapshotItems = collect($execution->template_snapshot['itens'] ?? [])->keyBy('item_id');
 
-        return $execution->itensRealizados->map(fn ($item): array => [
-            'item_id' => $item->id_checklist_itens ? (int) $item->id_checklist_itens : null,
-            'item_nome' => $item->item?->nome_servico ?? 'Item sem identificação',
-            'ok' => strtolower((string) $item->status) === 'sim',
-            'obs' => $item->observacao,
-            'foto_url' => $this->photoUrl($item->arquivo_servidor ?: $item->arquivo_app),
-        ])->values()->all();
+        return $execution->itensRealizados->map(function ($item) use ($snapshotItems): array {
+            $itemId = $item->id_checklist_itens ? (int) $item->id_checklist_itens : null;
+            $snapshot = $snapshotItems->get($itemId, []);
+
+            return [
+                'item_id' => $itemId,
+                'item_nome' => $snapshot['nome'] ?? $item->item?->nome_servico ?? 'Item sem identificação',
+                'obrigatorio' => (bool) ($snapshot['obrigatorio'] ?? true),
+                'critico' => (bool) ($snapshot['critico'] ?? false),
+                'ok' => strtolower((string) $item->status) === 'sim',
+                'obs' => $item->observacao,
+                'foto_url' => $this->photoUrl($item->arquivo_servidor ?: $item->arquivo_app),
+            ];
+        })->values()->all();
     }
 
     private function photoUrl(?string $path): ?string
