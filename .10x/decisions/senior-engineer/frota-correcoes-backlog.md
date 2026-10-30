@@ -1,7 +1,7 @@
 # Backlog sênior — Correções dos módulos de Frota
 
 Data: 2026-10-29  
-Status: em execução — `FRT-000`, `FRT-001` e `FRT-002` concluídos
+Status: em execução — `FRT-000` a `FRT-003` concluídos
 Origem: `frota-gestao-veiculos-review.md`
 
 ## Objetivo
@@ -35,7 +35,7 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 | 0 | FRT-000 | Baseline de testes e diagnóstico repetível — concluído | P1 | M | — |
 | 1 | FRT-001 | Autorização explícita das rotas mutáveis — concluído | P1 | M | FRT-000 |
 | 2 | FRT-002 | Ownership nas mutações mobile — concluído | P1 | M | FRT-000 |
-| 3 | FRT-003 | Contrato canônico de checklist Admin/PWA | P1 | L | FRT-000 |
+| 3 | FRT-003 | Contrato canônico de checklist Admin/PWA — concluído | P1 | L | FRT-000 |
 | 4 | FRT-004 | Completude e versionamento do checklist | P1 | L | FRT-003 |
 | 5 | FRT-005 | Máquina de estados do diário de bordo | P1 | L | FRT-000 |
 | 6 | FRT-006 | Locação tenant-safe e sem sobreposição | P1 | L | FRT-000 |
@@ -152,6 +152,8 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 
 ### FRT-003 — Contrato canônico de checklist Admin/PWA
 
+**Status:** concluído em 2026-10-30.
+
 **Resultado esperado:** o mesmo checklist aparece com os mesmos dados nos dois canais.
 
 **Escopo:** definir data canônica, estrutura de respostas e status; adaptar leitura/gravação; criar detalhe Admin; backfill idempotente do legado.
@@ -163,6 +165,20 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 - filtros usam a data canônica;
 - backfill possui dry-run, é reexecutável e inclui o registro local hoje invisível;
 - API mantém compatibilidade de leitura durante uma janela de transição.
+
+**Implementação entregue:**
+
+- contrato canônico compartilhado com `data_execucao`, status `CONCLUIDO` e representação única das respostas;
+- leitura compatível dos campos legados `data_cadastro`/`ciclo_status` e das respostas relacionais, sem duplicar os 85.212 itens existentes;
+- gravação transitória em ambos os campos de data, preservando clientes antigos durante a migração;
+- listagem Admin filtrada pela data canônica e nova ficha detalhada com respostas, evidências e resumo de conformidade;
+- binding explícito da execução na rota Admin, eliminando o detalhe vazio;
+- comando `frota:normalizar-checklists` com dry-run, filtro empresarial e execução idempotente;
+- índices empresariais para as datas canônica e de compatibilidade.
+
+**Saneamento local:** 3.911 datas canônicas, 1 data de compatibilidade e 3.911 status foram normalizados. Uma segunda execução alterou zero registros. O diagnóstico passou de 1 checklist invisível para zero; nenhum registro nem resposta histórica foi removido.
+
+**Validação:** 3 testes específicos com 60 asserções; recorte Frota/Mobile com 19 testes e 138 asserções; suíte completa com 73 testes e 448 asserções; build de produção e análise de estilo aprovados. A listagem e a ficha da execução `#3919` foram validadas no navegador sem erros de console.
 
 ### FRT-004 — Completude e versionamento do checklist
 

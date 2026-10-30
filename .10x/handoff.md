@@ -2,12 +2,12 @@
 
 ## Estado atual
 
-O primeiro marco de segurança (`FRT-000` a `FRT-002`) está concluído. A rede de testes, o diagnóstico repetível, a autorização explícita das rotas mutáveis e o ownership mobile estão disponíveis. O plano atualizado está em `.10x/decisions/senior-engineer/frota-correcoes-backlog.md`.
+`FRT-000` a `FRT-003` estão concluídos. Além do primeiro marco de segurança, Admin e PWA agora compartilham um contrato canônico de checklist, com compatibilidade temporária para o legado e saneamento local idempotente. O plano atualizado está em `.10x/decisions/senior-engineer/frota-correcoes-backlog.md`.
 
 ## Próxima implementação recomendada
 
-1. `FRT-003`: unificar o contrato de checklist entre Admin e PWA.
-2. Em seguida, completar/versionar checklists (`FRT-004`) e consolidar a máquina de estados do diário (`FRT-005`).
+1. `FRT-004`: garantir completude, unicidade e versionamento dos itens do checklist.
+2. Em seguida, consolidar a máquina de estados do diário (`FRT-005`) e corrigir locações sobrepostas (`FRT-006`).
 
 ## Arquivos críticos
 
@@ -22,6 +22,10 @@ O primeiro marco de segurança (`FRT-000` a `FRT-002`) está concluído. A rede 
 - `app/Http/Controllers/Admin/Frota/VeiculoController.php`
 - `app/Http/Controllers/Admin/Frota/VeiculoLocacaoController.php`
 - `app/Http/Controllers/Admin/Frota/VeiculoChecklistServicoController.php`
+- `app/Services/Frota/ChecklistExecutionContract.php`
+- `app/Services/Frota/NormalizarContratoChecklist.php`
+- `app/Console/Commands/NormalizarContratoChecklistFrota.php`
+- `resources/js/Pages/Admin/Frota/ChecklistExecucoes/Show.jsx`
 - `app/Services/Frota/CicloAbertoService.php`
 - `app/Services/Frota/DiagnosticoIntegridadeFrota.php`
 - `app/Console/Commands/DiagnosticarIntegridadeFrota.php`
@@ -29,11 +33,12 @@ O primeiro marco de segurança (`FRT-000` a `FRT-002`) está concluído. A rede 
 - `app/Http/Requests/Mobile/*Diario*`
 - `tests/Feature/Frota/AdminFrotaTestCase.php`
 - `tests/Feature/Frota/ModuleAccessAuthorizationTest.php`
+- `tests/Feature/Frota/ChecklistExecutionContractTest.php`
 - `tests/Feature/Mobile/MobileOwnershipAuthorizationTest.php`
 
 ## Verificação obrigatória
 
-Manter os 22 testes mobile e a suíte Admin. Ao alterar policies, preservar a diferença entre autoria e permissão explícita e a auditoria de overrides. Executar `php artisan frota:diagnosticar-integridade --json` antes/depois de qualquer saneamento. Em CI, usar `--fail-on-issues` quando a invariante correspondente já estiver corrigida.
+Manter os 22 testes mobile e a suíte Admin. Ao alterar policies, preservar a diferença entre autoria e permissão explícita e a auditoria de overrides. Executar `php artisan frota:diagnosticar-integridade --json` antes/depois de qualquer saneamento. Para checklists, usar `php artisan frota:normalizar-checklists` como dry-run antes de `--execute`. Em CI, usar `--fail-on-issues` quando a invariante correspondente já estiver corrigida.
 
 ## Histórico
 
@@ -42,4 +47,5 @@ Manter os 22 testes mobile e a suíte Admin. Ao alterar policies, preservar a di
 - 2026-10-29: `FRT-000` concluído; 61 testes e 203 asserções aprovados.
 - 2026-10-29: `FRT-001` concluído; 92 rotas mutáveis protegidas e 64 testes aprovados.
 - 2026-10-30: `FRT-002` concluído; ownership mobile e exceção gerencial auditada, com 70 testes aprovados.
+- 2026-10-30: `FRT-003` concluído; contrato canônico de checklist, backfill idempotente e ficha Admin, com 73 testes aprovados.
 

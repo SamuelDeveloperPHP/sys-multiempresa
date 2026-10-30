@@ -49,3 +49,12 @@
 - Suíte completa: 70 testes e 388 asserções; nenhuma migration ou mudança de dados necessária.
 - Próximo item: `FRT-003` — contrato canônico de checklist Admin/PWA.
 
+## 2026-10-30 — FRT-003 concluído
+
+- Admin e PWA agora compartilham data, status e representação canônicos para as execuções de checklist.
+- Leitura e gravação compatíveis preservam clientes e dados legados durante a transição.
+- A ficha Admin exibe respostas, evidências e conformidade; o binding vazio da rota foi corrigido.
+- Backfill local idempotente normalizou 3.912 execuções e reduziu checklists invisíveis de 1 para zero, sem excluir respostas.
+- Suíte completa: 73 testes e 448 asserções; build e teste visual no navegador aprovados.
+- Próximo item: `FRT-004` — completude e versionamento do checklist.
+
