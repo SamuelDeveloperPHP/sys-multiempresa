@@ -40,3 +40,12 @@
 - Suíte completa: 64 testes e 349 asserções; cache de rotas aprovado.
 - Próximo item: `FRT-002` — ownership nas mutações mobile.
 
+## 2026-10-30 — FRT-002 concluído
+
+- Abastecimentos, diários de bordo e checklists mobile agora exigem autoria para update/delete.
+- Administrador ou gestor sem permissão explícita recebe 403; exceção exige `can_edit`/`can_delete` do módulo.
+- Toda exceção gerencial autorizada registra ator e snapshots anterior/posterior em `audit_logs`.
+- Recursos de outra empresa permanecem invisíveis e tentativas negadas não alteram nem auditam registros.
+- Suíte completa: 70 testes e 388 asserções; nenhuma migration ou mudança de dados necessária.
+- Próximo item: `FRT-003` — contrato canônico de checklist Admin/PWA.
+

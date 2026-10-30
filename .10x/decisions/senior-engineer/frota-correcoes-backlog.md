@@ -1,7 +1,7 @@
 # Backlog sênior — Correções dos módulos de Frota
 
 Data: 2026-10-29  
-Status: em execução — `FRT-000` e `FRT-001` concluídos
+Status: em execução — `FRT-000`, `FRT-001` e `FRT-002` concluídos
 Origem: `frota-gestao-veiculos-review.md`
 
 ## Objetivo
@@ -34,7 +34,7 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 |---:|---|---|:---:|:---:|---|
 | 0 | FRT-000 | Baseline de testes e diagnóstico repetível — concluído | P1 | M | — |
 | 1 | FRT-001 | Autorização explícita das rotas mutáveis — concluído | P1 | M | FRT-000 |
-| 2 | FRT-002 | Ownership nas mutações mobile | P1 | M | FRT-000 |
+| 2 | FRT-002 | Ownership nas mutações mobile — concluído | P1 | M | FRT-000 |
 | 3 | FRT-003 | Contrato canônico de checklist Admin/PWA | P1 | L | FRT-000 |
 | 4 | FRT-004 | Completude e versionamento do checklist | P1 | L | FRT-003 |
 | 5 | FRT-005 | Máquina de estados do diário de bordo | P1 | L | FRT-000 |
@@ -111,6 +111,8 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 
 ### FRT-002 — Ownership nas mutações mobile
 
+**Status:** concluído em 2026-10-30 no commit `acee51a`.
+
 **Resultado esperado:** operador mobile só altera registros próprios e gestores só o fazem por permissão explícita.
 
 **Escopo:** policies de abastecimento, diário e checklist; regra de empresa + autor + estado/janela de edição; auditoria para exceções gerenciais.
@@ -121,6 +123,17 @@ Separaria o controller principal antes de corrigir as regras. Não recomendada: 
 - recurso de outra empresa continua invisível;
 - autor pode editar apenas dentro da regra definida e enquanto o estado permitir;
 - exceção gerencial registra ator, horário e valores alterados.
+
+**Implementação entregue:**
+
+- policies explícitas para abastecimento, diário de bordo e execução de checklist;
+- ownership por `user_create` no abastecimento e por `id_user`, com fallback legado de e-mail somente quando o ID não existe, nos demais recursos;
+- empresa atual validada na policy, além do escopo tenant e da validação do veículo;
+- tipo `admin`/`manager` não ignora autoria: a exceção exige `can_edit` ou `can_delete` no módulo correspondente;
+- update/delete gerencial grava ator, empresa, modelo, horário e snapshots `before`/`after` em `audit_logs`;
+- regras de estado e janela não foram inventadas neste item: o comportamento atual foi preservado e a máquina de estados permanece no `FRT-005`.
+
+**Validação:** 22 testes mobile e 104 asserções no recorte; 70 testes e 388 asserções na suíte completa. A matriz nova cobre seis mutações negadas, administrador sem permissão, exceção gerencial auditada, autor legítimo e invisibilidade cross-tenant.
 
 ### FRT-008 — Evidências mobile em armazenamento privado
 

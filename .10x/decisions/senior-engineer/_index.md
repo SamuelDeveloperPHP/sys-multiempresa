@@ -2,7 +2,7 @@
 
 - [Correção P1 — movimentações de estoque controlado](estoque-p1-regression.md) — 2026-10-28
 - [Revisão sênior — Gestão de veículos e frotas](frota-gestao-veiculos-review.md) — 2026-10-29 — correções pendentes
-- [Backlog sênior — Correções dos módulos de Frota](frota-correcoes-backlog.md) — 2026-10-29 — `FRT-000` e `FRT-001` concluídos; `FRT-002` próximo
+- [Backlog sênior — Correções dos módulos de Frota](frota-correcoes-backlog.md) — 2026-10-30 — `FRT-000` a `FRT-002` concluídos; `FRT-003` próximo
 
 ## Princípios transversais
 
