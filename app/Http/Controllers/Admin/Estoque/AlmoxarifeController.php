@@ -18,22 +18,23 @@ use Inertia\Inertia;
  * estoque.devolucoes (FASE 7.B).
  *
  * Por empresa: um usuário pode ser almoxarife da Empresa A mas não da B.
- * Super_admin sempre pode (não precisa de registro).
  */
 class AlmoxarifeController extends Controller
 {
     public function index(Request $request)
     {
-        $companies = Company::orderBy('nome_fantasia')->get(['id', 'nome_fantasia', 'razao_social']);
+        $companies = Company::whereKey(CompanyContext::id())->orderBy('nome_fantasia')->get(['id', 'nome_fantasia', 'razao_social']);
         $companySelecionada = (int) ($request->input('company_id') ?: CompanyContext::current()?->id ?: $companies->first()?->id);
 
+        abort_unless(in_array($request->user()->type, ['admin', 'super_admin'], true), 403);
+        abort_unless($companySelecionada === CompanyContext::id(), 403);
         $module = Module::where('slug', 'estoque.devolucoes')->first();
         abort_if(!$module, 500, 'Módulo estoque.devolucoes não está cadastrado. Rode o seeder.');
 
         // Lista usuários com info se já são almoxarifes (can_edit na empresa)
         $busca = trim($request->input('q', ''));
         // users não tem soft delete (sem coluna deleted_at)
-        $usersQuery = User::query()
+        $usersQuery = User::whereHas('companies', fn ($q) => $q->whereKey($companySelecionada))
             ->select('id', 'name', 'email', 'type')
             ->orderBy('name');
 
@@ -61,8 +62,7 @@ class AlmoxarifeController extends Controller
             'name'         => $u->name,
             'email'        => $u->email,
             'type'         => $u->type,
-            'eh_almoxarife' => in_array($u->id, $permissoesAtuais, true) || $u->type === 'super_admin',
-            'eh_super'     => $u->type === 'super_admin',
+            'eh_almoxarife' => in_array($u->id, $permissoesAtuais, true),
         ]);
 
         return Inertia::render('Admin/Estoque/Almoxarifes/Index', [
@@ -87,13 +87,11 @@ class AlmoxarifeController extends Controller
             'ativar'     => 'required|boolean',
         ]);
 
-        $user = User::find($data['user_id']);
-        if ($user->type === 'super_admin') {
-            return back()->with('error', 'Super-admins já têm acesso total — não precisam ser marcados como almoxarife.');
-        }
-
+        abort_unless(in_array($request->user()->type, ['admin', 'super_admin'], true), 403);
+        abort_unless((int) $data['company_id'] === CompanyContext::id(), 403);
         $module = Module::where('slug', 'estoque.devolucoes')->firstOrFail();
 
+        abort_unless(User::whereHas('companies', fn ($q) => $q->whereKey($data['company_id']))->whereKey($data['user_id'])->exists(), 403);
         DB::transaction(function () use ($data, $module) {
             if ($data['ativar']) {
                 ModulePermission::updateOrCreate(
@@ -135,11 +133,14 @@ class AlmoxarifeController extends Controller
             'ativar'      => 'required|boolean',
         ]);
 
+        abort_unless(in_array($request->user()->type, ['admin', 'super_admin'], true), 403);
+        abort_unless((int) $data['company_id'] === CompanyContext::id(), 403);
         $module = Module::where('slug', 'estoque.devolucoes')->firstOrFail();
         $afetados = 0;
 
         DB::transaction(function () use ($data, $module, &$afetados) {
-            $users = User::whereIn('id', $data['user_ids'])->where('type', '!=', 'super_admin')->get();
+            $users = User::whereHas('companies', fn ($q) => $q->whereKey($data['company_id']))->whereIn('id', $data['user_ids'])->get();
+            abort_unless($users->count() === count(array_unique($data['user_ids'])), 403);
             foreach ($users as $u) {
                 if ($data['ativar']) {
                     ModulePermission::updateOrCreate(

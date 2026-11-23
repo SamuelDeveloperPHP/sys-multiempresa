@@ -50,11 +50,21 @@ try { self.importScripts('/sw-bg-sync.js'); } catch (e) { /* ambiente sem suport
 // Cache das páginas Inertia /mobile/*. MANTIDO EM SINCRONIA com logout.js
 // (CACHES_TO_CLEAR) — não renomear o valor sem alinhar lá.
 const MOBILE_PAGES_CACHE = 'mobile-pages-v3';
+
+async function authorizedCachedResponse(response) {
+    const scope = response?.headers.get('X-Mobile-Context');
+    return scope && scope === await self.mobileSessionScope?.() ? response : null;
+}
+
+const privateCache = {
+    cachedResponseWillBeUsed: ({ cachedResponse }) => authorizedCachedResponse(cachedResponse),
+    cacheWillUpdate: async ({ response }) => response.status === 200 && response.headers.has('X-Mobile-Context') ? response : null,
+};
 // App-shell offline: a variante FULL-PAGE (sem X-Inertia) de /mobile/veiculos
 // cacheada é um bootstrap Inertia válido e Dexie-driven (VeiculosIndex lê sempre
 // do IndexedDB e ignora props). Vira o casco de QUALQUER navegação /mobile/* sem
 // cache próprio, para o React montar offline em vez de morrer no offline.html.
-// 1 device = 1 usuário fixo (decisão do dono) → sem preocupação cross-tenant.
+// O retorno do shell exige a mesma empresa e o mesmo usuário da sessão válida.
 const APP_SHELL_URL = '/mobile/veiculos';
 // Página neutra (precacheada) para navegações sem shell ou fora de /mobile.
 const OFFLINE_URL = '/offline.html';
@@ -93,6 +103,7 @@ registerRoute(
     new CacheFirst({
         cacheName: 'veiculos-imgs',
         plugins: [
+            privateCache,
             new ExpirationPlugin({ maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 }),
             new CacheableResponsePlugin({ statuses: [0, 200] }),
         ],
@@ -122,6 +133,7 @@ registerRoute(
         cacheName: MOBILE_PAGES_CACHE,
         networkTimeoutSeconds: 10,
         plugins: [
+            privateCache,
             new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 7 }),
             new CacheableResponsePlugin({ statuses: [200] }),
         ],
@@ -135,6 +147,10 @@ registerRoute(
         cacheName: 'auth-shell',
         networkTimeoutSeconds: 3,
         plugins: [
+            {
+                cacheWillUpdate: async ({ response }) => response.ok && !response.redirected && !response.headers.has('X-Mobile-Context') ? response : null,
+                cachedResponseWillBeUsed: async ({ cachedResponse }) => cachedResponse && !cachedResponse.redirected && !cachedResponse.headers.has('X-Mobile-Context') ? cachedResponse : null,
+            },
             new ExpirationPlugin({ maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 30 }),
             new CacheableResponsePlugin({ statuses: [0, 200] }),
         ],
@@ -154,7 +170,7 @@ registerRoute(
 async function getAppShell() {
     try {
         const cache = await caches.open(MOBILE_PAGES_CACHE);
-        const cached = await cache.match(APP_SHELL_URL);
+        const cached = await authorizedCachedResponse(await cache.match(APP_SHELL_URL));
         if (!cached) return null;
         // Resposta `redirected` (ex.: 302 de sessão seguido no fetch) NÃO pode ser
         // usada numa navegação — o browser recusa. Reconstroi uma resposta limpa.

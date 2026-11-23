@@ -3,7 +3,7 @@ import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import UserForm from './UserForm';
 
-export default function Edit({ user, companies, groupedModules, modulePermissions, auth }) {
+export default function Edit({ user, companies, groupedModules, modulePermissions, sharedIdentity, auth }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -31,6 +31,7 @@ export default function Edit({ user, companies, groupedModules, modulePermission
                     companies={companies}
                     groupedModules={groupedModules}
                     modulePermissions={modulePermissions}
+                    sharedIdentity={sharedIdentity}
                     isEdit={true}
                 />
             </div>

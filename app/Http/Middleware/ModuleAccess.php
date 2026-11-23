@@ -20,6 +20,8 @@ class ModuleAccess
      * embora usem controllers e nomes de rota dedicados.
      */
     private const ROUTE_MODULE_ALIASES = [
+        'companies.setup.' => 'companies.index',
+        'users.toggle-status' => 'admin.users.index',
         'admin.estoque.entradas.' => 'admin.estoque.movimentacoes.index',
         'admin.estoque.saidas.' => 'admin.estoque.movimentacoes.index',
         'admin.estoque.transferencias.' => 'admin.estoque.movimentacoes.index',
@@ -33,34 +35,27 @@ class ModuleAccess
             return redirect()->route('login');
         }
 
-        // 🔐 Super admin tem acesso total (mas ainda podemos logar o acesso)
-        if ($user->type === 'super_admin') {
-            log_activity('access_super_admin', [
-                'module'     => null,
-                'route_name' => $request->route()?->getName(),
-            ]);
-            return $next($request);
-        }
-
         $route     = $request->route();
         $routeName = $route?->getName();
 
         if (!$routeName) {
-            // rota sem nome (assets, etc.)
-            return $next($request);
+            abort(403);
         }
 
-        // 1) Tenta achar módulo com route_name exato
-        $module = Module::where('is_active', true)
-            ->where('route_name', $routeName)
-            ->first();
+        // O menu Blog e o módulo Publicações compartilham admin.posts.index.
+        // Quando configurado, o submódulo governa o formulário e a galeria.
+        $editorial = str_starts_with($routeName, 'admin.posts.')
+            ? Module::whereIn('slug', ['blog_posts', 'blog-posts'])
+                ->where('route_name', 'admin.posts.index')->orderBy('id')->first()
+            : null;
+        abort_if($editorial && !$editorial->is_active, 403);
+        $module = $editorial ?? Module::where('route_name', $routeName)->first();
 
         // Rotas especializadas reutilizam a permissão do módulo funcional.
         if (!$module) {
             foreach (self::ROUTE_MODULE_ALIASES as $routePrefix => $moduleRoute) {
                 if (str_starts_with($routeName, $routePrefix)) {
-                    $module = Module::where('is_active', true)
-                        ->where('route_name', $moduleRoute)
+                    $module = Module::where('route_name', $moduleRoute)
                         ->first();
                     break;
                 }
@@ -75,8 +70,7 @@ class ModuleAccess
                 array_pop($parts);
                 $indexRoute = implode('.', $parts) . '.index';
                 
-                $module = Module::where('is_active', true)
-                    ->where('route_name', $indexRoute)
+                $module = Module::where('route_name', $indexRoute)
                     ->first();
                     
                 if ($module) {
@@ -85,7 +79,7 @@ class ModuleAccess
             }
         }
 
-        if (!$module) {
+        if (!$module || !$module->is_active) {
             // aqui também dá pra logar tentativa em rota sem módulo
             log_activity('access_denied_no_module', [
                 'route_name' => $routeName,

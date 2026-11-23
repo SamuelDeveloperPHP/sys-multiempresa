@@ -8,100 +8,32 @@
 // -----------------------------------------------------------------------------
 
 import { Link, usePage, router } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useContext, useState, useEffect } from 'react';
+import { GrantedModules } from '@/offline/MobileContext';
+import { allows } from '@/offline/modulePermissions';
 import OnlineIndicator from '@/Components/Mobile/OnlineIndicator';
 import NetworkStatusBar from '@/Components/Mobile/NetworkStatusBar';
 import SyncButton from '@/Components/Mobile/SyncButton';
 import InstallPrompt from '@/Components/Mobile/InstallPrompt';
 import OpenCyclesBanner from '@/Components/Mobile/OpenCyclesBanner';
 import useSyncStatus from '@/offline/hooks/useSyncStatus';
-import useOnlineStatus from '@/offline/hooks/useOnlineStatus';
 import { reconcileSwResults } from '@/offline/syncQueue';
 import { warmupMobileCache } from '@/offline/warmupCache';
-import { setAuthMarker, clearAuthMarker } from '@/offline/authMarker';
-import { renewOfflineSession, getOfflineSession, ensurePersistentStorage, ensureLocalDataOwner } from '@/offline/offlineAuth';
+import { setAuthMarker } from '@/offline/authMarker';
+import { ensurePersistentStorage } from '@/offline/offlineAuth';
 import { logoutSafely } from '@/offline/logout';
 
 export default function MobileLayout({ header, backUrl, children, hideBottomNav = false }) {
+    const grants = useContext(GrantedModules);
     const { auth } = usePage().props;
     const { user } = auth || {};
     const [menuOpen, setMenuOpen] = useState(false);
-    const { online } = useOnlineStatus();
-
-    // Só libera as telas depois que o usuário atual for confirmado no IndexedDB.
-    const [verifiedUserId, setVerifiedUserId] = useState(null);
-    const [ownerError, setOwnerError] = useState(false);
-    const [ownerCheckAttempt, setOwnerCheckAttempt] = useState(0);
-    const ready = Boolean(user?.id && Number(verifiedUserId) === Number(user.id));
-
     useEffect(() => {
-        let cancelled = false;
-        setVerifiedUserId(null);
-        setOwnerError(false);
-        if (!user?.id) {
-            setOwnerError(true);
-            return () => { cancelled = true; };
-        }
-
-        (async () => {
-            try {
-                await ensureLocalDataOwner(user);
-                if (!cancelled) setVerifiedUserId(Number(user.id));
-            } catch (e) {
-                if (typeof console !== 'undefined') console.warn('[MobileLayout] gate de isolamento falhou:', e?.message);
-                if (!cancelled) setOwnerError(true);
-            }
-        })();
-        return () => { cancelled = true; };
-    }, [user?.id, ownerCheckAttempt]);
-
-    // Persiste "auth marker" no localStorage quando temos auth.user válido.
-    // (Mantido por compatibilidade; a fonte de verdade do acesso offline agora
-    // é a SESSÃO offline gerenciada pelo offline/offlineAuth.js.)
-    useEffect(() => {
-        if (user?.id) {
-            setAuthMarker(user);
-        }
+        setAuthMarker(user);
+        ensurePersistentStorage().catch(() => {});
+        warmupMobileCache().catch(() => {});
+        reconcileSwResults().catch(() => {});
     }, [user?.id]);
-
-    // ===== Sessão offline (arquitetura.md §5) =====
-    // ONLINE: a página veio do servidor com sessão Laravel válida → renova a
-    // janela offline (TTL) e garante storage persistente (iOS pode limpar
-    // IndexedDB de PWA pouco usado).
-    // OFFLINE: página veio do cache do SW (sem validação de servidor) → exige
-    // sessão offline válida; sem ela, volta para /login (que offline pede a
-    // senha contra o hash PBKDF2 local).
-    useEffect(() => {
-        if (!ready) return; // só depois do gate de isolamento resolver
-        let cancelled = false;
-        (async () => {
-            try {
-                if (online && user?.id) {
-                    await renewOfflineSession(user);
-                    await ensurePersistentStorage();
-                } else if (!online) {
-                    const session = await getOfflineSession();
-                    if (!cancelled && !session) {
-                        window.location.replace('/login');
-                    }
-                }
-            } catch (_) { /* gate é best-effort — nunca derruba a página */ }
-        })();
-        return () => { cancelled = true; };
-    }, [online, user?.id, ready]);
-
-    // Pre-warm do cache de navegação: quando o usuário abre qualquer página
-    // mobile estando online, disparamos fetch em background das outras rotas
-    // principais para que o Service Worker as cacheie. Assim, se entrar em
-    // modo avião depois, todas funcionam offline.
-    // Throttled internamente (5 min) e silencioso em caso de erro.
-    useEffect(() => {
-        if (!ready) return; // não reconciliar a fila do usuário anterior antes do wipe
-        warmupMobileCache().catch(() => { /* silent */ });
-        // Aplica nos registros locais o que o Background Sync (Android)
-        // processou com o app fechado — no-op quando não há nada.
-        reconcileSwResults().catch(() => { /* silent */ });
-    }, [ready]);
 
     const handleBack = () => {
         if (backUrl) {
@@ -112,36 +44,6 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
             router.visit('/mobile/veiculos');
         }
     };
-
-    // Nenhuma tela que lê o Dexie monta antes de confirmar o dono no IndexedDB.
-    if (!ready) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center text-gray-500">
-                    {ownerError ? (
-                        <>
-                            <p className="text-sm">Não foi possível validar a sessão e proteger os dados locais.</p>
-                            {user?.id ? (
-                                <button type="button" onClick={() => setOwnerCheckAttempt(value => value + 1)}
-                                    className="rounded-md bg-[#557bbb] px-4 py-2 text-sm font-semibold text-white">
-                                    Tentar novamente
-                                </button>
-                            ) : (
-                                <a href="/login" className="rounded-md bg-[#557bbb] px-4 py-2 text-sm font-semibold text-white">
-                                    Entrar novamente
-                                </a>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <i className="fa-solid fa-circle-notch fa-spin text-2xl" />
-                            <span className="text-xs">Validando dados locais…</span>
-                        </>
-                    )}
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -182,7 +84,7 @@ export default function MobileLayout({ header, backUrl, children, hideBottomNav 
             <NetworkStatusBar />
 
             {/* ============= BANNER DE CICLOS ABERTOS ============= */}
-            <OpenCyclesBanner />
+            {allows(grants, 'frota.diario', 'list') && <OpenCyclesBanner />}
 
             {/* ============= MAIN ============= */}
             <main className="flex-1 overflow-y-auto pb-20">

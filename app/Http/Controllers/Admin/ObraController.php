@@ -213,10 +213,6 @@ class ObraController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->type === 'super_admin') {
-            return;
-        }
-
         // Admin da empresa pode ver todas as obras da empresa
         $companyId = CompanyContext::id();
         if ($obra->company_id !== $companyId) {
@@ -228,10 +224,6 @@ class ObraController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->type === 'super_admin') {
-            return;
-        }
-
         $hasAccess = $user->companies()->where('companies.id', $companyId)->exists();
 
         if (! $hasAccess) {
@@ -242,10 +234,6 @@ class ObraController extends Controller
     private function availableCompanies()
     {
         $user = auth()->user();
-
-        if ($user->type === 'super_admin') {
-            return Company::orderBy('name')->get();
-        }
 
         return $user->companies()->orderBy('name')->get();
     }

@@ -23,7 +23,10 @@
 //     (deterrente de força bruta casual; a defesa real são as 310k iterações).
 // -----------------------------------------------------------------------------
 
-import db, { getMeta, setMeta, clearAllLocal } from './db';
+import { authDb as db } from './db';
+
+const getMeta = async key => (await db.meta.get(key))?.value;
+const setMeta = (key, value) => db.meta.put({ key, value });
 
 export const PBKDF2_ITERATIONS = 310000;   // OWASP 2023+ para PBKDF2-SHA256
 const CREDENTIAL_KEY = 'atual';            // 1 credencial por device (último login online)
@@ -181,10 +184,14 @@ export async function verifyOfflinePassword(email, password) {
 // -----------------------------------------------------------------------------
 // Sessão offline (marcador com TTL em db.meta)
 // -----------------------------------------------------------------------------
-export async function startOfflineSession(user) {
+export async function startOfflineSession(user, companyId = null) {
     if (!user?.id) return;
     const now = Date.now();
+    const last = await getMeta('verified_mobile_context');
+    const company = companyId ?? (String(last?.user) === String(user.id) ? last.company : null);
+    if (companyId) await setMeta('verified_mobile_context', { user: user.id, company: companyId });
     await setMeta(SESSION_META_KEY, {
+        company_id: company,
         user_id: user.id,
         name: user.name || '',
         email: user.email || '',
@@ -205,7 +212,7 @@ export async function getOfflineSession() {
     try {
         const s = await getMeta(SESSION_META_KEY, null);
         if (!s?.user_id) return null;
-        if (s.expires_at && new Date(s.expires_at) <= new Date()) return null;
+          if (!(Date.parse(s.expires_at) > Date.now())) return null;
         return s;
     } catch (_) {
         return null;
@@ -213,82 +220,7 @@ export async function getOfflineSession() {
 }
 
 export async function clearOfflineSession() {
-    try { await setMeta(SESSION_META_KEY, null); } catch (_) { /* ignore */ }
-}
-
-// -----------------------------------------------------------------------------
-// Isolamento multiempresa no MESMO device — wipe-on-user-change (parecer
-// Security F1/F2).
-//
-// POR QUE AQUI E NÃO NO LOGOUT:
-// O IndexedDB de dados (veículos, abastecimentos, diário, checklists, locações,
-// obras) e a fila de sync sobrevivem ao logout DE PROPÓSITO. Se limpássemos no
-// logout, um usuário que sai OFFLINE com mutações pendentes na sync_queue
-// perderia esses dados antes de sincronizar (perda de dados). O vazamento entre
-// usuários só existe quando um usuário DIFERENTE assume o device — então é na
-// TROCA DE DONO que apagamos tudo do usuário anterior.
-//
-// Fonte de verdade: marcador durável em db.meta (sobrevive ao logout; NÃO é
-// tocado por logout.js). Chamado no boot do MobileLayout, ANTES de renderizar
-// o módulo, com o auth.user já validado pelo servidor.
-// -----------------------------------------------------------------------------
-export async function getLocalDataOwner() {
-    return await getMeta(LOCAL_OWNER_META_KEY, null);
-}
-
-/**
- * Garante que os dados locais pertencem ao usuário logado. Se um usuário
- * DIFERENTE do dono atual entrar, apaga todo o estado local do anterior
- * (tabelas de dados + sync_queue + meta) antes de seguir.
- *
- * NUNCA apaga quando:
- *   - é o MESMO usuário (re-login, reload, reconexão) — preserva pendências;
- *   - é o primeiro acesso neste device (sem marcador) — nada a isolar.
- *
- * @param {{id:(number|string), type?:string, name?:string, email?:string}} user
- * @returns {Promise<{wiped:boolean, previousOwner:(number|string|null), owner:(number|string|null)}>}
- */
-export async function ensureLocalDataOwner(user) {
-    if (!user?.id) return { wiped: false, previousOwner: null, owner: null };
-
-    const currentId = user.id;
-    let previousOwner = null;
-    try { previousOwner = await getLocalDataOwner(); } catch (_) { /* meta indisponível */ }
-
-    const sameOwner = previousOwner != null && String(previousOwner) === String(currentId);
-
-    // Mesmo usuário OU primeiro acesso (sem marcador): não apaga nada. Só
-    // (re)grava o dono quando ainda não está registrado — sem perda de dados.
-    if (sameOwner || previousOwner == null) {
-        if (!sameOwner) {
-            try { await setMeta(LOCAL_OWNER_META_KEY, currentId); } catch (_) { /* ignore */ }
-        }
-        return { wiped: false, previousOwner, owner: currentId };
-    }
-
-    // Usuário DIFERENTE assumiu o device → isola: apaga TODAS as tabelas de
-    // dados + sync_queue + meta. Mantém a tabela de credenciais aqui e trata
-    // logo abaixo (o login online do novo usuário já sobrescreveu a chave única
-    // 'atual' via provisionCredential).
-    await clearAllLocal({ keepCredentials: true });
-
-    // clearAllLocal zerou o meta — re-carimba o novo dono.
-    await setMeta(LOCAL_OWNER_META_KEY, currentId);
-
-    // Remove credencial remanescente do usuário anterior. Se o login online do
-    // novo usuário já reprovisionou a credencial, ela pertence a ele e é mantida.
-    try {
-        const cred = await getCredential();
-        if (cred && String(cred.user_id) !== String(currentId)) {
-            await clearCredential();
-        }
-    } catch (_) { /* best-effort */ }
-
-    // Restabelece a sessão offline do novo usuário (o meta foi zerado). Ele
-    // renderizou o MobileLayout com auth.user válido, então a janela é legítima.
-    try { await startOfflineSession(user); } catch (_) { /* best-effort */ }
-
-    return { wiped: true, previousOwner, owner: currentId };
+    await setMeta(SESSION_META_KEY, null);
 }
 
 // -----------------------------------------------------------------------------
@@ -322,8 +254,6 @@ export default {
     renewOfflineSession,
     getOfflineSession,
     clearOfflineSession,
-    getLocalDataOwner,
-    ensureLocalDataOwner,
     ensurePersistentStorage,
     PBKDF2_ITERATIONS,
     OFFLINE_SESSION_TTL_HOURS,

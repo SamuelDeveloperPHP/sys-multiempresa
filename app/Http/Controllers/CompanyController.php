@@ -79,17 +79,11 @@ class CompanyController extends Controller
     {
         $user = $request->user();
         
-        if (in_array($user->type, ['super_admin', 'admin'])) {
-            $companies = Company::with(['obras' => function($q) {
-                $q->withoutGlobalScope(\App\Models\Scopes\CompanyScope::class);
-            }])->orderBy('name')->get();
-        } else {
-            // Carrega empresas vinculadas e APENAS as obras vinculadas a esse usuário ignorando o escopo atual
-            $companies = $user->companies()->with(['obras' => function($q) use ($user) {
-                $q->withoutGlobalScope(\App\Models\Scopes\CompanyScope::class)
-                  ->whereIn('obras.id', $user->obras()->pluck('obras.id'));
-            }])->orderBy('name')->get();
-        }
+        // Carrega empresas vinculadas e APENAS as obras vinculadas a esse usuário ignorando o escopo atual
+        $companies = $user->companies()->with(['obras' => function($q) use ($user) {
+            $q->withoutGlobalScope(\App\Models\Scopes\CompanyScope::class)
+              ->whereIn('obras.id', $user->obras()->pluck('obras.id'));
+        }])->orderBy('name')->get();
 
         return Inertia::render('Admin/Companies/Select', [
             'companies' => $companies
@@ -105,7 +99,6 @@ class CompanyController extends Controller
 
         $user = $request->user();
         $companyId = (int) $validated['company_id'];
-        $isPrivileged = in_array($user->type, ['super_admin', 'admin'], true);
 
         if (!CompanyContext::userCanAccess($companyId)) {
             abort(403, 'Você não tem acesso a esta empresa.');
@@ -118,8 +111,7 @@ class CompanyController extends Controller
                 ->first();
 
             $canAccessObra = $obra && (
-                $isPrivileged
-                || $user->obras()->whereKey($obra->id)->where('company_id', $companyId)->exists()
+                $user->obras()->whereKey($obra->id)->where('company_id', $companyId)->exists()
             );
 
             if (!$canAccessObra) {

@@ -98,41 +98,6 @@ return new class extends Migration
                 'updated_at' => now(),
             ]);
         }
-
-        // 4. Propaga permissões existentes de "companies" para os novos filhos
-        $combinations = DB::table('module_permissions')
-            ->where('module_id', $parentId)
-            ->select('company_id', 'user_id')
-            ->get();
-
-        foreach ($combinations as $c) {
-            foreach ([$listId ?? null, $obrasId ?? null] as $moduleId) {
-                if (! $moduleId) {
-                    continue;
-                }
-
-                $exists = DB::table('module_permissions')
-                    ->where('company_id', $c->company_id)
-                    ->where('user_id', $c->user_id)
-                    ->where('module_id', $moduleId)
-                    ->exists();
-
-                if (! $exists) {
-                    DB::table('module_permissions')->insert([
-                        'company_id' => $c->company_id,
-                        'user_id'    => $c->user_id,
-                        'module_id'  => $moduleId,
-                        'can_list'   => 1,
-                        'can_view'   => 1,
-                        'can_create' => 1,
-                        'can_edit'   => 1,
-                        'can_delete' => 1,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
-        }
     }
 
     public function down(): void

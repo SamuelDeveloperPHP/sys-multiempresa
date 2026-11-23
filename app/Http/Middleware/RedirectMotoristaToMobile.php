@@ -23,6 +23,7 @@ class RedirectMotoristaToMobile
             $path = $request->path();
             $isMobile = str_starts_with($path, 'mobile')
                 || str_starts_with($path, 'api/mobile')
+                || str_starts_with($path, 'evidencias-frota/')
                 || str_starts_with($path, 'logout')
                 || str_starts_with($path, 'profile')
                 || str_starts_with($path, 'sw.js')

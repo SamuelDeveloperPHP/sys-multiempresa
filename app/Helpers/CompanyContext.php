@@ -94,10 +94,6 @@ class CompanyContext
             return false;
         }
 
-        if (in_array($user->type, ['super_admin', 'admin'], true)) {
-            return true;
-        }
-
         if ((int) ($user->company_id ?? 0) === $companyId) {
             return true;
         }

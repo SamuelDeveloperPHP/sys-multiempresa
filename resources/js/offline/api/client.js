@@ -8,6 +8,7 @@
 // -----------------------------------------------------------------------------
 
 import axios from 'axios';
+import { activeScope } from '../db';
 
 const csrfMeta = typeof document !== 'undefined'
     ? document.querySelector('meta[name="csrf-token"]')
@@ -22,6 +23,11 @@ export const apiClient = axios.create({
         'X-CSRF-TOKEN': csrfMeta?.content || '',
     },
     withCredentials: true, // mantém cookie de sessão Laravel
+});
+
+apiClient.interceptors.request.use(config => {
+    if (activeScope) config.headers['X-Mobile-Context'] = activeScope;
+    return config;
 });
 
 // Interceptor: retorna apenas .data e normaliza erro

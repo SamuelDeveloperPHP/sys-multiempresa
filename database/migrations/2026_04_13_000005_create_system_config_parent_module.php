@@ -46,35 +46,6 @@ return new class extends Migration
             'sort_order' => 30,
             'updated_at' => now(),
         ]);
-
-        // 3. Cria permissão para o pai em todas as combinações company/user existentes
-        $combinations = DB::table('module_permissions')
-            ->select('company_id', 'user_id')
-            ->distinct()
-            ->get();
-
-        foreach ($combinations as $c) {
-            $exists = DB::table('module_permissions')
-                ->where('company_id', $c->company_id)
-                ->where('user_id', $c->user_id)
-                ->where('module_id', $parentId)
-                ->exists();
-
-            if (! $exists) {
-                DB::table('module_permissions')->insert([
-                    'company_id' => $c->company_id,
-                    'user_id'    => $c->user_id,
-                    'module_id'  => $parentId,
-                    'can_list'   => 1,
-                    'can_view'   => 1,
-                    'can_create' => 1,
-                    'can_edit'   => 1,
-                    'can_delete' => 1,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-        }
     }
 
     public function down(): void

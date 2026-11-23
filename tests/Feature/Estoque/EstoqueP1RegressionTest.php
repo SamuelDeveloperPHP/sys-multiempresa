@@ -176,6 +176,14 @@ class EstoqueP1RegressionTest extends TestCase
             'email' => 'almoxarife.teste@example.test',
         ]);
 
+        $user->companies()->attach($company->id);
+        foreach (['produtos', 'movimentacoes'] as $slug) {
+            $module = Module::create(['slug' => 'estoque.'.$slug, 'name' => $slug,
+                'route_name' => 'admin.estoque.'.$slug.'.index', 'is_active' => true]);
+            ModulePermission::create(['user_id' => $user->id, 'company_id' => $company->id,
+                'module_id' => $module->id, 'can_create' => true]);
+        }
+
         if (!$withWorks) {
             return [$user, $company];
         }
@@ -191,6 +199,7 @@ class EstoqueP1RegressionTest extends TestCase
             'nome_fantasia' => 'Obra Destino',
         ]);
 
+        $user->obras()->attach([$origem->id, $destino->id]);
         return [$user, $company, $origem, $destino];
     }
 

@@ -27,6 +27,7 @@ class AbastecimentoApiTest extends MobileTestCase
 
     public function test_foto_do_comprovante_e_salva_no_servidor(): void
     {
+        Storage::fake('local');
         Storage::fake('public');
         $c = $this->cenarioBase();
 
@@ -37,15 +38,15 @@ class AbastecimentoApiTest extends MobileTestCase
 
         $resp->assertStatus(201);
         // Resposta expõe a URL do comprovante para o front exibir
-        $this->assertStringContainsString('/storage/uploads/aplicativo/abastecimentos/', (string) $resp->json('data.comprovante_url'));
+        $this->assertStringContainsString('/evidencias-frota/abastecimentos/', (string) $resp->json('data.comprovante_url'));
 
         // Banco: convenção legada — arquivo_app = nome, arquivo_servidor = URL
         $rec = VeiculoAbastecimento::withoutGlobalScopes()->firstOrFail();
         $this->assertNotEmpty($rec->arquivo_app);
-        $this->assertStringContainsString('uploads/aplicativo/abastecimentos/', (string) $rec->arquivo_servidor);
+        $this->assertStringContainsString('/evidencias-frota/abastecimentos/', (string) $rec->arquivo_servidor);
 
         // Arquivo realmente gravado no disco
-        Storage::disk('public')->assertExists('uploads/aplicativo/abastecimentos/' . $rec->arquivo_app);
+        Storage::disk('local')->assertExists('empresas/' . $c['company']->id . '/' . 'uploads/aplicativo/abastecimentos/' . $rec->arquivo_app);
     }
 
     public function test_abastecimento_sem_foto_continua_funcionando(): void

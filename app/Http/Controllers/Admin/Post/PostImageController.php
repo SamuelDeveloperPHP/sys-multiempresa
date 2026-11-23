@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Post;
 use App\Models\PostImage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -25,11 +26,10 @@ class PostImageController extends Controller
         $nextOrder = $maxOrder + 10;
 
         foreach ($request->file('images') as $file) {
-            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $filename = Str::uuid() . '.' . $file->extension();
             $file->move($basePath, $filename);
 
             $post->images()->create([
-                'filename'   => $filename,
                 'path'       => "assets/image/post/{$post->id}/{$filename}",
                 'sort_order' => $nextOrder,
             ]);
@@ -42,15 +42,21 @@ class PostImageController extends Controller
 
     public function order(Request $request, Post $post)
     {
-        $request->validate([
+        $data = $request->validate([
             'order'   => 'required|array',
-            'order.*' => 'integer',
+            'order.*' => 'integer|min:0|max:4294967295',
         ]);
 
         // order = [imageId => sort_order]
-        foreach ($request->input('order') as $imageId => $sort) {
-            $post->images()->where('id', $imageId)->update(['sort_order' => (int) $sort]);
-        }
+        DB::transaction(function () use ($post, $data) {
+            $positions = $data['order'];
+            $images = $post->images()->whereIntegerInRaw('id', array_keys($positions))->lockForUpdate()->get();
+            abort_unless($images->count() === count($positions), 404);
+            foreach ($images as $image) {
+                abort_unless(array_key_exists($image->id, $positions), 404);
+                $image->update(['sort_order' => $positions[$image->id]]);
+            }
+        });
 
         return back()->with('success', 'Ordem atualizada.');
     }
@@ -63,8 +69,12 @@ class PostImageController extends Controller
 
         $imageId = (int) $request->input('image_id');
 
-        $post->images()->update(['is_cover' => false]);
-        $post->images()->where('id', $imageId)->update(['is_cover' => true]);
+        DB::transaction(function () use ($post, $imageId) {
+            Post::query()->lockForUpdate()->findOrFail($post->id);
+            $image = $post->images()->lockForUpdate()->findOrFail($imageId);
+            $post->images()->where('id', '!=', $image->id)->where('is_cover', true)->update(['is_cover' => false]);
+            $post->images()->whereKey($image->id)->update(['is_cover' => true]);
+        });
 
         return back()->with('success', 'Capa definida.');
     }
@@ -74,8 +84,10 @@ class PostImageController extends Controller
         // garante que a imagem é do post
         abort_unless($image->post_id === $post->id, 404);
 
-        $filePath = public_path("assets/image/post/{$post->id}/{$image->filename}");
-        if (File::exists($filePath)) File::delete($filePath);
+        $relative = "assets/image/post/{$post->id}/" . basename($image->path);
+        if ($image->path === $relative && File::isFile(public_path($relative))) {
+            File::delete(public_path($relative));
+        }
 
         $image->delete();
 

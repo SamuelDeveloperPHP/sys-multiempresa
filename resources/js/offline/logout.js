@@ -24,6 +24,7 @@ import { getNetworkStatus } from './hooks/useOnlineStatus';
 // Chaves de storage limpas no logout (qualquer cache local do app).
 const STORAGE_KEYS_TO_CLEAR = [
     'sga_auth_marker',
+    'sga_mobile_context',
     'sga_user_profile_cache',
     'sga_webauthn_active',
     // NÃO limpar 'sga_forced_offline' nem 'sga_user_prefs' — são preferências
@@ -44,15 +45,7 @@ const CACHES_TO_CLEAR = [
     'veiculos-imgs',   // imagens de veículos são escopadas por empresa
 ];
 
-// ATENÇÃO — POR QUE NÃO LIMPAMOS O IndexedDB (Dexie) AQUI:
-// O logout NÃO apaga os dados locais (veículos, abastecimentos, diário,
-// checklists, locações, obras) nem a sync_queue de propósito. Um usuário pode
-// sair OFFLINE com mutações pendentes; apagá-las no logout seria PERDA DE DADOS
-// antes da sincronização. O isolamento entre usuários/empresas no mesmo device
-// é garantido no BOOT do módulo mobile (MobileLayout → ensureLocalDataOwner em
-// offline/offlineAuth.js): quando um usuário DIFERENTE loga, aí sim todo o
-// estado local do usuário anterior é apagado (clearAllLocal). Portanto, NÃO
-// adicione um wipe de Dexie neste logout comum.
+// Cada usuário mantém suas pendências na partição da empresa até a sincronização.
 
 /**
  * Limpa storage local relacionado ao usuário logado.
@@ -65,7 +58,7 @@ async function clearLocalAuthData() {
     clearAuthMarker();
     // Aguarda: o redirect logo em seguida abortaria a escrita no IndexedDB e
     // deixaria a sessão offline viva após o logout.
-    try { await clearOfflineSession(); } catch (_) { /* best-effort */ }
+    await clearOfflineSession();
 
     // Apaga os caches da Cache API com conteúdo autenticado (best-effort).
     // Awaited pelo mesmo motivo do IndexedDB: o redirect não pode cortar antes.

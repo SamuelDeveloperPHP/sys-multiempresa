@@ -21,6 +21,7 @@ class DiarioBordoApiTest extends MobileTestCase
 
     public function test_abertura_com_campos_do_app_nao_cai_em_422(): void
     {
+        Storage::fake('local');
         Storage::fake('public');
         $c = $this->cenarioBase();
 
@@ -41,8 +42,8 @@ class DiarioBordoApiTest extends MobileTestCase
         $rec = VeiculoDiarioBordo::withoutGlobalScopes()->firstOrFail();
         $this->assertSame('Transporte de material para obra', $rec->descricao_atividade);
         $this->assertNotNull($rec->horario_inicial, 'horario_inicial deve ser persistido');
-        $this->assertStringContainsString('uploads/aplicativo/diario_bordo/', (string) $rec->arquivo_servidor);
-        Storage::disk('public')->assertExists('uploads/aplicativo/diario_bordo/' . $rec->arquivo_app);
+        $this->assertStringContainsString('/evidencias-frota/diario_bordo/', (string) $rec->arquivo_servidor);
+        Storage::disk('local')->assertExists('empresas/' . $c['company']->id . '/' . 'uploads/aplicativo/diario_bordo/' . $rec->arquivo_app);
     }
 
     public function test_responsavel_e_definido_pelo_servidor_e_imutavel_pelo_app(): void
@@ -114,6 +115,7 @@ class DiarioBordoApiTest extends MobileTestCase
 
     public function test_encerramento_persiste_horas_observacao_e_foto(): void
     {
+        Storage::fake('local');
         Storage::fake('public');
         $c = $this->cenarioBase();
 
@@ -147,8 +149,8 @@ class DiarioBordoApiTest extends MobileTestCase
         $this->assertSame(480, (int) $rec->horas_trabalhadas_minutos);
         $this->assertSame('Sem intercorrências no turno', $rec->descricao_encerramento);
         // Foto do fechamento em coluna própria — sem sobrescrever a da abertura
-        $this->assertStringContainsString('uploads/aplicativo/diario_bordo/', (string) $rec->arquivo_fechamento_servidor);
-        Storage::disk('public')->assertExists('uploads/aplicativo/diario_bordo/' . $rec->arquivo_fechamento_app);
-        $this->assertStringContainsString('diario_fech_', (string) $rec->arquivo_fechamento_app);
+        $this->assertStringContainsString('/evidencias-frota/diario_bordo/', (string) $rec->arquivo_fechamento_servidor);
+        Storage::disk('local')->assertExists('empresas/' . $c['company']->id . '/' . 'uploads/aplicativo/diario_bordo/' . $rec->arquivo_fechamento_app);
+        $this->assertStringStartsWith('priv-', (string) $rec->arquivo_fechamento_app);
     }
 }

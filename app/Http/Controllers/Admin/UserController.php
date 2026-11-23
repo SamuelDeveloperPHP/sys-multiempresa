@@ -14,16 +14,94 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\WelcomeUserMail;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Inertia\Inertia;
 use Throwable;
 
 class UserController extends Controller
 {
+    private function localCompany(): ?int
+    {
+        if (auth()->user()->type === 'super_admin') {
+            return null;
+        }
+
+        $company = CompanyContext::id();
+        abort_unless($company && auth()->user()->companies()->whereKey($company)->exists(), 403);
+        return $company;
+    }
+
+    private function assignableTypes(): array
+    {
+        return match (auth()->user()->type) {
+            'super_admin' => ['super_admin', 'admin', 'manager', 'motorista', 'user'],
+            'manager' => ['manager', 'motorista', 'user'],
+            'admin' => ['motorista', 'user'],
+            default => ['user'],
+        };
+    }
+
+    private function visibleCompanies()
+    {
+        $company = $this->localCompany();
+        return Company::orderBy('name')->when($company, fn ($q) => $q->whereKey($company))->get();
+    }
+
+    private function visibleUsers(?int $company)
+    {
+        $query = User::query();
+        if ($company) {
+            $query->whereIn('type', $this->assignableTypes())
+                ->whereHas('companies', fn ($q) => $q->whereKey($company))
+                ->with(['companies' => fn ($q) => $q->whereKey($company)]);
+        } else {
+            $query->with('companies');
+        }
+        return $query;
+    }
+
+    private function managedUser(User $user, bool $lock = false): User
+    {
+        $query = $this->visibleUsers($this->localCompany());
+        $target = $query->when($lock, fn ($q) => $q->lockForUpdate())->findOrFail($user->id);
+        if ($lock && $this->localCompany()) {
+            $existing = $target->modulePermissions()->get();
+            $this->assertDelegable($existing->mapWithKeys(fn ($row) => [
+                $row->module_id => collect(['list', 'view', 'create', 'edit', 'delete'])
+                    ->mapWithKeys(fn ($ability) => [$ability => $row->{'can_'.$ability}])->all(),
+            ])->all());
+        }
+        return $target;
+    }
+
+    private function assertDelegable(array $requested): void
+    {
+        $grants = auth()->user()->modulePermissions()->where('company_id', $this->localCompany())
+            ->get()->keyBy('module_id');
+        foreach ($requested as $module => $abilities) {
+            foreach (['list', 'view', 'create', 'edit', 'delete'] as $ability) {
+                if (!empty($abilities[$ability])) {
+                    abort_unless($grants->get($module)?->{'can_'.$ability}, 403);
+                }
+            }
+        }
+    }
+
+    private function sharedIdentity(User $user, ?int $company): bool
+    {
+        return $company && ($user->companies()->where('companies.id', '!=', $company)->exists()
+            || ($user->company_id && (int) $user->company_id !== $company));
+    }
+
     public function index(Request $request)
     {
+        $company = $this->localCompany();
+        abort_if($company && $request->filled('company_id') && (int) $request->company_id !== $company, 403);
         try {
-            $query = User::with('companies');
+            $query = $this->visibleUsers($company);
 
             // Busca por nome ou e-mail
             if ($search = $request->input('q')) {
@@ -70,9 +148,10 @@ class UserController extends Controller
             $users = $query
                 ->orderBy('name')
                 ->paginate(20)
-                ->withQueryString(); // mantém filtros na paginação
+                ->through(fn ($account) => $account->makeHidden(['password_app', 'google2fa_secret', 'perfil_offline']))
+                ->withQueryString();
 
-            $companies = Company::orderBy('name')->get();
+            $companies = $this->visibleCompanies();
 
             $filters = $request->only(['q', 'type', 'status', 'company_id', 'online']);
 
@@ -83,7 +162,7 @@ class UserController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::error('Erro ao listar usuários', [
-                'filtros' => $request->all(),
+                'actor_id' => $request->user()->id,
                 'msg'     => $e->getMessage(),
                 'file'    => $e->getFile(),
                 'line'    => $e->getLine(),
@@ -101,7 +180,7 @@ class UserController extends Controller
     public function create()
     {
         try {
-            $companies = Company::orderBy('name')->get();
+            $companies = $this->visibleCompanies();
 
             // 🔹 Carrega TODOS os módulos ativos para o formulário
             $modules = Module::query()
@@ -118,6 +197,7 @@ class UserController extends Controller
             });
 
             return Inertia::render('Admin/Users/Create', [
+                'assignableTypes' => $this->assignableTypes(),
                 'companies'      => $companies,
                 'groupedModules' => $groupedModules,
             ]);
@@ -141,70 +221,14 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        try {
-            $data = $request->validate([
-                'name'        => 'required|string|max:255',
-                'email'       => 'required|email|unique:users,email',
-                'password'    => ['required', 'confirmed', 'min:8', new StrongPassword],
-                'type'        => 'required|string|in:super_admin,admin,user',
-                'is_active'   => 'boolean',
-                'companies'   => 'array',
-                'companies.*' => 'exists:companies,id',
-
-                // permissões de módulos vem como permissions[module_id][can_*]
-                'permissions'              => 'array',
-                'permissions.*.module_id'  => 'nullable|integer|exists:modules,id',
-            ]);
-
-            $user = User::create([
-                'name'      => $data['name'],
-                'email'     => $data['email'],
-                'password'  => Hash::make($data['password']),
-                'type'      => $data['type'],
-                'is_active' => $request->boolean('is_active'),
-            ]);
-
-            // Vinculo de empresas
-            if (!empty($data['companies'])) {
-                $user->companies()->sync(
-                    array_fill_keys($data['companies'], ['role' => 'user'])
-                );
-            }
-
-            // Permissões de módulos (CRUD)
-            $this->syncModulePermissionsFromRequest($request, $user);
-
-            // E-mail de boas-vindas
-            if ($user->is_active) {
-                $this->sendWelcomeEmail($user, $data['password']);
-            }
-
-            return redirect()
-                ->route('admin.users.index')
-                ->with('success', 'Usuário criado com sucesso.');
-        } catch (Throwable $e) {
-            Log::error('Erro ao criar usuário', [
-                'dados' => $request->all(),
-                'msg'   => $e->getMessage(),
-                'file'  => $e->getFile(),
-                'line'  => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            $short = mb_substr($e->getMessage(), 0, 120);
-
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'error' => "Falha ao criar usuário. Erro: {$short} (linha {$e->getLine()})",
-                ]);
-        }
+        return $this->saveAccount($request);
     }
 
     public function edit(User $user)
     {
+        $user = $this->managedUser($user);
         try {
-            $companies         = Company::orderBy('name')->get();
+            $companies         = $this->visibleCompanies();
             $selectedCompanies = $user->companies->pluck('id')->toArray();
 
             // 🔹 SEM FILTRO por permissões do usuário logado
@@ -226,9 +250,11 @@ class UserController extends Controller
                 ->keyBy('module_id');
 
             return Inertia::render('Admin/Users/Edit', [
-                'user'              => $user,
+                'assignableTypes' => $this->assignableTypes(),
+                'user'              => $user->makeHidden(['password_app', 'google2fa_secret', 'perfil_offline']),
                 'companies'         => $companies,
                 'selectedCompanies' => $selectedCompanies,
+                'sharedIdentity' => $this->sharedIdentity($user, $this->localCompany()),
                 'groupedModules'    => $groupedModules,
                 'modulePermissions' => $modulePermissions,
             ]);
@@ -253,137 +279,96 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        return $this->saveAccount($request, $user);
+    }
 
+    private function saveAccount(Request $request, ?User $target = null)
+    {
+        $company = $this->localCompany();
         try {
-            $data = $request->validate([
-                'name'        => 'required|string|max:255',
-                'email'       => 'required|email|unique:users,email,' . $user->id,
-                'password'    => ['nullable', 'confirmed', 'min:8', new StrongPassword],
-                'type'        => 'required|string|in:super_admin,admin,user',
-                'is_active'   => 'boolean',
-                'companies'   => 'array',
-                'companies.*' => 'exists:companies,id',
-
-                'permissions'              => 'array',
-                'permissions.*.module_id'  => 'nullable|integer|exists:modules,id',
-            ]);
-
-            $payload = [
-                'name'      => $data['name'],
-                'email'     => $data['email'],
-                'type'      => $data['type'],
-                'is_active' => $request->boolean('is_active'),
-            ];
-
-            $passwordPlain = null;
-
-            if (!empty($data['password'])) {
-                $payload['password'] = Hash::make($data['password']);
-                $passwordPlain       = $data['password'];
-            }
-
-            $wasInactive = !$user->is_active && $payload['is_active'];
-
-            $user->update($payload);
-
-            // Atualiza empresas
-            $user->companies()->sync(
-                !empty($data['companies'])
-                    ? array_fill_keys($data['companies'], ['role' => 'user'])
-                    : []
-            );
-
-            // Atualiza permissões de módulos
-            $this->syncModulePermissionsFromRequest($request, $user);
-
-            if ($wasInactive) {
-                $this->sendWelcomeEmail($user, $passwordPlain);
-            }
-
-            return redirect()
-                ->route('admin.users.index')
-                ->with('success', 'Usuário atualizado com sucesso.');
-        } catch (Throwable $e) {
-            Log::error('Erro ao atualizar usuário', [
-                'user_id' => $user->id ?? null,
-                'dados'   => $request->all(),
-                'msg'     => $e->getMessage(),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine(),
-                'trace'   => $e->getTraceAsString(),
-            ]);
-
-            $short = mb_substr($e->getMessage(), 0, 120);
-
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'error' => "Falha ao atualizar usuário. Erro: {$short} (linha {$e->getLine()})",
+            [$user, $notify] = DB::transaction(function () use ($request, $target, $company) {
+                $user = $target ? $this->managedUser($target, true) : new User();
+                $shared = $target && $this->sharedIdentity($user, $company);
+                $data = $request->validate([
+                    'name' => ['required', 'string', 'max:255'],
+                    'email' => ['required', 'email', Rule::unique('users')->ignore($user)],
+                    'password' => [$target ? 'nullable' : 'required', 'string', 'confirmed', 'min:8', new StrongPassword],
+                    'type' => ['required', Rule::in($this->assignableTypes())],
+                    'is_active' => ['boolean'],
+                    'companies' => [$company ? 'required' : 'sometimes', 'array'],
+                    'companies.*' => ['integer', 'distinct', Rule::exists('companies', 'id')],
+                    'permissions' => ['array'],
+                    'permissions.*' => ['array:list,view,create,edit,delete,module_id'],
+                    'permissions.*.list' => ['boolean'],
+                    'permissions.*.view' => ['boolean'],
+                    'permissions.*.create' => ['boolean'],
+                    'permissions.*.edit' => ['boolean'],
+                    'permissions.*.delete' => ['boolean'],
                 ]);
+                $ids = array_map('intval', $data['companies'] ?? []);
+                abort_if($company && $ids !== [$company], 403);
+                if ($company) {
+                    $this->assertDelegable($data['permissions'] ?? []);
+                }
+                $identity = [
+                    'name' => $data['name'], 'email' => $data['email'],
+                    'type' => $data['type'], 'is_active' => $request->boolean('is_active'),
+                ];
+                $notify = $identity['is_active'] && (!$target || !$user->is_active);
+                $user->fill($identity);
+                abort_if($shared && ($user->isDirty() || $request->filled('password')), 403);
+                if ($request->filled('password')) {
+                    $user->password = Hash::make($data['password']);
+                }
+                $user->save();
+                if (!$company || !$target) {
+                    $user->companies()->sync(array_fill_keys($ids, ['role' => 'user']));
+                }
+                $this->syncModulePermissionsFromRequest($request, $user);
+                return [$user, $notify];
+            });
+        } catch (ValidationException|HttpExceptionInterface|\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            Log::error('Falha ao gravar conta de usuário', [
+                'actor_id' => $request->user()->id, 'target_id' => $target?->id,
+                'exception_class' => $e::class,
+            ]);
+            return back()->withErrors(['error' => 'Não foi possível salvar a conta.']);
         }
+        if ($notify) {
+            $this->sendWelcomeEmail($user);
+        }
+        return redirect()->route('admin.users.index')->with('success', 'Conta salva.');
     }
 
     public function destroy(User $user)
     {
-        try {
+        return DB::transaction(function () use ($user) {
+            $user = $this->managedUser($user, true);
+            abort_if($this->sharedIdentity($user, $this->localCompany()), 403);
             if (auth()->id() === $user->id) {
                 return back()->with('error', 'Você não pode excluir a si mesmo.');
             }
-
-            // apaga também as permissões de módulos desse usuário
             ModulePermission::where('user_id', $user->id)->delete();
-
             $user->delete();
-
-            return redirect()
-                ->route('admin.users.index')
-                ->with('success', 'Usuário removido.');
-        } catch (Throwable $e) {
-            Log::error('Erro ao remover usuário', [
-                'user_id' => $user->id ?? null,
-                'msg'     => $e->getMessage(),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine(),
-                'trace'   => $e->getTraceAsString(),
-            ]);
-
-            $short = mb_substr($e->getMessage(), 0, 120);
-
-            return back()->withErrors([
-                'error' => "Falha ao remover usuário. Erro: {$short} (linha {$e->getLine()})",
-            ]);
-        }
+            return redirect()->route('admin.users.index')->with('success', 'Usuário removido.');
+        });
     }
 
     public function toggleStatus(User $user)
     {
-        try {
+        $user = DB::transaction(function () use ($user) {
+            $user = $this->managedUser($user, true);
+            abort_if($this->sharedIdentity($user, $this->localCompany()), 403);
             $user->is_active = !$user->is_active;
             $user->save();
-
-            if ($user->is_active) {
-                $this->sendWelcomeEmail($user, null);
-            }
-
-            return back()->with(
-                'success',
-                $user->is_active ? 'Usuário desbloqueado.' : 'Usuário bloqueado.'
-            );
-        } catch (Throwable $e) {
-            Log::error('Erro ao alterar status do usuário', [
-                'user_id' => $user->id ?? null,
-                'msg'     => $e->getMessage(),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine(),
-                'trace'   => $e->getTraceAsString(),
-            ]);
-
-            $short = mb_substr($e->getMessage(), 0, 120);
-
-            return back()->withErrors([
-                'error' => "Falha ao alterar status. Erro: {$short} (linha {$e->getLine()})",
-            ]);
+            return $user;
+        });
+        if ($user->is_active) {
+            $this->sendWelcomeEmail($user);
         }
+        return back()->with('success', $user->is_active ? 'Usuário desbloqueado.' : 'Usuário bloqueado.');
     }
 
     public function toggleActive(User $user)
@@ -415,13 +400,13 @@ class UserController extends Controller
 
     public function show(User $user)
     {
-        return redirect()->route('admin.users.edit', $user);
+        return redirect()->route('admin.users.edit', $this->managedUser($user));
     }
 
-    protected function sendWelcomeEmail(User $user, ?string $plainPassword): void
+    protected function sendWelcomeEmail(User $user): void
     {
         try {
-            Mail::to($user->email)->send(new WelcomeUserMail($user, $plainPassword));
+            Mail::to($user->email)->send(new WelcomeUserMail($user));
         } catch (Throwable $e) {
             Log::error('Erro ao enviar e-mail de boas-vindas', [
                 'user_id' => $user->id ?? null,
@@ -444,11 +429,7 @@ class UserController extends Controller
      */
     protected function syncModulePermissionsFromRequest(Request $request, User $user): void
     {
-        // 🔹 Super Admin não precisa gravar/limpar permissões —
-        // ele sempre enxerga tudo pelo tipo, não pela tabela module_permissions.
-        if ($user->type === 'super_admin') {
-            return;
-        }
+        abort_unless(in_array($request->user()->type, ['admin', 'super_admin'], true), 403);
 
         $permissionsInput = $request->input('permissions', []); // [module_id => [list,view,...]]
         $companyIds       = $request->input('companies', []);   // [1,2,3...]

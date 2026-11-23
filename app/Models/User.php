@@ -113,45 +113,52 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         return $this->hasMany(ModulePermission::class);
     }
 
-    protected array $cachedPermissions = [];
-
-    public function loadPermissions(int $companyId): void
+    public function grantedModules(int $companyId): array
     {
-        if (!isset($this->cachedPermissions[$companyId])) {
-            $this->cachedPermissions[$companyId] = $this->modulePermissions()
-                ->with('module')
-                ->where('company_id', $companyId)
-                ->get();
-        }
+        $cached = $this->modulePermissions()
+            ->with('module')
+            ->where('company_id', $companyId)
+            ->get();
+
+        return $cached
+            ->filter(fn ($p) => $p->module?->is_active)
+            ->map(fn ($p) => [
+                'id'          => $p->module->id,
+                'name'        => $p->module->name,
+                'slug'        => $p->module->slug,
+                'url'         => $p->module->url,
+                'icon'        => $p->module->icon ?? null,
+                'parent_id'   => $p->module->parent_id ?? null,
+                'can_list'    => (bool) $p->can_list,
+                'can_view'    => (bool) $p->can_view,
+                'can_create'  => (bool) $p->can_create,
+                'can_edit'    => (bool) ($p->can_edit ?? false),
+                'can_delete'  => (bool) ($p->can_delete ?? false),
+            ])
+            ->values()
+            ->all();
     }
 
     public function hasModulePermission(int $companyId, string $moduleSlug, string $ability): bool
     {
-        if ($this->type === 'super_admin') {
-            return true;
-        }
-
-        $this->loadPermissions($companyId);
-
-        $permission = $this->cachedPermissions[$companyId]
-            ->first(fn($p) => $p->module && $p->module->slug === $moduleSlug);
-
-        return $permission ? (bool) $permission->{"can_{$ability}"} : false;
+        return $this->hasExplicitPermission($companyId, 'slug', $moduleSlug, $ability);
     }
 
-    // 👉 novo: checar usando NOME DA ROTA
     public function hasRoutePermission(int $companyId, string $routeName, string $ability = 'list'): bool
     {
-        if ($this->type === 'super_admin') {
-            return true;
+        return $this->hasExplicitPermission($companyId, 'url', $routeName, $ability);
+    }
+
+    private function hasExplicitPermission(int $companyId, string $field, string $value, string $ability): bool
+    {
+        if (!in_array($ability, ['list', 'view', 'create', 'edit', 'delete'], true)) {
+            return false;
         }
 
-        $this->loadPermissions($companyId);
-        
-        $permission = $this->cachedPermissions[$companyId]
-            ->first(fn($p) => $p->module && $p->module->url === $routeName);
-
-        return $permission ? (bool) $permission->{"can_{$ability}"} : false;
+        return $this->modulePermissions()->where('company_id', $companyId)
+            ->where('can_'.$ability, true)
+            ->whereHas('module', fn ($query) => $query->where('is_active', true)->where($field, $value))
+            ->exists();
     }
 
     public function getIsOnlineAttribute(): bool

@@ -86,39 +86,6 @@ return new class extends Migration
                 ->whereIn('slug', ['users-active', 'users-inactive', 'users-permissions'])
                 ->update(['parent_id' => $usersParent->id]);
         }
-
-        // ----------------------------------------------------------------
-        // 6. Permissões para o novo módulo "Blog" pai (todas as combinações existentes)
-        // ----------------------------------------------------------------
-        if (! $blogParent) {
-            $existingPerms = DB::table('module_permissions')
-                ->select('company_id', 'user_id')
-                ->distinct()
-                ->get();
-
-            foreach ($existingPerms as $perm) {
-                $alreadyExists = DB::table('module_permissions')
-                    ->where('company_id', $perm->company_id)
-                    ->where('user_id', $perm->user_id)
-                    ->where('module_id', $blogParentId)
-                    ->exists();
-
-                if (! $alreadyExists) {
-                    DB::table('module_permissions')->insert([
-                        'company_id' => $perm->company_id,
-                        'user_id'    => $perm->user_id,
-                        'module_id'  => $blogParentId,
-                        'can_list'   => 1,
-                        'can_view'   => 1,
-                        'can_create' => 1,
-                        'can_edit'   => 1,
-                        'can_delete' => 1,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
-        }
     }
 
     public function down(): void

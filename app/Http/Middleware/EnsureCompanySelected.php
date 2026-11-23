@@ -35,6 +35,15 @@ class EnsureCompanySelected
             }
         }
 
+        if ($request->is('mobile/*', 'api/mobile/*') && $request->user()) {
+            $context = $request->user()->getKey().':'.CompanyContext::id();
+            if ($request->hasHeader('X-Mobile-Context') && $request->header('X-Mobile-Context') !== $context) {
+                return response()->json(['code' => 'mobile_context_changed', 'message' => 'Sessão ou empresa alterada.'], 409);
+            }
+            $response = $next($request);
+            $response->headers->set('X-Mobile-Context', $context);
+            return $response;
+        }
         return $next($request);
     }
 

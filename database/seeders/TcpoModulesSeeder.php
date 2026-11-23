@@ -3,21 +3,12 @@
 namespace Database\Seeders;
 
 use App\Models\Module;
-use App\Models\ModulePermission;
-use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Cadastra os módulos do TCPO no menu + permissões para super_admin e manager.
- * Idempotente (updateOrInsert por slug). Espelha EstoqueModulesSeeder.
- *
- * Uso:
- *   php artisan db:seed --class=TcpoModulesSeeder
- */
+/** Cadastra os módulos de TCPO. */
 class TcpoModulesSeeder extends Seeder
 {
-    protected array $tiposComAcesso = ['super_admin', 'manager'];
 
     protected array $modulos = [
         // PAI — grupo no sidebar
@@ -67,36 +58,7 @@ class TcpoModulesSeeder extends Seeder
 
         $todosIds = array_merge(array_values($paisIdsBySlug), $filhosIds);
 
-        // ----- 3) PERMISSÕES -----
-        $companies = DB::table('companies')->pluck('id')->all();
-        $users     = User::whereIn('type', $this->tiposComAcesso)->get(['id', 'type']);
-
-        $totalPerms = 0;
-        foreach ($todosIds as $moduleId) {
-            foreach ($users as $user) {
-                foreach ($companies as $companyId) {
-                    ModulePermission::updateOrCreate(
-                        [
-                            'user_id'    => $user->id,
-                            'module_id'  => $moduleId,
-                            'company_id' => $companyId,
-                        ],
-                        [
-                            'can_list'   => true,
-                            'can_view'   => true,
-                            'can_create' => true,
-                            'can_edit'   => true,
-                            'can_delete' => true,
-                        ]
-                    );
-                    $totalPerms++;
-                }
-            }
-        }
-
         $this->command->info('Módulos TCPO cadastrados: ' . count($todosIds));
-        $this->command->info('Permissões aplicadas: ' . $totalPerms . ' (usuários: ' . $users->count()
-            . ', empresas: ' . count($companies) . ')');
     }
 
     protected function upsertModulo(array $m, ?int $parentId): int

@@ -24,8 +24,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CompanySeeder::class,
             ModulesPermissionsSeeder::class,
-            InitialPermissionsSeeder::class,
-            // Estoque: módulos + permissões para super_admin/manager. Idempotente.
+            // O cadastro de módulos preserva as concessões administrativas.
             EstoqueModulesSeeder::class,
         ]);
     }

@@ -46,13 +46,16 @@ final class ChecklistExecutionContract
                 ->whereIn('id', collect($responses)->pluck('item_id')->filter()->unique())
                 ->pluck('nome_servico', 'id');
 
-            return collect($responses)->map(function (array $response) use ($itemNames): array {
+            return collect($responses)->map(function (array $response) use ($itemNames, $execution): array {
                 $itemId = isset($response['item_id']) ? (int) $response['item_id'] : null;
                 $response['item_id'] = $itemId;
                 $response['item_nome'] = $response['item_nome'] ?? ($itemId ? $itemNames->get($itemId) : null) ?? 'Item sem identificação';
                 $response['ok'] = filter_var($response['ok'] ?? null, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
                 $response['obs'] = $response['obs'] ?? null;
-                $response['foto_url'] = $this->photoUrl($response['foto_url'] ?? $response['foto_path'] ?? null);
+                $path = $response['foto_path'] ?? null;
+                $response['foto_url'] = $path && str_starts_with(basename($path), 'priv-')
+                    ? route('frota.evidencia', ['tipo' => 'checklist_servicos', 'nome' => basename($path), 'execucao' => $execution->id], false)
+                    : $this->photoUrl($response['foto_url'] ?? $path);
 
                 return $response;
             })->values()->all();

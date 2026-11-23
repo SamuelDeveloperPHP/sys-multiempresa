@@ -1,3 +1,4 @@
+import { requireLocalAction } from './modulePermissions';
 // resources/js/offline/syncQueue.js
 // -----------------------------------------------------------------------------
 // Fila de mutações offline. Cada chamada CRUD do repository registra um item
@@ -14,7 +15,7 @@
 //   'completed' — enviado com sucesso (mantido por 24h para auditoria, depois GC)
 // -----------------------------------------------------------------------------
 
-import db, { newLocalId } from './db';
+import db, { newLocalId, activeScope } from './db';
 import apiClient from './api/client';
 
 // Mapa de operações → método HTTP padrão
@@ -62,7 +63,7 @@ export async function registerBackgroundSync() {
         if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false;
         if (!('SyncManager' in window)) return false; // iOS/Safari: sem suporte
         const reg = await navigator.serviceWorker.ready;
-        await reg.sync.register(BG_SYNC_TAG);
+        await reg.sync.register(BG_SYNC_TAG + ':' + activeScope);
         return true;
     } catch (_) {
         return false; // permissão negada / SW não registrado — segue manual
@@ -132,7 +133,7 @@ export async function removeItem(id) {
 export function classifyError(err) {
     const status = err?.response?.status;
     if (status == null) return 'transient';               // sem resposta: rede
-    if (status === 401 || status === 419) return 'auth';
+    if (err.response?.data?.code === 'mobile_context_changed' || status === 401 || status === 419) return 'auth';
     if (status === 408 || status === 429 || status >= 500) return 'transient';
     return 'permanent';
 }
@@ -458,6 +459,7 @@ async function onSyncSuccess(queueItem, serverData) {
 // Helper de alto nível usado pelos repositories: salva localmente + enqueue
 // -----------------------------------------------------------------------------
 export async function localCreate(tableName, payload, endpoint) {
+    await requireLocalAction(tableName, 'create');
     const localId = newLocalId(tableName);
     const now = new Date().toISOString();
     // Idempotência: o servidor deduplica creates reenviados pelo client_uuid.
@@ -501,6 +503,7 @@ function payloadFromRecord(record) {
 }
 
 export async function localUpdate(tableName, id, payload, endpoint) {
+    await requireLocalAction(tableName, 'edit');
     const now = new Date().toISOString();
     const existing = await db.table(tableName).get(id);
     const localOnly = isLocalOnly(existing);
@@ -559,6 +562,7 @@ export async function localUpdate(tableName, id, payload, endpoint) {
 }
 
 export async function localDelete(tableName, id, endpoint) {
+    await requireLocalAction(tableName, 'delete');
     const existing = await db.table(tableName).get(id);
 
     // Se nunca foi enviado ao servidor (local-only, inclui create rejeitado):

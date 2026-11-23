@@ -8,10 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 
 trait AuthorizesMobileOwnership
 {
-    protected function canMutate(
+    protected function hasRecordPermission(
         User $user,
         Model $record,
-        bool $isOwner,
         string $moduleSlug,
         string $ability,
     ): bool {
@@ -21,7 +20,10 @@ trait AuthorizesMobileOwnership
             return false;
         }
 
-        return $isOwner || $user->hasModulePermission($companyId, $moduleSlug, $ability);
+        $worksite = $record->getAttribute('id_obra');
+
+        return $user->hasModulePermission($companyId, $moduleSlug, $ability)
+            && (!$worksite || $user->obrasForCompany($companyId)->whereKey($worksite)->exists());
     }
 
     protected function ownsByEmail(User $user, Model $record): bool

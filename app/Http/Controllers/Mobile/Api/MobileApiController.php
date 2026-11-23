@@ -37,7 +37,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 
 /**
@@ -118,7 +117,12 @@ class MobileApiController extends Controller
             $query->where('company_id', $companyId);
         }
 
-        return $query->first();
+        $existing = $query->first();
+        if ($existing) {
+            abort_unless(Gate::allows('view', $existing), 404);
+        }
+
+        return $existing;
     }
 
     /**
@@ -140,29 +144,16 @@ class MobileApiController extends Controller
     }
 
     /**
-     * Salva uma foto base64 (data URL) como ARQUIVO no disco público, na
-     * convenção do SyncController legado: uploads/aplicativo/{contexto}/.
+     * Guarda a foto no diretório privado da empresa selecionada.
      * Retorna ['nome', 'path', 'url'] ou null se o data URL for inválido.
      * Entradas já validadas pelo FormRequest (formato data:image + tamanho).
      */
-    private function salvarFotoBase64(?string $dataUrl, string $contexto, string $prefixo = 'img'): ?array
+    private function salvarFotoBase64(?string $dataUrl, string $contexto): ?array
     {
-        if (! $dataUrl || ! is_string($dataUrl)) {
+        if (!$dataUrl) {
             return null;
         }
-        if (! preg_match('/^data:image\/(jpeg|jpg|png|webp);base64,/', $dataUrl, $m)) {
-            return null;
-        }
-        $conteudo = base64_decode(substr($dataUrl, strpos($dataUrl, ',') + 1), true);
-        if (! $conteudo) {
-            return null;
-        }
-        $ext = $m[1] === 'jpg' ? 'jpeg' : $m[1];
-        $nome = uniqid($prefixo.'_', true).'.'.$ext;
-        $caminho = "uploads/aplicativo/{$contexto}/{$nome}";
-        Storage::disk('public')->put($caminho, $conteudo);
-
-        return ['nome' => $nome, 'path' => $caminho, 'url' => url('storage/'.$caminho)];
+        return app(\App\Services\Frota\EvidenciaMobile::class)->guardar($dataUrl, $contexto);
     }
 
     /**
@@ -173,15 +164,21 @@ class MobileApiController extends Controller
      * 'foto_path' pré-existente (edição de registro já sincronizado) passa
      * intacto; base64 inválido é descartado sem derrubar o request.
      */
-    private function extrairFotosRespostas(?array $respostas): ?array
+    private function extrairFotosRespostas(?array $respostas, array $anteriores = []): ?array
     {
         if (! $respostas) {
             return $respostas;
         }
+        $anteriores = collect($anteriores)->keyBy('item_id');
         foreach ($respostas as $i => $r) {
+            $anterior = $anteriores->get($r['item_id'])['foto_path'] ?? null;
+            unset($respostas[$i]['foto_url']);
+            if (!empty($r['foto_path']) && $r['foto_path'] !== $anterior) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['respostas' => 'A foto deve pertencer ao item desta execução.']);
+            }
             $dataUrl = $r['foto_data_url'] ?? null;
             unset($respostas[$i]['foto_data_url']);
-            $foto = $this->salvarFotoBase64($dataUrl, 'checklist_servicos', 'chk');
+            $foto = $this->salvarFotoBase64($dataUrl, 'checklist_servicos');
             if ($foto) {
                 $respostas[$i]['foto_path'] = $foto['path'];
             }
@@ -386,7 +383,7 @@ class MobileApiController extends Controller
         // Foto do comprovante: base64 vira arquivo (convenção legada:
         // arquivo_app = nome, arquivo_servidor = URL). O campo era ignorado
         // e a foto do comprovante nunca chegava ao servidor.
-        $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'abastecimentos', 'abast');
+        $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'abastecimentos');
         if ($foto) {
             $payload['arquivo_app'] = $foto['nome'];
             $payload['arquivo_servidor'] = $foto['url'];
@@ -411,7 +408,7 @@ class MobileApiController extends Controller
         $payload['sync_status'] = 1;
         $payload['data_sincronizacao'] = now();
         // Troca de foto do comprovante na edição (mesma convenção do store)
-        $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'abastecimentos', 'abast');
+        $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'abastecimentos');
         if ($foto) {
             $payload['arquivo_app'] = $foto['nome'];
             $payload['arquivo_servidor'] = $foto['url'];
@@ -541,7 +538,7 @@ class MobileApiController extends Controller
             $payload['client_uuid'] = $uuid;
         }
         // Foto da ABERTURA (base64 → arquivo; convenção legada)
-        $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'diario_bordo', 'diario');
+        $foto = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'diario_bordo');
         if ($foto) {
             $payload['arquivo_app'] = $foto['nome'];
             $payload['arquivo_servidor'] = $foto['url'];
@@ -570,13 +567,13 @@ class MobileApiController extends Controller
         }
 
         // Foto do FECHAMENTO — coluna própria para não sobrescrever a da abertura
-        $fotoFech = $this->salvarFotoBase64($request->validated()['arquivo_fechamento_data_url'] ?? null, 'diario_bordo', 'diario_fech');
+        $fotoFech = $this->salvarFotoBase64($request->validated()['arquivo_fechamento_data_url'] ?? null, 'diario_bordo');
         if ($fotoFech) {
             $payload['arquivo_fechamento_app'] = $fotoFech['nome'];
             $payload['arquivo_fechamento_servidor'] = $fotoFech['url'];
         }
         // Troca da foto de abertura (edição)
-        $fotoAb = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'diario_bordo', 'diario');
+        $fotoAb = $this->salvarFotoBase64($request->validated()['arquivo_app_data_url'] ?? null, 'diario_bordo');
         if ($fotoAb) {
             $payload['arquivo_app'] = $fotoAb['nome'];
             $payload['arquivo_servidor'] = $fotoAb['url'];
@@ -876,7 +873,7 @@ class MobileApiController extends Controller
         if ($request->has('respostas')) {
             // Validadas + fotos base64 extraídas para arquivo (foto_path).
             $prepared = $submission->prepareForExecution($rec, $request->validated()['respostas']);
-            $payload['respostas'] = $this->extrairFotosRespostas($prepared['respostas']);
+            $payload['respostas'] = $this->extrairFotosRespostas($prepared['respostas'], $rec->respostas ?? []);
             $payload['template_versao'] = $prepared['template_versao'];
             $payload['template_snapshot'] = $prepared['template_snapshot'];
             $payload['resultado_inspecao'] = $prepared['resultado_inspecao'];

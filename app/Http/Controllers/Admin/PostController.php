@@ -28,15 +28,8 @@ class PostController extends Controller
             $query = Post::query()
                 ->with(['author', 'category', 'companies']);
 
-            /**
-             * 🔐 REGRA DE VISIBILIDADE POR EMPRESA
-             *
-             * - Super admin → vê tudo
-             * - Demais usuários →
-             *      • posts sem vínculo com empresa (globais)
-             *      • OU posts vinculados à empresa atual
-             */
-            if ($company && $user?->type !== 'super_admin') {
+            // Lista publicações globais e as vinculadas à empresa ativa.
+            if ($company) {
                 $query->where(function ($q) use ($company) {
                     $q->whereDoesntHave('companies')
                         ->orWhereHas('companies', function ($q2) use ($company) {
@@ -374,7 +367,7 @@ class PostController extends Controller
 
         foreach ($request->file('images') as $file) {
 
-            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+            $filename = Str::uuid() . '.' . $file->extension();
 
             // move para public/assets/image/post/{id}
             $file->move($basePath, $filename);

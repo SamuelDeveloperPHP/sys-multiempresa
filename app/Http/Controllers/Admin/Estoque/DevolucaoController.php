@@ -449,13 +449,11 @@ class DevolucaoController extends Controller
      * O usuário tem permissão pra aprovar devoluções?
      *
      * Regras:
-     *   - super_admin sempre pode
-     *   - outros precisam de can_edit no módulo estoque.devolucoes
+     * Exige can_edit no módulo estoque.devolucoes
      *     na empresa atual.
      */
     protected function usuarioPodeAprovar(User $user): bool
     {
-        if ($user->type === 'super_admin') return true;
 
         $companyId = CompanyContext::current()?->id;
         if (!$companyId) return false;

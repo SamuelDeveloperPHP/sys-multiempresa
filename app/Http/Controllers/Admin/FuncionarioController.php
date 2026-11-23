@@ -739,8 +739,7 @@ class FuncionarioController extends Controller
 
     /**
      * Retorna abilidades CRUD do usuário logado para o módulo informado.
-     * super_admin sempre pode tudo. Outros usuários consultam module_permissions
-     * na empresa atual.
+     * Consulta as permissões explícitas da empresa atual.
      */
     protected function abilitiesForCurrentUser(string $moduleSlug): array
     {
@@ -751,10 +750,6 @@ class FuncionarioController extends Controller
 
         if (! $user) {
             return $defaults;
-        }
-
-        if ($user->type === 'super_admin') {
-            return array_fill_keys(array_keys($defaults), true);
         }
 
         if (! $companyId) {

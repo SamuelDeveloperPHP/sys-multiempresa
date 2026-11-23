@@ -35,10 +35,6 @@ export default function AlmoxarifesIndex({ companies, companySelecionada, users,
     }, [q]);
 
     const toggle = (user, ativar) => {
-        if (user.eh_super) {
-            alert('Super-admin já tem acesso total — não precisa marcar como almoxarife.');
-            return;
-        }
         router.post(route('admin.estoque.almoxarifes.toggle'), {
             user_id:    user.id,
             company_id: companyId,
@@ -186,10 +182,10 @@ export default function AlmoxarifesIndex({ companies, companySelecionada, users,
                                 <th className="px-4 py-2 w-10">
                                     <input
                                         type="checkbox"
-                                        checked={selecionados.length === users.filter((u) => !u.eh_super).length && users.length > 0}
+                                        checked={selecionados.length === users.length && users.length > 0}
                                         onChange={(e) => {
                                             if (e.target.checked) {
-                                                setSelecionados(users.filter((u) => !u.eh_super).map((u) => u.id));
+                                                setSelecionados(users.map((u) => u.id));
                                             } else {
                                                 setSelecionados([]);
                                             }
@@ -211,13 +207,12 @@ export default function AlmoxarifesIndex({ companies, companySelecionada, users,
                                     </td>
                                 </tr>
                             ) : users.map((u) => (
-                                <tr key={u.id} className={`hover:bg-gray-50 ${u.eh_super ? 'bg-amber-50/40' : ''}`}>
+                                <tr key={u.id} className={`hover:bg-gray-50 `}>
                                     <td className="px-4 py-2">
                                         <input
                                             type="checkbox"
                                             checked={selecionados.includes(u.id)}
                                             onChange={() => toggleSelecao(u.id)}
-                                            disabled={u.eh_super}
                                             className="h-4 w-4 text-rise-600 rounded disabled:opacity-30"
                                         />
                                     </td>
@@ -238,13 +233,7 @@ export default function AlmoxarifesIndex({ companies, companySelecionada, users,
                                         </span>
                                     </td>
                                     <td className="px-4 py-2 text-center">
-                                        {u.eh_super ? (
-                                            <span className="bg-amber-100 text-amber-800 text-[11px] px-2 py-1 rounded-full font-medium">
-                                                <i className="fa-solid fa-crown mr-1" />
-                                                Super-admin (acesso total)
-                                            </span>
-                                        ) : (
-                                            <button
+                                        <button
                                                 type="button"
                                                 onClick={() => toggle(u, !u.eh_almoxarife)}
                                                 className={`relative inline-flex items-center h-7 w-14 rounded-full transition ${
@@ -261,7 +250,6 @@ export default function AlmoxarifesIndex({ companies, companySelecionada, users,
                                                     {u.eh_almoxarife ? 'SIM' : 'NÃO'}
                                                 </span>
                                             </button>
-                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -276,7 +264,6 @@ export default function AlmoxarifesIndex({ companies, companySelecionada, users,
                     <ul className="list-disc list-inside space-y-1">
                         <li>Almoxarifes podem <strong>aprovar/rejeitar devoluções</strong> com a própria senha (módulo estoque.devolucoes, can_edit).</li>
                         <li>A permissão é <strong>por empresa</strong> — troque o seletor acima para configurar outras.</li>
-                        <li>Super-admins têm acesso total automaticamente e não aparecem como toggle.</li>
                         <li>Para gestão mais granular (can_list/view/create/delete) use /admin/users/:id/edit.</li>
                     </ul>
                 </div>
