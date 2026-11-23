@@ -956,6 +956,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
                     ->name('comprovantes.devolucao');
 
                 // Devolução rápida (Fase 2) — antes do resource para não ser engolido
+                Route::get('devolucoes/saidas', [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'saidas'])
+                    ->moduleAbility('create')->name('devolucoes.saidas');
                 Route::get('devolucoes/rapida',
                     [\App\Http\Controllers\Admin\Estoque\DevolucaoController::class, 'rapidaCreate'])
                     ->name('devolucoes.rapida.create');

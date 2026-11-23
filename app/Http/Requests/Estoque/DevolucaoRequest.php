@@ -19,17 +19,18 @@ class DevolucaoRequest extends FormRequest
         $companyId = CompanyContext::current()?->id;
 
         return [
-            'funcionario_user_id' => ['required', 'integer', Rule::exists('users', 'id')], // users sem soft delete
+            'funcionario_user_id' => ['required', 'integer', Rule::exists('company_user', 'user_id')->where('company_id', $companyId)],
             'produto_id'          => ['required', 'integer', Rule::exists('estoque_produtos', 'id')->whereNull('deleted_at')],
             'obra_id'             => [
                 'required', 'integer',
-                Rule::exists('obras', 'id')->where(fn ($q) => $companyId ? $q->where('company_id', $companyId) : $q),
+                Rule::exists('obras', 'id')->where('company_id', $companyId)->withoutTrashed(),
             ],
             'movimentacao_saida_id' => [
-                'nullable', 'integer',
-                Rule::exists('estoque_movimentacoes', 'id')->where(fn ($q) => $q->where('tipo', 'SAIDA')),
+                'required', 'integer',
+                Rule::exists('estoque_movimentacoes', 'id')->where('tipo', 'SAIDA')->where('company_id', $companyId)->withoutTrashed(),
             ],
-            'quantidade'      => ['required', 'numeric', 'gt:0', 'max:999999.999'],
+            'chave_reenvio'   => ['required', 'uuid'],
+            'quantidade'      => ['required', 'numeric', 'decimal:0,3', 'gt:0', 'max:999999.999'],
             'valor_unitario'  => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'estado_material' => ['required', Rule::in([
                 Devolucao::ESTADO_NOVO, Devolucao::ESTADO_USADO_OK, Devolucao::ESTADO_AVARIADO,

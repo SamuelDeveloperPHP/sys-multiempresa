@@ -189,7 +189,7 @@ function ItemRow({ item, inv, isAberto }) {
                     )}
                     <div className="min-w-0">
                         <div className="font-medium text-gray-900 truncate max-w-[260px]">{item.produto?.nome}</div>
-                        <div className="text-[11px] text-gray-400 font-mono">{item.produto?.sku} · {item.produto?.unidade}</div>
+                        <div className="text-[11px] text-gray-400 font-mono">{item.produto?.sku} · {item.produto?.unidade} {item.variante && [item.variante.cor, item.variante.tamanho, item.variante.sku_variante || '#' + item.variante_id].filter(Boolean).join(' · ')}</div>
                     </div>
                 </div>
             </td>

@@ -13,7 +13,7 @@ import { Field, SenhaRetiradaModal } from '../_shared/Pickers';
  *
  * Regra essencial: SÓ o funcionário que retirou pode devolver.
  */
-export default function DevolucaoRapida({ saidas_abertas }) {
+export default function DevolucaoRapida({ saidas_abertas, chaveReenvio }) {
     const [busca, setBusca] = useState('');
     const [saidaSel, setSaidaSel] = useState(null);
 
@@ -52,7 +52,7 @@ export default function DevolucaoRapida({ saidas_abertas }) {
                 </header>
 
                 {saidaSel ? (
-                    <DevolverForm saida={saidaSel} onCancel={() => setSaidaSel(null)} />
+                    <DevolverForm key={saidaSel.id} chaveReenvio={chaveReenvio} saida={saidaSel} onCancel={() => setSaidaSel(null)} />
                 ) : (
                     <>
                         <input
@@ -110,8 +110,9 @@ export default function DevolucaoRapida({ saidas_abertas }) {
 /* ============================================================
  * Subcomponente: formulário de devolução para uma saída específica
  * ============================================================ */
-function DevolverForm({ saida, onCancel }) {
+function DevolverForm({ saida, onCancel, chaveReenvio }) {
     const { data, setData, post, processing, errors } = useForm({
+        chave_reenvio: chaveReenvio,
         movimentacao_saida_id: saida.id,
         quantidade:            saida.qtd_restante,
         estado_material:       'USADO_OK',

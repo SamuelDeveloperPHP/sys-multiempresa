@@ -32,7 +32,7 @@ class Devolucao extends Model
     public const ESTADO_AVARIADO  = 'AVARIADO';
 
     protected $fillable = [
-        'company_id', 'numero',
+        'company_id', 'numero', 'chave_reenvio',
         'funcionario_user_id', 'funcionario_id', 'produto_id', 'obra_id',
         'movimentacao_saida_id', 'movimentacao_gerada_id',
         'quantidade', 'valor_unitario',

@@ -13,7 +13,7 @@ class InventarioItem extends Model
     protected $table = 'estoque_inventario_itens';
 
     protected $fillable = [
-        'inventario_id', 'produto_id',
+        'inventario_id', 'produto_id', 'variante_id', 'variante_identificada',
         'saldo_sistema', 'saldo_contado', 'diferenca',
         'valor_unitario', 'valor_diferenca',
         'observacao', 'contado',
@@ -29,5 +29,6 @@ class InventarioItem extends Model
     ];
 
     public function inventario(): BelongsTo { return $this->belongsTo(Inventario::class); }
+    public function variante(): BelongsTo { return $this->belongsTo(ProdutoVariante::class)->withTrashed(); }
     public function produto(): BelongsTo    { return $this->belongsTo(Produto::class); }
 }

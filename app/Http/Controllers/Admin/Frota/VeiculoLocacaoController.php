@@ -13,6 +13,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use App\Helpers\CompanyContext;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
@@ -75,80 +79,45 @@ class VeiculoLocacaoController extends Controller
         return Inertia::render('Admin/Frota/Locacoes/Form', [
             'locacao'      => null,
             'veiculos'     => Veiculo::orderBy('prefixo')->get(['id', 'prefixo', 'placa', 'nun_serie_chassi', 'veiculo', 'marca', 'modelo', 'tipo', 'tipo_hr', 'imagem']),
-            'obras'        => Obra::orderBy('nome_fantasia')->get(['id', 'nome_fantasia', 'codigo_obra']),
+            'obras'        => auth()->user()->obrasForCompany(CompanyContext::id())->orderBy('nome_fantasia')->get(['obras.id', 'nome_fantasia', 'codigo_obra']),
             'funcionarios' => Funcionario::orderBy('nome')->get(['id', 'nome', 'imagem_usuario']),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        try {
-            $data = $this->validar($request);
-            $data['user_create'] = Auth::user()?->email;
-
-            VeiculoLocacao::create($data);
-
-            Log::channel('main')->info(
-                (Auth::user()?->email ?? 'sistema') .
-                ' | CADASTRO DA LOCACAO DO VEICULO: ' . $request->input('veiculo_id')
-            );
-
-            return redirect()
-                ->route('admin.frota.locacoes.index')
-                ->with('success', 'Locação criada com sucesso.');
-        } catch (\Throwable $e) {
-            Log::error('Erro ao cadastrar locação: ', ['error' => $e->getMessage()]);
-            return back()->withInput()->with('error', 'Erro ao cadastrar a locação.');
-        }
+        $this->salvar($request);
+        return redirect()->route('admin.frota.locacoes.index')->with('success', 'Locação criada com sucesso.');
     }
 
     public function edit(VeiculoLocacao $locacao): InertiaResponse
     {
+        $this->autorizarObras($locacao);
         $locacao->load(['veiculo', 'obraOrigem', 'obraDestino', 'funcionario', 'funcionarioDestino']);
 
         return Inertia::render('Admin/Frota/Locacoes/Form', [
             'locacao'      => $locacao,
             'veiculos'     => Veiculo::orderBy('prefixo')->get(['id', 'prefixo', 'placa', 'nun_serie_chassi', 'veiculo', 'marca', 'modelo', 'tipo', 'tipo_hr', 'imagem']),
-            'obras'        => Obra::orderBy('nome_fantasia')->get(['id', 'nome_fantasia', 'codigo_obra']),
+            'obras'        => auth()->user()->obrasForCompany(CompanyContext::id())->orderBy('nome_fantasia')->get(['obras.id', 'nome_fantasia', 'codigo_obra']),
             'funcionarios' => Funcionario::orderBy('nome')->get(['id', 'nome', 'imagem_usuario']),
         ]);
     }
 
     public function update(Request $request, VeiculoLocacao $locacao): RedirectResponse
     {
-        try {
-            $data = $this->validar($request);
-            $data['user_edit'] = Auth::user()?->email;
-
-            $locacao->update($data);
-
-            Log::channel('main')->info(
-                'Alterado por: ' . (Auth::user()?->email ?? 'sistema') .
-                ' | EDIT LOCACAO: ' . $locacao->id
-            );
-
-            return redirect()
-                ->route('admin.frota.locacoes.index')
-                ->with('success', 'Locação atualizada com sucesso.');
-        } catch (\Throwable $e) {
-            Log::error('Erro ao editar locação: ', ['error' => $e->getMessage()]);
-            return back()->withInput()->with('error', 'Erro ao editar a locação.');
-        }
+        $this->salvar($request, $locacao);
+        return redirect()->route('admin.frota.locacoes.index')->with('success', 'Locação atualizada com sucesso.');
     }
 
     public function destroy(VeiculoLocacao $locacao): RedirectResponse
     {
-        try {
-            Log::channel('main')->info(
-                'Deletado por: ' . (Auth::user()?->email ?? 'sistema') .
-                ' | DELETE LOCACAO: ' . $locacao->id
-            );
-            $locacao->delete();
-            return back()->with('success', 'Locação removida com sucesso.');
-        } catch (\Throwable $e) {
-            Log::error('Erro ao excluir locação: ', ['error' => $e->getMessage()]);
-            return back()->with('error', 'Erro ao excluir a locação.');
-        }
+        DB::transaction(function () use ($locacao) {
+            $registro = VeiculoLocacao::lockForUpdate()->findOrFail($locacao->id);
+            $this->autorizarObras($registro);
+            $registro->delete();
+        }, 3);
+        Log::info('Locação excluída.', ['locacao_id' => $locacao->id, 'usuario_id' => Auth::id()]);
+        return back()->with('success', 'Locação removida com sucesso.');
     }
 
     /**
@@ -254,18 +223,54 @@ class VeiculoLocacaoController extends Controller
         ]);
     }
 
-    protected function validar(Request $request): array
+    private function autorizarObras(VeiculoLocacao $registro): void
     {
-        return $request->validate([
-            'id_obra'                => 'nullable|exists:obras,id',
-            'veiculo_id'             => 'required|exists:veiculos,id',
-            'id_obraDestino'         => 'nullable|exists:obras,id',
-            'id_funcionario'         => 'nullable|exists:funcionarios,id',
-            'id_funcionario_destino' => 'nullable|exists:funcionarios,id',
-            'tipo_veiculo'           => 'nullable|string|max:30',
-            'data_inicio'            => 'nullable|date',
-            'data_prevista'          => 'nullable|date',
-            'data_fim'               => 'nullable|date',
+        foreach (array_unique([$registro->id_obra, $registro->id_obraDestino]) as $obra) {
+            abort_if($obra && !Auth::user()->obrasForCompany(CompanyContext::id())->whereKey($obra)->exists(), 403);
+        }
+    }
+
+    private function salvar(Request $request, ?VeiculoLocacao $locacao = null): void
+    {
+        $empresa = CompanyContext::id();
+        abort_unless($empresa, 403);
+        $referencia = fn ($tabela) => Rule::exists($tabela, 'id')->where('company_id', $empresa)->withoutTrashed();
+        $data = $request->validate([
+            'veiculo_id' => ['required', 'integer', $referencia('veiculos')],
+            'id_obra' => ['nullable', 'integer', $referencia('obras')],
+            'id_obraDestino' => ['nullable', 'integer', $referencia('obras')],
+            'id_funcionario' => ['nullable', 'integer', $referencia('funcionarios')],
+            'id_funcionario_destino' => ['nullable', 'integer', $referencia('funcionarios')],
+            'tipo_veiculo' => 'nullable|string|max:30',
+            'data_inicio' => 'required|date_format:Y-m-d',
+            'data_prevista' => 'nullable|date_format:Y-m-d|after_or_equal:data_inicio',
+            'data_fim' => 'nullable|date_format:Y-m-d|after_or_equal:data_inicio',
+        ]);
+        $salva = DB::transaction(function () use ($locacao, $data, $empresa) {
+            $registro = $locacao ? VeiculoLocacao::lockForUpdate()->findOrFail($locacao->id) : new VeiculoLocacao();
+            $this->autorizarObras($registro);
+            $registro->fill($data);
+            $this->autorizarObras($registro);
+            $veiculo = Veiculo::where('company_id', $empresa)->lockForUpdate()->findOrFail($registro->veiculo_id);
+            $inicio = $registro->data_inicio->toDateString();
+            $fim = $registro->data_fim?->toDateString();
+            if (($fim && $fim < $inicio) || ($registro->data_prevista && $registro->data_prevista->toDateString() < $inicio)) {
+                throw ValidationException::withMessages(['data_inicio' => 'A retirada deve anteceder ou coincidir com as datas de retorno.']);
+            }
+            $conflito = VeiculoLocacao::where('veiculo_id', $veiculo->id)
+                ->when($registro->exists, fn ($q) => $q->where('id', '!=', $registro->id))
+                ->where(fn ($q) => $q->whereNull('data_fim')->orWhere('data_fim', '>', $inicio))
+                ->when($fim, fn ($q) => $q->where(fn ($datas) => $datas->whereNull('data_inicio')->orWhere('data_inicio', '<', $fim)))
+                ->lockForUpdate()->first(['id']);
+            if ($conflito) {
+                throw ValidationException::withMessages(['data_inicio' => 'O veículo já possui uma locação nesse período.']);
+            }
+            $registro->company_id = $empresa;
+            $registro->save();
+            return $registro;
+        }, 3);
+        Log::info($locacao ? 'Locação atualizada.' : 'Locação criada.', [
+            'locacao_id' => $salva->id, 'veiculo_id' => $salva->veiculo_id, 'usuario_id' => Auth::id(),
         ]);
     }
 }

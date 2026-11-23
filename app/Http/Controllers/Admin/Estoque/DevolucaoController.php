@@ -8,7 +8,6 @@ use App\Http\Requests\Estoque\DevolucaoRequest;
 use App\Models\Estoque\Devolucao;
 use App\Models\Estoque\Lote;
 use App\Models\Estoque\Movimentacao;
-use App\Models\Estoque\Produto;
 use App\Models\Funcionario;
 use App\Models\Module;
 use App\Models\ModulePermission;
@@ -111,9 +110,26 @@ class DevolucaoController extends Controller
     {
         $companyId = CompanyContext::current()?->id;
         return Inertia::render('Admin/Estoque/Devolucoes/Form', [
+            'chaveReenvio' => (string) \Illuminate\Support\Str::uuid(),
             'obras' => Obra::when($companyId, fn ($q) => $q->where('company_id', $companyId))
                           ->orderBy('codigo_obra')->get(['id', 'codigo_obra', 'nome_fantasia']),
         ]);
+    }
+
+    public function saidas(Request $request)
+    {
+        $filtros = $request->validate([
+            'produto_id' => 'required|integer', 'obra_id' => 'required|integer',
+            'funcionario_user_id' => 'required|integer',
+        ]);
+        $saidas = Movimentacao::where('company_id', CompanyContext::id())
+            ->where('tipo', Movimentacao::TIPO_SAIDA)
+            ->where('produto_id', $filtros['produto_id'])->where('obra_id', $filtros['obra_id'])
+            ->where('retirante_user_id', $filtros['funcionario_user_id'])
+            ->select(['id', 'quantidade', 'valor_unitario', 'data_movimento', 'variante_id', 'lote_id'])
+            ->withSum('devolucoesFeitas as devolvido', 'quantidade')->orderByDesc('id')->get()
+            ->filter(fn ($saida) => (float) $saida->quantidade > (float) $saida->devolvido)->values();
+        return response()->json($saidas);
     }
 
     public function store(DevolucaoRequest $request)
@@ -122,23 +138,31 @@ class DevolucaoController extends Controller
         abort_if(!$companyId, 422, 'Selecione uma empresa antes de registrar devolução.');
 
         $data = $request->validated();
-        $produto = Produto::find($data['produto_id']);
 
-        $dev = Devolucao::create([
-            'company_id'           => $companyId,
-            'numero'               => Devolucao::gerarNumero($companyId),
-            'funcionario_user_id'  => $data['funcionario_user_id'],
-            'produto_id'           => $data['produto_id'],
-            'obra_id'              => $data['obra_id'],
-            'movimentacao_saida_id' => $data['movimentacao_saida_id'] ?? null,
-            'quantidade'           => $data['quantidade'],
-            'valor_unitario'       => $data['valor_unitario'] ?? $produto?->valor_unitario ?? 0,
-            'estado_material'      => $data['estado_material'],
-            'motivo'               => $data['motivo'] ?? null,
-            'observacao'           => $data['observacao'] ?? null,
-            'status'               => Devolucao::STATUS_PENDENTE,
-            'data_criacao'         => now(),
-        ]);
+        $dev = DB::transaction(function () use ($companyId, $data) {
+            DB::table('companies')->where('id', $companyId)->lockForUpdate()->firstOrFail();
+            $existente = $this->buscarReenvio($data, $companyId);
+            if ($existente) {
+                return $existente;
+            }
+            $saida = $this->saidaParaDevolver($companyId, $data);
+            return Devolucao::create([
+                'company_id'           => $companyId,
+                'chave_reenvio'         => $data['chave_reenvio'],
+                'numero'               => Devolucao::gerarNumero($companyId),
+                'funcionario_user_id'  => $data['funcionario_user_id'],
+                'produto_id'           => $data['produto_id'],
+                'obra_id'              => $data['obra_id'],
+                'movimentacao_saida_id' => $saida->id,
+                'quantidade'           => $data['quantidade'],
+                'valor_unitario'       => $saida->valor_unitario,
+                'estado_material'      => $data['estado_material'],
+                'motivo'               => $data['motivo'] ?? null,
+                'observacao'           => $data['observacao'] ?? null,
+                'status'               => Devolucao::STATUS_PENDENTE,
+                'data_criacao'         => now(),
+            ]);
+        }, 3);
 
         return redirect()->route('admin.estoque.devolucoes.show', $dev)
             ->with('success', "Devolução {$dev->numero} registrada — aguardando aprovação.");
@@ -176,14 +200,13 @@ class DevolucaoController extends Controller
         }
         RateLimiter::clear($key);
 
-        // EPI: se a devolução referencia uma saída, devolve para a mesma
-        // variante/lote de origem.
-        $saidaOrigem = $devolucao->movimentacao_saida_id
-            ? Movimentacao::find($devolucao->movimentacao_saida_id)
-            : null;
-
-        // Aprova + gera mov DEVOLUCAO em transação
-        DB::transaction(function () use ($devolucao, $user, $data, $saidaOrigem) {
+        DB::transaction(function () use ($devolucao, $user, $data) {
+            $devolucao = Devolucao::lockForUpdate()->findOrFail($devolucao->id);
+            $this->mustBeStatus($devolucao, Devolucao::STATUS_PENDENTE);
+            if (!$devolucao->movimentacao_saida_id) {
+                throw ValidationException::withMessages(['movimentacao_saida_id' => 'Informe a saída original em uma nova solicitação.']);
+            }
+            $saidaOrigem = $this->saidaParaDevolver($devolucao->company_id, $devolucao->getAttributes());
             $mov = Movimentacao::create([
                 'company_id'        => $devolucao->company_id,
                 'produto_id'        => $devolucao->produto_id,
@@ -216,7 +239,7 @@ class DevolucaoController extends Controller
                 'data_aprovacao'         => now(),
                 'movimentacao_gerada_id' => $mov->id,
                 'observacao'             => $devolucao->observacao
-                    . ($data['observacao'] ? "\n[APROVADOR] " . $data['observacao'] : ''),
+                    . (!empty($data['observacao']) ? "\n[APROVADOR] " . $data['observacao'] : ''),
             ]);
         });
 
@@ -240,12 +263,16 @@ class DevolucaoController extends Controller
             throw ValidationException::withMessages(['senha_aprovador' => 'Senha incorreta.']);
         }
 
-        $devolucao->update([
-            'status'             => Devolucao::STATUS_REJEITADA,
-            'aprovador_user_id'  => $user->id,
-            'data_aprovacao'     => now(),
-            'motivo_rejeicao'    => $data['motivo_rejeicao'],
-        ]);
+        DB::transaction(function () use ($devolucao, $data, $user) {
+            $devolucao = Devolucao::lockForUpdate()->findOrFail($devolucao->id);
+            $this->mustBeStatus($devolucao, Devolucao::STATUS_PENDENTE);
+            $devolucao->update([
+                'status'             => Devolucao::STATUS_REJEITADA,
+                'aprovador_user_id'  => $user->id,
+                'data_aprovacao'     => now(),
+                'motivo_rejeicao'    => $data['motivo_rejeicao'],
+            ]);
+        });
 
         return back()->with('success', "Devolução {$devolucao->numero} rejeitada.");
     }
@@ -312,6 +339,7 @@ class DevolucaoController extends Controller
         })->filter(fn ($x) => $x['qtd_restante'] > 0)->values();
 
         return Inertia::render('Admin/Estoque/Devolucoes/Rapida', [
+            'chaveReenvio' => (string) \Illuminate\Support\Str::uuid(),
             'saidas_abertas' => $saidas,
         ]);
     }
@@ -327,7 +355,8 @@ class DevolucaoController extends Controller
 
         $data = $request->validate([
             'movimentacao_saida_id' => ['required', 'integer', Rule::exists('estoque_movimentacoes', 'id')],
-            'quantidade'            => ['required', 'numeric', 'gt:0'],
+            'quantidade'            => ['required', 'numeric', 'decimal:0,3', 'gt:0', 'max:999999.999'],
+            'chave_reenvio'         => ['required', 'uuid'],
             'estado_material'       => ['required', Rule::in(['NOVO', 'USADO_OK', 'AVARIADO'])],
             'motivo'                => ['nullable', 'string', 'max:500'],
             'observacao'            => ['nullable', 'string', 'max:1000'],
@@ -344,21 +373,6 @@ class DevolucaoController extends Controller
             ]);
         }
 
-        // Calcula saldo devolvível (não permite devolver mais do que retirou)
-        $jaDevolvido = (float) Devolucao::where('movimentacao_saida_id', $saida->id)
-            ->where('status', Devolucao::STATUS_APROVADA)
-            ->sum('quantidade');
-        $restante = (float) $saida->quantidade - $jaDevolvido;
-        if ((float) $data['quantidade'] > $restante + 0.0001) {
-            throw ValidationException::withMessages([
-                'quantidade' => sprintf(
-                    'Quantidade excede o saldo devolvível desta saída. Restante: %s (já devolvido: %s).',
-                    number_format($restante, 3, ',', '.'),
-                    number_format($jaDevolvido, 3, ',', '.')
-                ),
-            ]);
-        }
-
         // Valida senha do MESMO funcionário
         $func = $validator->validarFuncionario(
             (int) $saida->retirante_funcionario_id,
@@ -367,7 +381,14 @@ class DevolucaoController extends Controller
         );
 
         // Cria devolução APROVADA + movimentação DEVOLUCAO em transação
-        $dev = DB::transaction(function () use ($saida, $data, $func, $companyId) {
+        $dev = DB::transaction(function () use ($data, $func, $companyId) {
+            DB::table('companies')->where('id', $companyId)->lockForUpdate()->firstOrFail();
+            $existente = $this->buscarReenvio($data, $companyId, $func->id);
+            if ($existente) {
+                return $existente;
+            }
+            $saida = $this->saidaParaDevolver($companyId, $data);
+            abort_unless((int) $saida->retirante_funcionario_id === (int) $func->id, 422);
             $mov = Movimentacao::create([
                 'company_id'              => $companyId,
                 'produto_id'              => $saida->produto_id,
@@ -398,6 +419,7 @@ class DevolucaoController extends Controller
 
             return Devolucao::create([
                 'company_id'             => $companyId,
+                'chave_reenvio'           => $data['chave_reenvio'],
                 'numero'                 => Devolucao::gerarNumero($companyId),
                 'funcionario_id'         => $func->id,        // Fase 2: funcionário sem login
                 'produto_id'             => $saida->produto_id,
@@ -433,6 +455,38 @@ class DevolucaoController extends Controller
     // =======================================================================
     // HELPERS
     // =======================================================================
+
+    private function buscarReenvio(array $dados, int $empresa, ?int $funcionario = null): ?Devolucao
+    {
+        $anterior = Devolucao::where('company_id', $empresa)->where('chave_reenvio', $dados['chave_reenvio'])->first();
+        if ($anterior) {
+            abort_if((int) $anterior->movimentacao_saida_id !== (int) ($dados['movimentacao_saida_id'] ?? 0)
+                || (int) $anterior->funcionario_id !== (int) $funcionario
+                || (int) $anterior->funcionario_user_id !== (int) ($dados['funcionario_user_id'] ?? 0)
+                || (isset($dados['produto_id']) && (int) $anterior->produto_id !== (int) $dados['produto_id'])
+                || (isset($dados['obra_id']) && (int) $anterior->obra_id !== (int) $dados['obra_id'])
+                || (float) $anterior->quantidade !== (float) $dados['quantidade']
+                || $anterior->estado_material !== $dados['estado_material'], 409, 'O formulário já foi usado para outra devolução.');
+        }
+        return $anterior;
+    }
+
+    private function saidaParaDevolver(int $empresa, array $dados): Movimentacao
+    {
+        $saida = Movimentacao::where('company_id', $empresa)->where('tipo', Movimentacao::TIPO_SAIDA)
+            ->lockForUpdate()->findOrFail($dados['movimentacao_saida_id']);
+        if ((isset($dados['produto_id']) && (int) $saida->produto_id !== (int) $dados['produto_id'])
+            || (isset($dados['obra_id']) && (int) $saida->obra_id !== (int) $dados['obra_id'])
+            || (isset($dados['funcionario_user_id']) && (int) $saida->retirante_user_id !== (int) $dados['funcionario_user_id'])) {
+            throw ValidationException::withMessages(['movimentacao_saida_id' => 'A saída deve corresponder ao produto, à obra e ao retirante.']);
+        }
+        $devolvido = Movimentacao::where('movimentacao_origem_id', $saida->id)
+            ->where('tipo', Movimentacao::TIPO_DEVOLUCAO)->lockForUpdate()->pluck('quantidade')->sum();
+        if (round(((float) $saida->quantidade - $devolvido - (float) $dados['quantidade']) * 1000) < 0) {
+            throw ValidationException::withMessages(['quantidade' => 'Quantidade excede o saldo devolvível da saída.']);
+        }
+        return $saida;
+    }
 
     protected function authorizeCompany(Devolucao $dev): void
     {

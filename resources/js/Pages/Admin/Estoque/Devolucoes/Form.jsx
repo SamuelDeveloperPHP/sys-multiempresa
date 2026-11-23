@@ -5,7 +5,7 @@
 // Para devolução por funcionário sem login, use a tela "Devolução rápida".
 // -----------------------------------------------------------------------------
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Field, ProdutoPicker, UsuarioRetiradaPicker } from '../_shared/Pickers';
@@ -16,14 +16,14 @@ const ESTADOS = [
     { v: 'AVARIADO',  label: 'Avariado/danificado',  cor: 'red' },
 ];
 
-export default function DevolucaoForm({ obras }) {
+export default function DevolucaoForm({ obras, chaveReenvio }) {
     const { data, setData, post, processing, errors } = useForm({
+        chave_reenvio: chaveReenvio,
         funcionario_user_id: '',
         produto_id: '',
         obra_id: '',
         movimentacao_saida_id: '',
         quantidade: '',
-        valor_unitario: '',
         estado_material: 'USADO_OK',
         motivo: '',
         observacao: '',
@@ -31,6 +31,29 @@ export default function DevolucaoForm({ obras }) {
 
     const [usuarioSel, setUsuarioSel] = useState(null);
     const [produtoSel, setProdutoSel] = useState(null);
+
+    const [saidas, setSaidas] = useState([]);
+    const [falhaSaidas, setFalhaSaidas] = useState(false);
+    useEffect(() => {
+        const controller = new AbortController();
+        setSaidas([]);
+        setFalhaSaidas(false);
+        setData('movimentacao_saida_id', '');
+        if (data.produto_id && data.obra_id && data.funcionario_user_id) {
+            const filtros = new URLSearchParams({
+                produto_id: data.produto_id, obra_id: data.obra_id, funcionario_user_id: data.funcionario_user_id,
+            });
+            fetch(route('admin.estoque.devolucoes.saidas') + '?' + filtros, {
+                signal: controller.signal, headers: { Accept: 'application/json' },
+            }).then(response => {
+                if (!response.ok) throw new Error();
+                return response.json();
+            }).then(rows => {
+                if (!controller.signal.aborted) setSaidas(rows);
+            }).catch(() => { if (!controller.signal.aborted) setFalhaSaidas(true); });
+        }
+        return () => controller.abort();
+    }, [data.produto_id, data.obra_id, data.funcionario_user_id]);
 
     const submit = (e) => {
         e.preventDefault();
@@ -72,7 +95,6 @@ export default function DevolucaoForm({ obras }) {
                                 <ProdutoPicker value={data.produto_id} selecionado={produtoSel} onChange={(p) => {
                                     setProdutoSel(p);
                                     setData('produto_id', p?.id || '');
-                                    if (p && !data.valor_unitario) setData('valor_unitario', p.valor_unitario || 0);
                                 }} />
                             </Field>
                         </div>
@@ -81,6 +103,18 @@ export default function DevolucaoForm({ obras }) {
                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm">
                                 <option value="">— Selecione —</option>
                                 {obras.map((o) => <option key={o.id} value={o.id}>{o.codigo_obra} — {o.nome_fantasia}</option>)}
+                            </select>
+                        </Field>
+                        <Field label="Saída original *" error={errors.movimentacao_saida_id || (falhaSaidas ? 'Falha ao consultar as saídas.' : '')}>
+                            <select required value={data.movimentacao_saida_id} onChange={e => setData('movimentacao_saida_id', e.target.value)}
+                                className="w-full border rounded px-2 py-1 text-sm">
+                                <option value="">Selecione a saída</option>
+                                {saidas.map(saida => (
+                                    <option key={saida.id} value={saida.id}>
+                                        #{saida.id} · {saida.data_movimento?.slice(0, 10)} · disponível {Number(saida.quantidade) - Number(saida.devolvido)}
+                                        {saida.variante_id && ' · variante ' + saida.variante_id}{saida.lote_id && ' · lote ' + saida.lote_id}
+                                    </option>
+                                ))}
                             </select>
                         </Field>
                     </div>
@@ -95,12 +129,9 @@ export default function DevolucaoForm({ obras }) {
                                     className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                                 />
                             </Field>
-                            <Field label="Valor unitário (R$)" error={errors.valor_unitario}>
-                                <input type="number" step="0.01" min="0"
-                                    value={data.valor_unitario}
-                                    onChange={(e) => setData('valor_unitario', e.target.value)}
-                                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                                />
+                            <Field label="Valor unitário da saída (R$)">
+                                <input readOnly value={saidas.find(s => String(s.id) === String(data.movimentacao_saida_id))?.valor_unitario ?? ''}
+                                    className="w-full border rounded px-2 py-1 text-sm bg-gray-50" />
                             </Field>
                             <Field label="Estado *" error={errors.estado_material}>
                                 <select value={data.estado_material}

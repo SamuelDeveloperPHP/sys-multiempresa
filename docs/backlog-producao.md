@@ -1,5 +1,7 @@
 # Backlog de engenharia, segurança e operação da frota
 
+**Escopo de liberação de locação e estoque, atualizado em 23/11/2026.** A base atual é fictícia. Por decisão do responsável, recuperar anexos antigos e habilitar usuários fictícios sem acesso ficam fora do aceite. Para as operações novas, o aceite funcional cobre FRT-006, EST-01, EST-02 e EST-03, com requisições concorrentes no MySQL. Se a implantação incluir cobrança de locação, o financeiro também valida a medição e os descontos de FRO-01. O ensaio de restauração utiliza operações novas de teste.
+
 **Base de decisão** — 21/11/2026, revisão local da versão `e3082d2`. O objetivo é liberar um piloto multiempresa com dados reais, preservar o histórico operacional e dar à equipe evidências para decidir sobre a expansão. Os responsáveis abaixo são papéis propostos. As prioridades representam ordem de entrega.
 
 A revisão anterior executou 81 testes e 480 verificações com SQLite. O ambiente implantado, seus logs, backups e banco ainda precisam de verificação própria. O [backlog de frota de outubro](../.10x/decisions/senior-engineer/frota-correcoes-backlog.md) registra FRT-000 a FRT-004 como concluídos. Preservar esses testes e reutilizar os tickets FRT seguintes. As contagens históricas de inconsistências devem ser recalculadas na base de homologação.

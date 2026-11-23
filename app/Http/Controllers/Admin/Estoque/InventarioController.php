@@ -9,6 +9,7 @@ use App\Models\Estoque\Inventario;
 use App\Models\Estoque\InventarioItem;
 use App\Models\Estoque\Movimentacao;
 use App\Models\Estoque\Produto;
+use App\Models\Estoque\ProdutoVariante;
 use App\Models\Estoque\Saldo;
 use App\Models\Obra;
 use Illuminate\Http\Request;
@@ -85,7 +86,7 @@ class InventarioController extends Controller
         ]);
 
         $itens = $inventario->itens()
-            ->with('produto:id,sku,nome,unidade,imagem,estoque_minimo')
+            ->with(['produto:id,sku,nome,unidade,imagem,estoque_minimo', 'variante:id,cor,tamanho,sku_variante'])
             ->orderByRaw('contado ASC')  // não contados primeiro
             ->orderBy('produto_id')
             ->paginate(50)->withQueryString();
@@ -126,18 +127,11 @@ class InventarioController extends Controller
         $userId = $request->user()->id;
         $obraId = (int) $request->input('obra_id');
 
-        // Bloqueia se já existe inventário ABERTO para a mesma obra
-        $existe = Inventario::where('company_id', $companyId)
-            ->where('obra_id', $obraId)
-            ->where('status', Inventario::STATUS_ABERTO)
-            ->first();
-        if ($existe) {
-            return back()->withErrors([
-                'obra_id' => "Já existe inventário aberto (#{$existe->numero}) para esta obra. Feche ou cancele antes de abrir outro.",
-            ]);
-        }
-
         $inventario = DB::transaction(function () use ($request, $companyId, $userId, $obraId) {
+            DB::table('companies')->where('id', $companyId)->lockForUpdate()->firstOrFail();
+            if (Inventario::where('obra_id', $obraId)->where('status', Inventario::STATUS_ABERTO)->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['obra_id' => 'Já existe inventário aberto para esta obra.']);
+            }
             $inv = Inventario::create([
                 'company_id'      => $companyId,
                 'numero'          => Inventario::gerarNumero($companyId),
@@ -165,29 +159,31 @@ class InventarioController extends Controller
                 );
             }
 
-            // Mapa saldo por produto (1 query)
-            $saldos = Saldo::where('obra_id', $obraId)
-                ->pluck('quantidade', 'produto_id')
-                ->map(fn ($q) => (float) $q);
-
-            // Insere em chunks de 500 para evitar memória + N+1
-            $produtosQuery->orderBy('id')->chunk(500, function ($produtos) use ($inv, $saldos) {
+            $produtosQuery->chunkById(500, function ($produtos) use ($inv, $obraId, $apenasComSaldo) {
+                $saldos = Saldo::where('obra_id', $obraId)->whereIn('produto_id', $produtos->modelKeys())
+                    ->when($apenasComSaldo, fn ($q) => $q->where('quantidade', '>', 0))
+                    ->get()->groupBy('produto_id');
+                $variantes = $apenasComSaldo ? collect() : ProdutoVariante::whereIn('produto_id', $produtos->modelKeys())
+                    ->where('ativo', true)->get(['id', 'produto_id'])->groupBy('produto_id');
                 $linhas = [];
-                $now    = now();
+                $now = now();
                 foreach ($produtos as $p) {
-                    $sistema = (float) ($saldos[$p->id] ?? 0);
-                    $linhas[] = [
-                        'inventario_id'   => $inv->id,
-                        'produto_id'      => $p->id,
-                        'saldo_sistema'   => $sistema,
-                        'saldo_contado'   => null,
-                        'diferenca'       => 0,
-                        'valor_unitario'  => $p->valor_unitario ?? 0,
-                        'valor_diferenca' => 0,
-                        'contado'         => false,
-                        'created_at'      => $now,
-                        'updated_at'      => $now,
-                    ];
+                    $quantidades = [];
+                    foreach ($variantes->get($p->id, []) as $variante) {
+                        $quantidades[$variante->id] = 0;
+                    }
+                    foreach ($saldos->get($p->id, []) as $saldo) {
+                        $quantidades[$saldo->variante_id ?? 0] = $saldo->quantidade;
+                    }
+                    foreach ($quantidades ?: [0 => 0] as $varianteId => $quantidade) {
+                        $linhas[] = [
+                            'inventario_id' => $inv->id, 'produto_id' => $p->id,
+                            'variante_id' => $varianteId ?: null, 'variante_identificada' => true,
+                            'saldo_sistema' => $quantidade,
+                            'valor_unitario' => $p->valor_unitario ?? 0,
+                            'created_at' => $now, 'updated_at' => $now,
+                        ];
+                    }
                 }
                 if (!empty($linhas)) {
                     InventarioItem::insert($linhas);
@@ -207,37 +203,37 @@ class InventarioController extends Controller
 
     public function atualizarItem(Request $request, Inventario $inventario, InventarioItem $item)
     {
-        $this->authorizeCompany($inventario);
-        $this->mustBeStatus($inventario, Inventario::STATUS_ABERTO);
-        abort_if($item->inventario_id !== $inventario->id, 404);
+        return $this->alterarAberto($inventario, function (Inventario $inventario) use ($request, $item) {
+            $item = $inventario->itens()->findOrFail($item->id);
 
-        $data = $request->validate([
-            'saldo_contado' => ['required', 'numeric', 'min:0', 'max:999999999.999'],
-            'observacao'    => ['nullable', 'string', 'max:500'],
-        ]);
+            $data = $request->validate([
+                'saldo_contado' => ['required', 'numeric', 'min:0', 'max:999999999.999'],
+                'observacao'    => ['nullable', 'string', 'max:500'],
+            ]);
 
-        $contado   = (float) $data['saldo_contado'];
-        $sistema   = (float) $item->saldo_sistema;
-        $diferenca = $contado - $sistema;
-        $valorDiff = $diferenca * (float) $item->valor_unitario;
+            $contado   = (float) $data['saldo_contado'];
+            $sistema   = (float) $item->saldo_sistema;
+            $diferenca = $contado - $sistema;
+            $valorDiff = $diferenca * (float) $item->valor_unitario;
 
-        $item->update([
-            'saldo_contado'   => $contado,
-            'diferenca'       => $diferenca,
-            'valor_diferenca' => $valorDiff,
-            'observacao'      => $data['observacao'] ?? $item->observacao,
-            'contado'         => true,
-        ]);
+            $item->update([
+                'saldo_contado'   => $contado,
+                'diferenca'       => $diferenca,
+                'valor_diferenca' => $valorDiff,
+                'observacao'      => $data['observacao'] ?? $item->observacao,
+                'contado'         => true,
+            ]);
 
-        // Recalcula agregados do inventário
-        $inventario->update([
-            'qtd_itens_divergentes' => $inventario->itens()
-                ->where('contado', true)->where('diferenca', '!=', 0)->count(),
-            'valor_diferenca_total' => (float) $inventario->itens()
-                ->where('contado', true)->sum('valor_diferenca'),
-        ]);
+            // Recalcula agregados do inventário
+            $inventario->update([
+                'qtd_itens_divergentes' => $inventario->itens()
+                    ->where('contado', true)->where('diferenca', '!=', 0)->count(),
+                'valor_diferenca_total' => (float) $inventario->itens()
+                    ->where('contado', true)->sum('valor_diferenca'),
+            ]);
 
-        return back()->with('success', "Item contado. Diferença: " . number_format($diferenca, 3, ',', '.'));
+            return back()->with('success', "Item contado. Diferença: " . number_format($diferenca, 3, ',', '.'));
+        });
     }
 
     /**
@@ -245,17 +241,14 @@ class InventarioController extends Controller
      */
     public function atualizarLote(Request $request, Inventario $inventario)
     {
-        $this->authorizeCompany($inventario);
-        $this->mustBeStatus($inventario, Inventario::STATUS_ABERTO);
+        return $this->alterarAberto($inventario, function (Inventario $inventario) use ($request) {
+            $data = $request->validate([
+                'itens'                  => ['required', 'array', 'min:1'],
+                'itens.*.id'             => ['required', 'integer', Rule::exists('estoque_inventario_itens', 'id')->where('inventario_id', $inventario->id)],
+                'itens.*.saldo_contado'  => ['required', 'numeric', 'min:0', 'max:999999999.999'],
+                'itens.*.observacao'     => ['nullable', 'string', 'max:500'],
+            ]);
 
-        $data = $request->validate([
-            'itens'                  => ['required', 'array', 'min:1'],
-            'itens.*.id'             => ['required', 'integer', Rule::exists('estoque_inventario_itens', 'id')->where('inventario_id', $inventario->id)],
-            'itens.*.saldo_contado'  => ['required', 'numeric', 'min:0', 'max:999999999.999'],
-            'itens.*.observacao'     => ['nullable', 'string', 'max:500'],
-        ]);
-
-        DB::transaction(function () use ($data, $inventario) {
             foreach ($data['itens'] as $row) {
                 $item = InventarioItem::find($row['id']);
                 if (!$item) continue;
@@ -279,9 +272,9 @@ class InventarioController extends Controller
                 'valor_diferenca_total' => (float) $inventario->itens()
                     ->where('contado', true)->sum('valor_diferenca'),
             ]);
-        });
 
-        return back()->with('success', count($data['itens']) . ' itens contados.');
+            return back()->with('success', count($data['itens']) . ' itens contados.');
+        });
     }
 
     // =======================================================================
@@ -299,28 +292,29 @@ class InventarioController extends Controller
      */
     public function fechar(Request $request, Inventario $inventario)
     {
-        $this->authorizeCompany($inventario);
-        $this->mustBeStatus($inventario, Inventario::STATUS_ABERTO);
-
-        $request->validate([
-            'forcar_nao_contados' => ['nullable', 'boolean'],
-        ]);
-        $forcar = $request->boolean('forcar_nao_contados');
-
-        $totalItens  = $inventario->itens()->count();
-        $naoContados = $inventario->itens()->where('contado', false)->count();
-
-        if ($naoContados > 0 && !$forcar) {
-            return back()->withErrors([
-                'fechar' => "{$naoContados} de {$totalItens} itens ainda não foram contados. " .
-                    "Marque 'Considerar não-contados como saldo zero' para forçar o fechamento.",
+        return $this->alterarAberto($inventario, function (Inventario $inventario) use ($request) {
+            $request->validate([
+                'forcar_nao_contados' => ['nullable', 'boolean'],
             ]);
-        }
+            $forcar = $request->boolean('forcar_nao_contados');
 
-        $userEmail  = $request->user()->email;
-        $userObs    = "Ajuste de inventário {$inventario->numero}";
+            if ($inventario->itens()->where('variante_identificada', false)
+                ->whereIn('produto_id', DB::table('estoque_produto_variantes')->select('produto_id'))->exists()) {
+                return back()->withErrors(['fechar' => 'Inventário antigo com variantes. Cancele e abra uma nova contagem.']);
+            }
+            $totalItens  = $inventario->itens()->count();
+            $naoContados = $inventario->itens()->where('contado', false)->count();
 
-        DB::transaction(function () use ($inventario, $forcar, $userEmail, $userObs) {
+            if ($naoContados > 0 && !$forcar) {
+                return back()->withErrors([
+                    'fechar' => "{$naoContados} de {$totalItens} itens ainda não foram contados. " .
+                        "Marque 'Considerar não-contados como saldo zero' para forçar o fechamento.",
+                ]);
+            }
+
+            $userEmail  = $request->user()->email;
+            $userObs    = "Ajuste de inventário {$inventario->numero}";
+
             // Se forçar: trata não-contados como saldo_contado=0
             if ($forcar) {
                 $inventario->itens()->where('contado', false)->get()->each(function ($item) {
@@ -351,6 +345,7 @@ class InventarioController extends Controller
                 Movimentacao::create([
                     'company_id'      => $inventario->company_id,
                     'produto_id'      => $item->produto_id,
+                    'variante_id'     => $item->variante_id,
                     'obra_id'         => $inventario->obra_id,
                     'tipo'            => $tipo,
                     'quantidade'      => $qtdAbs,
@@ -369,28 +364,37 @@ class InventarioController extends Controller
                 'qtd_itens_divergentes' => $itensComDiff->count(),
                 'valor_diferenca_total' => $itensComDiff->sum('valor_diferenca'),
             ]);
-        });
 
-        return redirect()->route('admin.estoque.inventarios.show', $inventario)
-            ->with('success', "Inventário {$inventario->numero} fechado. Saldos ajustados.");
+            return redirect()->route('admin.estoque.inventarios.show', $inventario)
+                ->with('success', "Inventário {$inventario->numero} fechado. Saldos ajustados.");
+        });
     }
 
     public function cancelar(Request $request, Inventario $inventario)
     {
-        $this->authorizeCompany($inventario);
-        $this->mustBeStatus($inventario, Inventario::STATUS_ABERTO);
+        return $this->alterarAberto($inventario, function (Inventario $inventario) {
+            $inventario->update([
+                'status'          => Inventario::STATUS_CANCELADO,
+                'data_fechamento' => now(),
+            ]);
 
-        $inventario->update([
-            'status'          => Inventario::STATUS_CANCELADO,
-            'data_fechamento' => now(),
-        ]);
-
-        return back()->with('success', "Inventário {$inventario->numero} cancelado. Nenhum saldo foi alterado.");
+            return back()->with('success', "Inventário {$inventario->numero} cancelado. Nenhum saldo foi alterado.");
+        });
     }
 
     // =======================================================================
     // HELPERS
     // =======================================================================
+
+    private function alterarAberto(Inventario $inventario, \Closure $operacao)
+    {
+        return DB::transaction(function () use ($inventario, $operacao) {
+            $atual = Inventario::lockForUpdate()->findOrFail($inventario->id);
+            $this->authorizeCompany($atual);
+            $this->mustBeStatus($atual, Inventario::STATUS_ABERTO);
+            return $operacao($atual);
+        }, 3);
+    }
 
     protected function authorizeCompany(Inventario $inv): void
     {

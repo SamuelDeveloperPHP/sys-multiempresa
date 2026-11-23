@@ -74,7 +74,8 @@ class Veiculo extends Model
     public function locacaoAtual()
     {
         return $this->hasOne(VeiculoLocacao::class, 'veiculo_id')
-                    ->whereNull('data_fim')
+                    ->where(fn ($q) => $q->whereNull('data_inicio')->orWhere('data_inicio', '<=', today()->toDateString()))
+                    ->where(fn ($q) => $q->whereNull('data_fim')->orWhere('data_fim', '>', today()->toDateString()))
                     ->latest('data_inicio');
     }
 }

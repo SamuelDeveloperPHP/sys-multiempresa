@@ -155,7 +155,7 @@ function ModalAprovar({ dev, onClose }) {
         router.post(route('admin.estoque.devolucoes.aprovar', dev.id),
             { senha_aprovador: senha, observacao: obs },
             {
-                onError: (errs) => setErro(errs.senha_aprovador || errs.observacao || 'Erro ao aprovar.'),
+                onError: (errs) => setErro(errs.senha_aprovador || errs.quantidade || errs.movimentacao_saida_id || errs.observacao || 'Erro ao aprovar.'),
                 onSuccess: onClose,
                 onFinish: () => setSubmitting(false),
             }
