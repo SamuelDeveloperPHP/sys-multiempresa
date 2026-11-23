@@ -341,10 +341,10 @@ Route::middleware('auth')->group(function () {
 
     // Se quiser permitir criar empresa fora do admin
     Route::get('/companies/create', [CompanyController::class, 'create'])
-        ->name('companies.setup.create');
+        ->middleware(['company', 'module.access'])->moduleAbility('create')->name('companies.setup.create');
 
     Route::post('/companies', [CompanyController::class, 'store'])
-        ->name('companies.setup.store');
+        ->middleware(['company', 'module.access'])->moduleAbility('create')->name('companies.setup.store');
 
     // Lista simples de empresas para o assistente de seleção
     // (nome diferente para não bater com "companies.index" do admin)
@@ -375,7 +375,7 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('module.access')->name('dashboard');
     Route::view('/jarvis', 'jarvis')
         ->middleware('jarvis.access')
         ->name('jarvis.index');
@@ -1089,12 +1089,12 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             });
         });
 
-    // routes/admin.php (ou routes/web.php com prefix admin)
-    Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
-        Route::post('posts/{post}/images',              [PostImageController::class, 'store'])->name('posts.images.store'); // upload
-        Route::patch('posts/{post}/images/order',       [PostImageController::class, 'order'])->name('posts.images.order'); // ordenar
-        Route::patch('posts/{post}/images/cover',       [PostImageController::class, 'cover'])->name('posts.images.cover'); // capa
-        Route::delete('posts/{post}/images/{image}',    [PostImageController::class, 'destroy'])->name('posts.images.destroy'); // remover 1
+    Route::prefix('admin/posts/{post}/images')->name('admin.posts.images.')
+        ->middleware('module.access')->group(function () {
+        Route::post('/', [PostImageController::class, 'store'])->moduleAbility('edit')->name('store');
+        Route::patch('/order', [PostImageController::class, 'order'])->moduleAbility('edit')->name('order');
+        Route::patch('/cover', [PostImageController::class, 'cover'])->moduleAbility('edit')->name('cover');
+        Route::delete('/{image}', [PostImageController::class, 'destroy'])->moduleAbility('edit')->name('destroy');
     });
 
 });

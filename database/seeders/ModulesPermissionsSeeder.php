@@ -4,12 +4,9 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Module;
-use App\Models\ModulePermission;
 
 class ModulesPermissionsSeeder extends Seeder
 {
-    protected int $companyId = 1;
-    protected int $userId    = 1;
 
     public function run(): void
     {
@@ -874,27 +871,6 @@ class ModulesPermissionsSeeder extends Seeder
                     'is_active'                => $m['is_active'],
                     'show_in_menu'             => $m['show_in_menu'],
                     'sort_order'               => $m['sort_order'],
-                ]
-            );
-        }
-
-        // 2) Permissões (CRUD completo) para TODOS os módulos do companyId/userId definidos acima.
-        //    updateOrCreate garante idempotência — rodar o seeder mais de uma vez é seguro.
-        $allModules = Module::all();
-
-        foreach ($allModules as $module) {
-            ModulePermission::updateOrCreate(
-                [
-                    'company_id' => $this->companyId,
-                    'user_id'    => $this->userId,
-                    'module_id'  => $module->id,
-                ],
-                [
-                    'can_list'   => 1,
-                    'can_view'   => 1,
-                    'can_create' => 1,
-                    'can_edit'   => 1,
-                    'can_delete' => 1,
                 ]
             );
         }

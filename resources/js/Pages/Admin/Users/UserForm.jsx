@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useForm, Link } from '@inertiajs/react';
+import { useForm, Link, usePage } from '@inertiajs/react';
 
-export default function UserForm({ user, companies, groupedModules, modulePermissions = {}, isEdit = false }) {
-    // Inicialização segura dos times/companies
+export default function UserForm({ user, companies, groupedModules, modulePermissions = {}, isEdit = false, sharedIdentity = false }) {
+    const { auth, assignableTypes } = usePage().props;
+    const globalAdmin = auth.user.type === 'super_admin';
     const initialCompanies = isEdit && user.companies
         ? user.companies.map(c => c.id.toString())
-        : [];
+        : globalAdmin ? [] : companies.map(company => String(company.id));
 
     // Inicialização segura das permissões
     // O backend espera: permissions[module_id][view] = '1' ou true
@@ -78,7 +79,8 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
             {/* DADOS BÁSICOS */}
             <div className="bg-white shadow-sm border border-gray-100 rounded-xl p-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4 border-b pb-2">Informações Iniciais</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {sharedIdentity && <p className="mb-4 text-sm">Conta compartilhada entre empresas. Apenas as permissões desta empresa podem ser editadas aqui.</p>}
+                <fieldset disabled={sharedIdentity} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-sm font-semibold text-gray-700">Nome Completo</label>
                         <input
@@ -134,10 +136,10 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#557bbb] focus:ring-[#557bbb] sm:text-sm"
                         >
                             <option value="user">Usuário Padrão</option>
-                            <option value="motorista">Motorista (App Mobile)</option>
-                            <option value="manager">Gestor / Manager</option>
-                            <option value="admin">Administrador Sistêmico</option>
-                            <option value="super_admin">Super Admin (God Mode)</option>
+                            {assignableTypes.includes('motorista') && <option value="motorista">Motorista (App Mobile)</option>}
+                            {assignableTypes.includes('manager') && <option value="manager">Gestor / Manager</option>}
+                            {globalAdmin && <option value="admin">Administrador Sistêmico</option>}
+                            {globalAdmin && <option value="super_admin">Superadministrador</option>}
                         </select>
                         <p className="text-[11px] text-gray-500 mt-1">
                             <strong>Motorista</strong>: usa apenas o app mobile (/mobile/*) — sem acesso ao admin desktop.
@@ -161,7 +163,7 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                         </label>
                         {errors.is_active && <div className="text-rose-500 text-xs mt-1 ml-4">{errors.is_active}</div>}
                     </div>
-                </div>
+                </fieldset>
             </div>
 
             {/* EMPRESAS */}
@@ -175,6 +177,7 @@ export default function UserForm({ user, companies, groupedModules, modulePermis
                             <label key={company.id} className={`flex items-start p-3 border rounded-lg cursor-pointer transition-colors ${isChecked ? 'bg-[#eef2f9] border-[#557bbb]' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
                                 <input
                                     type="checkbox"
+                                    disabled={!globalAdmin}
                                     onChange={() => handleCompanyToggle(company.id)}
                                     checked={isChecked}
                                     className="mt-0.5 rounded border-gray-300 text-[#557bbb] focus:ring-[#557bbb]"

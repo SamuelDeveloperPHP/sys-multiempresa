@@ -72,12 +72,6 @@ class ObraContext
             return collect();
         }
 
-        if ($user->type === 'super_admin') {
-            return Obra::where('company_id', $companyId)
-                       ->orderBy('nome_fantasia')
-                       ->get();
-        }
-
         return $user->obras()
                     ->where('company_id', $companyId)
                     ->orderBy('nome_fantasia')
@@ -94,12 +88,6 @@ class ObraContext
 
         if (! $user || ! $companyId) {
             return false;
-        }
-
-        if ($user->type === 'super_admin') {
-            return Obra::where('id', $obraId)
-                       ->where('company_id', $companyId)
-                       ->exists();
         }
 
         return $user->obras()

@@ -9,7 +9,7 @@ class DefaultPermissionGateway implements PermissionGatewayInterface
 {
     /**
      * Verifica se o usuário pode acessar o módulo Jarvis.
-     * Regras: usuário ativo e (super_admin OU pertence à empresa).
+     * Exige usuário ativo, vínculo com a empresa e concessão no módulo.
      */
     public function canAccessJarvis(User $user, ?int $companyId = null): bool
     {
@@ -17,16 +17,13 @@ class DefaultPermissionGateway implements PermissionGatewayInterface
             return false;
         }
 
-        if ($user->type === 'super_admin') {
-            return true;
-        }
-
         // Verifica se o usuário pertence à empresa em contexto
         if ($companyId !== null) {
-            return $user->companies()->where('companies.id', $companyId)->exists();
+            return $user->companies()->where('companies.id', $companyId)->exists()
+                && $user->hasModulePermission($companyId, 'jarvis', 'list');
         }
 
-        return true;
+        return false;
     }
 
     /**
@@ -42,10 +39,6 @@ class DefaultPermissionGateway implements PermissionGatewayInterface
             return false;
         }
 
-        if ($user->type === 'super_admin') {
-            return true;
-        }
-
         // Extrai o módulo-raiz da permissão (ex.: "jarvis" de "jarvis.system.healthcheck")
         $moduleSlug = explode('.', $permission)[0];
 
@@ -53,7 +46,6 @@ class DefaultPermissionGateway implements PermissionGatewayInterface
             return $user->hasModulePermission($companyId, $moduleSlug, 'list');
         }
 
-        // Sem company_id em contexto: permite para usuários ativos autenticados
-        return true;
+        return false;
     }
 }

@@ -29,20 +29,6 @@ return new class extends Migration {
             'created_at'               => now(),
             'updated_at'               => now(),
         ]);
-
-        // Permissoes para as combinacoes company/user ja existentes (nao-super_admin).
-        foreach (DB::table('module_permissions')->select('company_id', 'user_id')->distinct()->get() as $c) {
-            $existe = DB::table('module_permissions')
-                ->where('company_id', $c->company_id)->where('user_id', $c->user_id)
-                ->where('module_id', $id)->exists();
-            if (! $existe) {
-                DB::table('module_permissions')->insert([
-                    'company_id' => $c->company_id, 'user_id' => $c->user_id, 'module_id' => $id,
-                    'can_list' => 1, 'can_view' => 1, 'can_create' => 1, 'can_edit' => 1, 'can_delete' => 1,
-                    'created_at' => now(), 'updated_at' => now(),
-                ]);
-            }
-        }
     }
 
     public function down(): void

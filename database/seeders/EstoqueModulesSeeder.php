@@ -3,31 +3,12 @@
 namespace Database\Seeders;
 
 use App\Models\Module;
-use App\Models\ModulePermission;
-use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Cadastra módulos de Estoque no menu + permissões para os tipos de usuário
- * que devem ter acesso (super_admin, manager).
- *
- * Idempotente — pode rodar várias vezes sem duplicar.
- *
- * Uso:
- *   php artisan db:seed --class=EstoqueModulesSeeder
- *
- * Tipos NÃO contemplados (intencional):
- *   - motorista : decisão de produto, motoristas só usam PWA mobile.
- *   - user      : nível básico — recebe acesso só se admin definir manualmente.
- */
+/** Cadastra os módulos de estoque. */
 class EstoqueModulesSeeder extends Seeder
 {
-    /**
-     * Tipos de usuário que recebem permissão automática neste seeder.
-     */
-    protected array $tiposComAcesso = ['super_admin', 'manager'];
-
     /**
      * Estrutura dos módulos. Pais primeiro, filhos referenciam por parent_slug.
      */
@@ -180,37 +161,7 @@ class EstoqueModulesSeeder extends Seeder
 
         $todosIds = array_merge(array_values($paisIdsBySlug), $filhosIds);
 
-        // ----- 3) PERMISSÕES -----
-        $companies = DB::table('companies')->pluck('id')->all();
-        $users     = User::whereIn('type', $this->tiposComAcesso)->get(['id', 'type']);
-
-        $totalPerms = 0;
-        foreach ($todosIds as $moduleId) {
-            foreach ($users as $user) {
-                foreach ($companies as $companyId) {
-                    ModulePermission::updateOrCreate(
-                        [
-                            'user_id'    => $user->id,
-                            'module_id'  => $moduleId,
-                            'company_id' => $companyId,
-                        ],
-                        [
-                            'can_list'   => true,
-                            'can_view'   => true,
-                            'can_create' => true,
-                            'can_edit'   => true,
-                            'can_delete' => true,
-                        ]
-                    );
-                    $totalPerms++;
-                }
-            }
-        }
-
         $this->command->info('Módulos Estoque cadastrados: ' . count($todosIds));
-        $this->command->info('Permissões aplicadas: ' . $totalPerms . ' (usuários: ' . $users->count()
-            . ', empresas: ' . count($companies) . ')');
-        $this->command->info('Tipos contemplados: ' . implode(', ', $this->tiposComAcesso));
     }
 
     protected function upsertModulo(array $m, ?int $parentId): int

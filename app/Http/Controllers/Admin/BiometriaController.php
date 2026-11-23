@@ -171,7 +171,7 @@ class BiometriaController extends Controller
 
     /**
      * Gera challenge WebAuthn para cadastrar uma credencial no funcionário-alvo.
-     * O operador (request user) precisa ter permissão de "almoxarife" ou super_admin.
+     * O operador (request user) precisa ter permissão de criação em estoque.devolucoes na empresa.
      *
      * Estratégia: usa Auth::setUser() temporário pra forçar o AttestationRequest
      * a montar as opções para o funcionário-alvo (e não pro operador logado).
@@ -237,25 +237,11 @@ class BiometriaController extends Controller
     /**
      * Verifica se o usuário operador pode cadastrar biometria para outros.
      *
-     * Regras:
-     *   - super_admin SEMPRE pode (regra global)
-     *   - outros: precisam de can_create no módulo estoque.devolucoes
-     *     em pelo menos UMA empresa (os "almoxarifes" cadastrados em /almoxarifes)
+     * Exige a permissão de criação na empresa selecionada.
      */
     protected function autorizarCadastrarTerceiros(User $operador): void
     {
-        if ($operador->type === 'super_admin') return;
-
-        $module = Module::where('slug', 'estoque.devolucoes')->first();
-        if (!$module) {
-            abort(403, 'Permissão indisponível: módulo estoque.devolucoes não cadastrado.');
-        }
-
-        $temPermissao = ModulePermission::where('user_id', $operador->id)
-            ->where('module_id', $module->id)
-            ->where('can_create', true)
-            ->exists();
-
-        abort_unless($temPermissao, 403, 'Apenas super-admin ou almoxarifes podem cadastrar biometria de outros funcionários.');
+        $company = \App\Helpers\CompanyContext::id();
+        abort_unless($company && $operador->hasModulePermission($company, 'estoque.devolucoes', 'create'), 403);
     }
 }

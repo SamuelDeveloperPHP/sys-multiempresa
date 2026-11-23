@@ -9,75 +9,84 @@
 
 import Dexie from 'dexie';
 
-export const db = new Dexie('sys_multiempresa_offline');
+function database(name) {
+    const db = new Dexie(name);
+    // ---------- v1: schema inicial ----------
+    db.version(1).stores({
+        // ===== Catálogos (read-only do servidor, atualizados via syncFromServer) =====
+        veiculos:       'id, prefixo, placa, obra_id, [obra_id+prefixo]',
+        fornecedores:   'id, nome',
+        categorias:     'id, nome',
+        obras:          'id, nome',
+        preventivas_itens:    'id, periodo_maq_vei, veiculo_id',
+        servicos_preventiva:  'id, veiculo_id',
 
-// Limpeza unica do banco offline do nome anterior: os registros antigos nao sao
-// mais necessarios (decisao do produto) e nao devem ocupar espaco no navegador.
-try {
-    if (typeof window !== 'undefined' && !window.localStorage.getItem('offline_db_renamed_v1')) {
-        Dexie.delete('sga_engeativos_offline') // nome anterior do banco
-            .catch(() => {})
-            .finally(() => window.localStorage.setItem('offline_db_renamed_v1', '1'));
-    }
-} catch (e) {
-    // localStorage indisponivel (modo privado): ignora, a limpeza tenta de novo na proxima abertura.
+        // ===== Transacionais (CRUD offline + queue) =====
+        abastecimentos:       'id, _local_id, veiculo_id, data, _sync_status',
+        diario_bordo:         'id, _local_id, veiculo_id, data, _sync_status',
+        checklists:           'id, obra_id',
+        checklist_itens:      'id, checklist_id',
+        checklist_servicos:   'id, _local_id, checklist_id, veiculo_id, data, _sync_status',
+        checklist_execucoes:  'id, _local_id, checklist_servico_id, _sync_status',
+        locacoes:             'id, veiculo_id, status',
+
+        // ===== Fila de mutações + meta =====
+        sync_queue:     '++id, table, op, status, created_at, [status+created_at]',
+        meta:           'key',
+    });
+
+    // ---------- v2: adiciona ciclo_status em diario_bordo e checklist_servicos ----------
+    // Regra do legado: motorista só pode ter 1 diário/checklist ABERTO por vez.
+    // ciclo_status: 'ABERTO' | 'FECHADO'
+    // Dexie migra automaticamente sem perder dados — apenas adiciona índices.
+    db.version(2).stores({
+        diario_bordo:       'id, _local_id, veiculo_id, data, _sync_status, ciclo_status, user_id, [ciclo_status+user_id]',
+        checklist_servicos: 'id, _local_id, checklist_id, veiculo_id, data, _sync_status, ciclo_status, tipo, user_id, [ciclo_status+user_id]',
+    });
+
+    // ---------- v3: checklists agora indexa veiculo_id (não obra_id) ----------
+    // Razão: a tabela veiculo_checklist do backend tem id_veiculo (não id_obra).
+    // Mantém o índice obra_id por compatibilidade, mas o cliente passa a usar veiculo_id.
+    db.version(3).stores({
+        checklists:      'id, veiculo_id, obra_id',
+        checklist_itens: 'id, checklist_id, veiculo_id',
+    });
+
+    // ---------- v4: credenciais do login offline (arquitetura.md §5) ----------
+    // Guarda o hash PBKDF2 (+ salt + iterações) do ÚLTIMO usuário que logou
+    // online neste device. NUNCA a senha em texto puro. Ver offline/offlineAuth.js.
+    db.version(4).stores({
+        credenciais: 'id',
+    });
+
+    // ---------- v5: indexa local_id na sync_queue ----------
+    // syncQueue funde updates/deletes no CREATE pendente via where('local_id') —
+    // sem o índice o Dexie lança "KeyPath local_id on object store sync_queue
+    // is not indexed" (visto em campo ao fechar o diário de bordo).
+    db.version(5).stores({
+        sync_queue: '++id, table, op, status, local_id, created_at, [status+created_at]',
+    });
+    return db;
 }
 
-// ---------- v1: schema inicial ----------
-db.version(1).stores({
-    // ===== Catálogos (read-only do servidor, atualizados via syncFromServer) =====
-    veiculos:       'id, prefixo, placa, obra_id, [obra_id+prefixo]',
-    fornecedores:   'id, nome',
-    categorias:     'id, nome',
-    obras:          'id, nome',
-    preventivas_itens:    'id, periodo_maq_vei, veiculo_id',
-    servicos_preventiva:  'id, veiculo_id',
+// A base anterior guarda credencial, sessão e pendências legadas. Sua fila
+// não é adotada por outra empresa sem vínculo comprovado.
+export const authDb = database('sys_multiempresa_offline');
+export let db;
+export let activeScope;
 
-    // ===== Transacionais (CRUD offline + queue) =====
-    abastecimentos:       'id, _local_id, veiculo_id, data, _sync_status',
-    diario_bordo:         'id, _local_id, veiculo_id, data, _sync_status',
-    checklists:           'id, obra_id',
-    checklist_itens:      'id, checklist_id',
-    checklist_servicos:   'id, _local_id, checklist_id, veiculo_id, data, _sync_status',
-    checklist_execucoes:  'id, _local_id, checklist_servico_id, _sync_status',
-    locacoes:             'id, veiculo_id, status',
-
-    // ===== Fila de mutações + meta =====
-    sync_queue:     '++id, table, op, status, created_at, [status+created_at]',
-    meta:           'key',
-});
-
-// ---------- v2: adiciona ciclo_status em diario_bordo e checklist_servicos ----------
-// Regra do legado: motorista só pode ter 1 diário/checklist ABERTO por vez.
-// ciclo_status: 'ABERTO' | 'FECHADO'
-// Dexie migra automaticamente sem perder dados — apenas adiciona índices.
-db.version(2).stores({
-    diario_bordo:       'id, _local_id, veiculo_id, data, _sync_status, ciclo_status, user_id, [ciclo_status+user_id]',
-    checklist_servicos: 'id, _local_id, checklist_id, veiculo_id, data, _sync_status, ciclo_status, tipo, user_id, [ciclo_status+user_id]',
-});
-
-// ---------- v3: checklists agora indexa veiculo_id (não obra_id) ----------
-// Razão: a tabela veiculo_checklist do backend tem id_veiculo (não id_obra).
-// Mantém o índice obra_id por compatibilidade, mas o cliente passa a usar veiculo_id.
-db.version(3).stores({
-    checklists:      'id, veiculo_id, obra_id',
-    checklist_itens: 'id, checklist_id, veiculo_id',
-});
-
-// ---------- v4: credenciais do login offline (arquitetura.md §5) ----------
-// Guarda o hash PBKDF2 (+ salt + iterações) do ÚLTIMO usuário que logou
-// online neste device. NUNCA a senha em texto puro. Ver offline/offlineAuth.js.
-db.version(4).stores({
-    credenciais: 'id',
-});
-
-// ---------- v5: indexa local_id na sync_queue ----------
-// syncQueue funde updates/deletes no CREATE pendente via where('local_id') —
-// sem o índice o Dexie lança "KeyPath local_id on object store sync_queue
-// is not indexed" (visto em campo ao fechar o diário de bordo).
-db.version(5).stores({
-    sync_queue: '++id, table, op, status, local_id, created_at, [status+created_at]',
-});
+export function selectOfflineDatabase(scope) {
+    if (!/^[1-9]\d*:[1-9]\d*$/.test(scope)) throw new Error('Contexto offline inválido.');
+    if (activeScope && activeScope !== scope) {
+        window.location.reload();
+        throw new Error('Atualizando a empresa ativa.');
+    }
+    if (!db) {
+        activeScope = scope;
+        db = database('sys_multiempresa_offline_' + scope);
+    }
+    return db.open();
+}
 
 // -----------------------------------------------------------------------------
 // API utilitária para gerar IDs locais temporários
@@ -126,9 +135,4 @@ export async function clearAllLocal({ keepCredentials = true } = {}) {
     });
 }
 
-// Auto-abre o DB quando o módulo for importado.
-db.open().catch(err => {
-    console.error('[offline/db] falha ao abrir IndexedDB:', err);
-});
-
-export default db;
+export { db as default };

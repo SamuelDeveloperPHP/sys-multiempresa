@@ -233,9 +233,9 @@ class RequisicaoController extends Controller
 
         // Solicitante: dono ou qualquer um com permissão (deixa flexível em DEV)
         abort_unless(
-            $requisicao->solicitante_id === $request->user()->id || $request->user()->type === 'super_admin',
+            $requisicao->solicitante_id === $request->user()->id,
             403,
-            'Apenas o solicitante (ou super-admin) pode enviar.'
+            'Apenas o solicitante pode enviar.'
         );
 
         abort_if($requisicao->itens()->count() === 0, 422, 'Requisição sem itens não pode ser enviada.');
@@ -296,9 +296,9 @@ class RequisicaoController extends Controller
         );
 
         abort_unless(
-            $requisicao->solicitante_id === $request->user()->id || $request->user()->type === 'super_admin',
+            $requisicao->solicitante_id === $request->user()->id,
             403,
-            'Apenas o solicitante (ou super-admin) pode cancelar.'
+            'Apenas o solicitante pode cancelar.'
         );
 
         $requisicao->update(['status' => Requisicao::STATUS_CANCELADA]);

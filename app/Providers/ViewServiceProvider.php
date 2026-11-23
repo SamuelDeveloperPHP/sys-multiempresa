@@ -32,14 +32,11 @@ class ViewServiceProvider extends ServiceProvider
                     ->orderBy('sort_order')
                     ->orderBy('name');
 
-                // 🔹 Se NÃO for super_admin, filtra pelas permissões
-                if ($user->type !== 'super_admin') {
-                    $query->whereHas('permissions', function ($q) use ($user, $company) {
-                        $q->where('user_id', $user->id)
-                          ->where('company_id', $company->id)
-                          ->where('can_list', true);
-                    });
-                }
+                $query->whereHas('permissions', function ($q) use ($user, $company) {
+                    $q->where('user_id', $user->id)
+                      ->where('company_id', $company->id)
+                      ->where('can_list', true);
+                });
 
                 $modules = $query->get();
 

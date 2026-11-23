@@ -19,7 +19,7 @@ class ChecklistExecutionContractTest extends AdminFrotaTestCase
         $user = $this->criarUsuario($company, 'admin');
         $vehicle = $this->criarVeiculo($company, ['prefixo' => 'PWA-01']);
         [$checklist, $item] = $this->criarChecklist($company->id, $vehicle->id);
-        $this->concederPermissao($user, $company, 'admin.frota.checklist-execucoes.index', ['list', 'view']);
+        $this->concederPermissao($user, $company, 'admin.frota.checklist-execucoes.index', ['list', 'view', 'create'])->module->update(['slug' => 'frota.checklist-execucoes']);
 
         $response = $this->comContexto($user, $company)->postJson('/api/mobile/checklist-servicos', [
             'client_uuid' => fake()->uuid(),

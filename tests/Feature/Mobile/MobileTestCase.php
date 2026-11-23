@@ -339,9 +339,8 @@ abstract class MobileTestCase extends TestCase
         string $moduleSlug,
         string $ability,
     ): void {
-        $module = Module::forceCreate([
+        $module = Module::firstOrCreate(['slug' => $moduleSlug], [
             'name' => $moduleSlug,
-            'slug' => $moduleSlug,
             'is_active' => true,
             'show_in_menu' => false,
         ]);
@@ -388,6 +387,12 @@ abstract class MobileTestCase extends TestCase
         $user = $this->criarUsuario($company);
         $veiculo = $this->criarVeiculo($company);
         [$checklist, $item] = $this->criarChecklist($company, $veiculo);
+
+        foreach (['veiculos', 'abastecimentos', 'diario', 'checklists', 'checklist-execucoes', 'locacoes'] as $slug) {
+            $module = Module::firstOrCreate(['slug' => 'frota.'.$slug], ['name' => $slug, 'is_active' => true]);
+            ModulePermission::forceCreate(['company_id' => $company->id, 'user_id' => $user->id, 'module_id' => $module->id,
+                'can_list' => true, 'can_view' => true, 'can_create' => true, 'can_edit' => true, 'can_delete' => true]);
+        }
 
         return compact('company', 'user', 'veiculo', 'checklist', 'item');
     }

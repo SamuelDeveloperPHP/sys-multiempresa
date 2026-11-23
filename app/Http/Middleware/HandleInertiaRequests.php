@@ -47,13 +47,11 @@ class HandleInertiaRequests extends Middleware
                 ->orderBy('sort_order')
                 ->orderBy('name');
 
-            if ($user->type !== 'super_admin') {
-                $query->whereHas('permissions', function ($q) use ($user, $company) {
-                    $q->where('user_id', $user->id)
-                      ->where('company_id', $company->id)
-                      ->where('can_list', true);
-                });
-            }
+            $query->whereHas('permissions', function ($q) use ($user, $company) {
+                $q->where('user_id', $user->id)
+                  ->where('company_id', $company->id)
+                  ->where('can_list', true);
+            });
 
             $modules = $query->get();
             $roots    = $modules->where('parent_id', null)->values();

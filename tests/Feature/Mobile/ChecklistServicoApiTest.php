@@ -57,6 +57,7 @@ class ChecklistServicoApiTest extends MobileTestCase
 
     public function test_foto_base64_vira_arquivo_e_json_guarda_somente_o_caminho(): void
     {
+        Storage::fake('local');
         Storage::fake('public');
         $c = $this->cenarioBase();
 
@@ -74,7 +75,7 @@ class ChecklistServicoApiTest extends MobileTestCase
         $resp->assertStatus(201);
 
         // Resposta da API expõe foto_url navegável
-        $this->assertStringContainsString('/storage/uploads/aplicativo/checklist_servicos/', (string) $resp->json('data.respostas.0.foto_url'));
+        $this->assertStringContainsString('/evidencias-frota/checklist_servicos/', (string) $resp->json('data.respostas.0.foto_url'));
 
         // Banco: JSON tem foto_path e NÃO tem o base64
         $rec = VeiculoChecklistServico::withoutGlobalScopes()->firstOrFail();
@@ -84,7 +85,7 @@ class ChecklistServicoApiTest extends MobileTestCase
         $this->assertStringNotContainsString('base64', json_encode($respostas));
 
         // Arquivo realmente gravado no disco
-        Storage::disk('public')->assertExists($respostas[0]['foto_path']);
+        Storage::disk('local')->assertExists('empresas/' . $c['company']->id . '/' . $respostas[0]['foto_path']);
     }
 
     public function test_nao_conformidade_sem_observacao_retorna_422(): void

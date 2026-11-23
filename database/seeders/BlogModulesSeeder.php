@@ -4,12 +4,9 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Module;
-use App\Models\ModulePermission;
 
 class BlogModulesSeeder extends Seeder
 {
-    protected int $companyId = 1;
-    protected int $userId    = 1;
 
     public function run(): void
     {
@@ -61,11 +58,9 @@ class BlogModulesSeeder extends Seeder
             ],
         ];
 
-        $allModules = [];
-        $allModules[] = $blogParent;
 
         foreach ($childrenData as $data) {
-            $module = Module::firstOrCreate(
+            Module::firstOrCreate(
                 ['slug' => $data['slug']],
                 [
                     'parent_id'                => $blogParent->id,
@@ -81,25 +76,6 @@ class BlogModulesSeeder extends Seeder
                 ]
             );
 
-            $allModules[] = $module;
-        }
-
-        // 🔹 Permissões para company_id = 1, user_id = 1
-        foreach ($allModules as $module) {
-            ModulePermission::firstOrCreate(
-                [
-                    'company_id' => $this->companyId,
-                    'user_id'    => $this->userId,
-                    'module_id'  => $module->id,
-                ],
-                [
-                    'can_list'   => 1,
-                    'can_view'   => 1,
-                    'can_create' => 1,
-                    'can_edit'   => 1,
-                    'can_delete' => 1,
-                ]
-            );
         }
     }
 }

@@ -30,16 +30,17 @@ const API_BASE = '/api/mobile';
 const MAX_ITEMS_PER_SYNC = 30; // orçamento de execução do evento é limitado
 
 self.addEventListener('sync', (event) => {
-    if (event.tag === BACKGROUND_SYNC_TAG) {
-        event.waitUntil(processPendingQueue());
+    const scope = event.tag.slice(BACKGROUND_SYNC_TAG.length + 1);
+    if (event.tag.startsWith(BACKGROUND_SYNC_TAG + ':') && /^[1-9]\d*:[1-9]\d*$/.test(scope)) {
+        event.waitUntil(processPendingQueue(scope));
     }
 });
 
 // Abre o IndexedDB SEM versão (não cria/upgrada — se o app nunca rodou aqui,
 // não há o que sincronizar).
-function openOfflineDb() {
+function openOfflineDb(scope = null) {
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open(OFFLINE_DB_NAME);
+        const req = indexedDB.open(scope ? OFFLINE_DB_NAME + '_' + scope : OFFLINE_DB_NAME);
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
         req.onupgradeneeded = () => {
@@ -49,6 +50,23 @@ function openOfflineDb() {
         };
     });
 }
+
+self.mobileSessionScope = async function () {
+    let auth;
+    try {
+        auth = await openOfflineDb();
+        const session = await new Promise((resolve, reject) => {
+            const req = auth.transaction('meta').objectStore('meta').get('offline_session');
+            req.onsuccess = () => resolve(req.result?.value);
+            req.onerror = () => reject(req.error);
+        });
+        if (session?.user_id && session.company_id && Date.parse(session.expires_at) > Date.now()) {
+            return session.user_id + ':' + session.company_id;
+        }
+    } catch { /* Sem sessão válida, não reutilizar dados autenticados. */ }
+    finally { auth?.close(); }
+    return null;
+};
 
 function getQueuedItems(db) {
     return new Promise((resolve, reject) => {
@@ -82,10 +100,10 @@ async function readCsrfToken() {
     }
 }
 
-async function processPendingQueue() {
+async function processPendingQueue(scope) {
     let db;
     try {
-        db = await openOfflineDb();
+        db = await openOfflineDb(scope);
     } catch (_) {
         return; // sem DB local — nada a fazer
     }
@@ -106,6 +124,7 @@ async function processPendingQueue() {
         let houveTransitorio = false;
 
         for (const item of pendentes) {
+            if (await self.mobileSessionScope() !== scope) return;
             const metodo = METODO[item.op];
             if (!metodo || !item.endpoint) continue;
 
@@ -119,6 +138,7 @@ async function processPendingQueue() {
                         'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
                         'X-XSRF-TOKEN': xsrf,
+                        'X-Mobile-Context': scope,
                     },
                     body: metodo === 'DELETE' ? undefined : JSON.stringify(item.payload || {}),
                 });
@@ -149,7 +169,7 @@ async function processPendingQueue() {
                     last_error: null,
                     updated_at: new Date().toISOString(),
                 });
-            } else if (resp.status === 401 || resp.status === 419) {
+            } else if (resp.status === 409 || resp.status === 401 || resp.status === 419) {
                 // Sessão expirou: nada mais vai passar — para tudo, sem retry.
                 return;
             } else if (resp.status >= 500 || resp.status === 408 || resp.status === 429) {

@@ -66,20 +66,14 @@ class EntradaController extends Controller
     public function create(Request $request)
     {
         $companyId = CompanyContext::current()?->id;
-        $isSuper   = $request->user()->type === 'super_admin';
         $obraAtual = ObraContext::current();
 
-        // super_admin escolhe entre todas as obras da empresa; os demais
-        // recebem na obra em que estão logados (fixa).
-        $obras = $isSuper
-            ? Obra::when($companyId, fn ($q) => $q->where('company_id', $companyId))
-                  ->orderBy('codigo_obra')->get(['id', 'codigo_obra', 'nome_fantasia'])
-            : ObraContext::userObras()->map(fn ($o) => $o->only(['id', 'codigo_obra', 'nome_fantasia']))->values();
+        $obras = ObraContext::userObras()->map(fn ($o) => $o->only(['id', 'codigo_obra', 'nome_fantasia']))->values();
 
         return Inertia::render('Admin/Estoque/Entradas/Form', [
             'obras'        => $obras,
             'obra_atual'   => $obraAtual?->only(['id', 'codigo_obra', 'nome_fantasia']),
-            'is_super'     => $isSuper,
+            'is_super'     => $obras->count() > 1,
             'fornecedores' => Fornecedor::when($companyId, fn ($q) => $q->where('company_id', $companyId))
                                   ->orderBy('razao_social')->get(['id', 'razao_social', 'nome_fantasia']),
         ]);
@@ -254,8 +248,7 @@ class EntradaController extends Controller
             'itens.*.observacao'             => ['nullable', 'string', 'max:1000'],
         ]);
 
-        // Garante que o usuário tem acesso à obra de recebimento (super_admin
-        // acessa todas; demais só as suas). Bloqueio server-side.
+        // Valida o vínculo com a obra de recebimento.
         abort_unless(ObraContext::userCanAccess((int) $data['obra_id']), 403,
             'Você não tem acesso a esta obra.');
 

@@ -71,18 +71,14 @@ class SaidaController extends Controller
     public function create(Request $request)
     {
         $companyId = CompanyContext::current()?->id;
-        $isSuper   = $request->user()->type === 'super_admin';
         $obraAtual = ObraContext::current();
 
-        $obras = $isSuper
-            ? Obra::when($companyId, fn ($q) => $q->where('company_id', $companyId))
-                  ->orderBy('codigo_obra')->get(['id', 'codigo_obra', 'nome_fantasia'])
-            : ObraContext::userObras()->map(fn ($o) => $o->only(['id', 'codigo_obra', 'nome_fantasia']))->values();
+        $obras = ObraContext::userObras()->map(fn ($o) => $o->only(['id', 'codigo_obra', 'nome_fantasia']))->values();
 
         return Inertia::render('Admin/Estoque/Saidas/Form', [
             'obras'      => $obras,
             'obra_atual' => $obraAtual?->only(['id', 'codigo_obra', 'nome_fantasia']),
-            'is_super'   => $isSuper,
+            'is_super'   => $obras->count() > 1,
         ]);
     }
 

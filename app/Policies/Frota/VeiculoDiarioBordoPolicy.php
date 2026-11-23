@@ -12,14 +12,19 @@ class VeiculoDiarioBordoPolicy
 
     private const MODULE = 'frota.diario';
 
+    public function view(User $user, VeiculoDiarioBordo $record): bool
+    {
+        return $this->hasRecordPermission($user, $record, self::MODULE, 'view');
+    }
+
     public function update(User $user, VeiculoDiarioBordo $record): bool
     {
-        return $this->canMutate($user, $record, $this->isOwner($user, $record), self::MODULE, 'edit');
+        return $this->hasRecordPermission($user, $record, self::MODULE, 'edit');
     }
 
     public function delete(User $user, VeiculoDiarioBordo $record): bool
     {
-        return $this->canMutate($user, $record, $this->isOwner($user, $record), self::MODULE, 'delete');
+        return $this->hasRecordPermission($user, $record, self::MODULE, 'delete');
     }
 
     public function isOwner(User $user, VeiculoDiarioBordo $record): bool

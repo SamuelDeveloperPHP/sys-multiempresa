@@ -10,8 +10,8 @@ use Symfony\Component\HttpFoundation\Response;
  * Garante que o usuário pode acessar o módulo Mobile (PWA offline-first).
  *
  * Quem pode entrar:
- *   - super_admin   : acesso total
- *   - admin         : acesso total
+ *   - super_admin   : acesso ao canal
+ *   - admin         : acesso ao canal
  *   - manager       : acesso (gestores de obra/frota)
  *   - motorista     : acesso (perfil específico do app)
  *

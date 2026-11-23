@@ -93,6 +93,7 @@ class AppAuthController extends Controller
         $companyId = (int) $request->query('company_id', 0)
             ?: $user->companies()->value('companies.id');
 
+        abort_unless($companyId && $user->companies()->whereKey($companyId)->exists(), 403);
         return response()->json($this->listarModulosPermitidos($user, $companyId));
     }
 
@@ -100,27 +101,6 @@ class AppAuthController extends Controller
     {
         if (!$companyId) return [];
 
-        $user->loadPermissions($companyId);
-        $cached = $user->modulePermissions()
-            ->with('module')
-            ->where('company_id', $companyId)
-            ->get();
-
-        return $cached
-            ->filter(fn ($p) => $p->module)
-            ->map(fn ($p) => [
-                'id'          => $p->module->id,
-                'name'        => $p->module->name,
-                'slug'        => $p->module->slug,
-                'url'         => $p->module->url,
-                'icon'        => $p->module->icon ?? null,
-                'parent_id'   => $p->module->parent_id ?? null,
-                'can_view'    => (bool) $p->can_view,
-                'can_create'  => (bool) $p->can_create,
-                'can_edit'    => (bool) ($p->can_edit ?? false),
-                'can_delete'  => (bool) ($p->can_delete ?? false),
-            ])
-            ->values()
-            ->all();
+        return $user->grantedModules($companyId);
     }
 }

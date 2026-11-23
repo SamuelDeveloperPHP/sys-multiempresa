@@ -9,7 +9,14 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
-    resolve: (name) => resolvePageComponent(`./Pages/${name}.jsx`, import.meta.glob('./Pages/**/*.jsx')),
+    resolve: async (name) => {
+        const page = await resolvePageComponent(`./Pages/${name}.jsx`, import.meta.glob('./Pages/**/*.jsx'));
+        if (name.startsWith('Mobile/')) {
+            const { default: MobileContext } = await import('./offline/MobileContext');
+            page.default.layout = child => <MobileContext>{child}</MobileContext>;
+        }
+        return page;
+    },
     setup({ el, App, props }) {
         const root = createRoot(el);
         root.render(<App {...props} />);
