@@ -43,6 +43,11 @@ final class TwoFactorChallengeController extends Controller
         $key = 'two-factor:'.$user->id.'|'.$request->ip();
 
         if (RateLimiter::tooManyAttempts($key, 5)) {
+            log_activity('two_factor_locked', [
+                'module' => 'user-security',
+                'model_type' => $user::class,
+                'model_id' => $user->id,
+            ]);
             throw ValidationException::withMessages([
                 'code' => 'Muitas tentativas. Aguarde '.RateLimiter::availableIn($key).' segundos.',
             ]);
@@ -53,12 +58,20 @@ final class TwoFactorChallengeController extends Controller
             && strlen($code) === 6
             && (new Google2FA())->verifyKey($user->google2fa_secret, $code);
 
+        $usedRecoveryCode = false;
         if (! $valid) {
-            $valid = $this->consumeRecoveryCode($user, $code);
+            $usedRecoveryCode = $this->consumeRecoveryCode($user, $code);
+            $valid = $usedRecoveryCode;
         }
 
         if (! $valid) {
             RateLimiter::hit($key, 60);
+            log_activity('two_factor_failed', [
+                'module' => 'user-security',
+                'model_type' => $user::class,
+                'model_id' => $user->id,
+                'after' => ['remaining_attempts' => max(0, 5 - RateLimiter::attempts($key))],
+            ]);
             throw ValidationException::withMessages([
                 'code' => 'O código informado é inválido ou expirou.',
             ]);
@@ -67,6 +80,11 @@ final class TwoFactorChallengeController extends Controller
         RateLimiter::clear($key);
         $request->session()->regenerate();
         TwoFactorAuthentication::markVerified($request, $user);
+        log_activity($usedRecoveryCode ? 'two_factor_recovery_used' : 'two_factor_verified', [
+            'module' => 'user-security',
+            'model_type' => $user::class,
+            'model_id' => $user->id,
+        ]);
 
         return redirect()->to($request->session()->pull('auth.two_factor_intended', '/dashboard'));
     }

@@ -1,9 +1,15 @@
 import PortalLayout from '../../Layouts/PortalLayout';
+import { Link } from '@inertiajs/react';
 
 export default function Dashboard() {
     return (
         <PortalLayout>
             <div className="w-full space-y-8">
+                <div className="flex justify-end">
+                    <Link href="/portal/security/2fa" className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50">
+                        Segurança da conta
+                    </Link>
+                </div>
                 
                 {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
