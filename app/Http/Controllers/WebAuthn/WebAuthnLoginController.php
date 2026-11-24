@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\WebAuthn;
 
+use App\Models\User;
+use App\Support\TwoFactorAuthentication;
 use Illuminate\Contracts\Support\Responsable;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
 use Laragear\WebAuthn\Http\Requests\AssertedRequest;
 use Laragear\WebAuthn\Http\Requests\AssertionRequest;
 
@@ -24,6 +27,23 @@ class WebAuthnLoginController
      */
     public function login(AssertedRequest $request): Response
     {
-        return response()->noContent($request->login() ? 204 : 422);
+        if (! $request->login()) {
+            return response()->noContent(422);
+        }
+
+        $user = Auth::user();
+        if (! $user instanceof User || ! $user->is_active) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return response()->noContent(403);
+        }
+
+        $request->session()->regenerate();
+        TwoFactorAuthentication::forget($request);
+        $user->forceFill(['last_login_at' => now()])->save();
+
+        return response()->noContent();
     }
 }

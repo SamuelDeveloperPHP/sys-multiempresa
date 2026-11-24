@@ -39,7 +39,7 @@ class AuthController extends Controller
             $request->session()->regenerate();
             
             $client = Auth::guard('client')->user();
-            if ($client->google2fa_secret) {
+            if ($client->google2fa_secret && $client->two_factor_confirmed_at) {
                 return redirect()->route('portal.2fa.challenge');
             }
 
@@ -65,15 +65,26 @@ class AuthController extends Controller
         ]);
 
         $client = Auth::guard('client')->user();
+        $throttleKey = 'client-two-factor:'.$client->id.'|'.$request->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            throw ValidationException::withMessages([
+                'code' => 'Muitas tentativas. Aguarde '.RateLimiter::availableIn($throttleKey).' segundos.',
+            ]);
+        }
+
         $google2fa = new Google2FA();
         
         $valid = $google2fa->verifyKey($client->google2fa_secret, $request->code);
 
         if ($valid) {
+            RateLimiter::clear($throttleKey);
+            $request->session()->regenerate();
             Session::put('client_2fa_verified', true);
             return redirect()->route('portal.dashboard');
         }
 
+        RateLimiter::hit($throttleKey, 60);
         throw ValidationException::withMessages([
             'code' => 'O código 2FA é inválido ou expirou.',
         ]);

@@ -13,6 +13,7 @@ use Inertia\Response;
 
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Support\TwoFactorAuthentication;
 
 class AuthenticatedSessionController extends Controller
 {
@@ -50,6 +51,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         $request->session()->regenerate();
+        TwoFactorAuthentication::forget($request);
 
         /** @var User $user */
         $user = Auth::user();
@@ -67,6 +69,16 @@ class AuthenticatedSessionController extends Controller
         $user->update([
             'last_login_at' => now(),
         ]);
+
+        if (TwoFactorAuthentication::required($user) && ! TwoFactorAuthentication::enabled($user)) {
+            session()->put('auth.two_factor_intended', $user->type === 'motorista' ? '/mobile/veiculos' : session()->pull('url.intended', '/dashboard'));
+            return Inertia::location(route('profile.edit'));
+        }
+
+        if (TwoFactorAuthentication::enabled($user)) {
+            session()->put('auth.two_factor_intended', $user->type === 'motorista' ? '/mobile/veiculos' : session()->pull('url.intended', '/dashboard'));
+            return Inertia::location(route('two-factor.challenge'));
+        }
 
         // Motorista: vai SEMPRE para /mobile/veiculos (ignora intended)
         if ($user->type === 'motorista') {

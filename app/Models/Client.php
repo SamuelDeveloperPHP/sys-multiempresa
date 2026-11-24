@@ -33,6 +33,8 @@ class Client extends Authenticatable
     {
         return [
             'password' => 'hashed',
+            'google2fa_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }

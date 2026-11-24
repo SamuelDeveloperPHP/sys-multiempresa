@@ -45,6 +45,8 @@ return Application::configure(basePath: dirname(__DIR__))
             VerifyCsrfToken::class,
             SubstituteBindings::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
+            // Exige TOTP para contas privilegiadas e para qualquer conta que o ativou.
+            \App\Http\Middleware\EnsureTwoFactorAuthenticated::class,
             // Redireciona motoristas que tentam acessar URLs desktop para /mobile/veiculos
             \App\Http\Middleware\RedirectMotoristaToMobile::class,
             // Headers de segurança (clickjacking, MIME sniffing, HSTS)
