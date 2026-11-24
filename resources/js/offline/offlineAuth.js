@@ -34,6 +34,8 @@ const SESSION_META_KEY = 'offline_session';
 const ATTEMPTS_META_KEY = 'offline_login_attempts';
 const PERSIST_META_KEY = 'storage_persist_requested';
 const LOCAL_OWNER_META_KEY = 'local_data_owner_id'; // dono atual dos dados locais (Dexie)
+const SECOND_FACTOR_META_KEY = 'offline_second_factor';
+const SECOND_FACTOR_POLICY_VERSION = 1;
 
 export const OFFLINE_SESSION_TTL_HOURS = 24 * 7; // 7 dias, renovado a cada acesso online
 const MAX_ATTEMPTS = 5;
@@ -42,6 +44,27 @@ const LOCKOUT_MINUTES = 5;
 // Espelho de EnsureCanAccessMobile::ALLOWED_TYPES (server-side). Só provisiona
 // credencial offline para quem pode usar o módulo mobile.
 export const MOBILE_ALLOWED_TYPES = ['super_admin', 'admin', 'manager', 'motorista'];
+export const TWO_FACTOR_REQUIRED_TYPES = ['super_admin', 'admin', 'manager'];
+
+async function hasValidOfflineSecondFactor(user) {
+    if (!TWO_FACTOR_REQUIRED_TYPES.includes(user?.type || '')) return true;
+    const grant = await getMeta(SECOND_FACTOR_META_KEY);
+    return grant?.policy_version === SECOND_FACTOR_POLICY_VERSION
+        && String(grant?.user_id) === String(user?.id)
+        && Date.parse(grant?.expires_at) > Date.now();
+}
+
+export async function grantOfflineSecondFactor(user) {
+    if (!user?.id) return false;
+    const now = Date.now();
+    await setMeta(SECOND_FACTOR_META_KEY, {
+        policy_version: SECOND_FACTOR_POLICY_VERSION,
+        user_id: user.id,
+        verified_at: new Date(now).toISOString(),
+        expires_at: new Date(now + OFFLINE_SESSION_TTL_HOURS * 3600 * 1000).toISOString(),
+    });
+    return true;
+}
 
 const hasWebCrypto = () =>
     typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.deriveBits === 'function';
@@ -175,6 +198,13 @@ export async function verifyOfflinePassword(email, password) {
         };
     }
 
+    if (!(await hasValidOfflineSecondFactor({ id: cred.user_id, type: cred.type }))) {
+        return {
+            ok: false,
+            error: 'Conecte-se à internet e confirme o segundo fator antes de usar o acesso offline.',
+        };
+    }
+
     await setMeta(ATTEMPTS_META_KEY, null); // sucesso zera o contador
     const user = { id: cred.user_id, name: cred.name, email: cred.email, type: cred.type };
     await startOfflineSession(user);
@@ -186,6 +216,7 @@ export async function verifyOfflinePassword(email, password) {
 // -----------------------------------------------------------------------------
 export async function startOfflineSession(user, companyId = null) {
     if (!user?.id) return;
+    if (!(await hasValidOfflineSecondFactor(user))) return false;
     const now = Date.now();
     const last = await getMeta('verified_mobile_context');
     const company = companyId ?? (String(last?.user) === String(user.id) ? last.company : null);
@@ -199,6 +230,7 @@ export async function startOfflineSession(user, companyId = null) {
         started_at: new Date(now).toISOString(),
         expires_at: new Date(now + OFFLINE_SESSION_TTL_HOURS * 3600 * 1000).toISOString(),
     });
+    return true;
 }
 
 // Renova a janela offline. Chamado pelo MobileLayout quando a página veio do
@@ -212,7 +244,8 @@ export async function getOfflineSession() {
     try {
         const s = await getMeta(SESSION_META_KEY, null);
         if (!s?.user_id) return null;
-          if (!(Date.parse(s.expires_at) > Date.now())) return null;
+        if (!(Date.parse(s.expires_at) > Date.now())) return null;
+        if (!(await hasValidOfflineSecondFactor({ id: s.user_id, type: s.type }))) return null;
         return s;
     } catch (_) {
         return null;
@@ -255,6 +288,7 @@ export default {
     getOfflineSession,
     clearOfflineSession,
     ensurePersistentStorage,
+    grantOfflineSecondFactor,
     PBKDF2_ITERATIONS,
     OFFLINE_SESSION_TTL_HOURS,
 };

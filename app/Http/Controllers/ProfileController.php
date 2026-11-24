@@ -7,7 +7,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use App\Support\TwoFactorAuthentication;
 
 class ProfileController extends Controller
 {
@@ -24,6 +27,7 @@ class ProfileController extends Controller
             'requires_2fa_setup' => !empty(session('google2fa_secret')),
             'two_factor_secret' => session('google2fa_secret'),
             'two_factor_qr_url' => session('google2fa_qr_url'),
+            'two_factor_recovery_codes' => session('two_factor_recovery_codes'),
         ]);
     }
 
@@ -102,7 +106,7 @@ class ProfileController extends Controller
     public function enable2fa(Request $request): RedirectResponse
     {
         $request->validate([
-            'code' => ['required', 'string'],
+            'code' => ['required', 'digits:6'],
         ]);
 
         $secret = session('google2fa_secret');
@@ -114,12 +118,22 @@ class ProfileController extends Controller
         $google2fa = new \PragmaRX\Google2FA\Google2FA();
 
         if ($google2fa->verifyKey($secret, $request->code)) {
+            $recoveryCodes = collect(range(1, 8))
+                ->map(fn () => strtoupper(Str::random(5).'-'.Str::random(5)))
+                ->values();
+
             $request->user()->forceFill([
                 'google2fa_secret' => $secret,
                 'google2fa_enabled' => true,
+                'two_factor_confirmed_at' => now(),
+                'two_factor_recovery_codes' => $recoveryCodes
+                    ->map(fn (string $code) => Hash::make(str_replace('-', '', $code)))
+                    ->all(),
             ])->save();
 
             session()->forget(['google2fa_secret', 'google2fa_qr_url']);
+            session()->flash('two_factor_recovery_codes', $recoveryCodes->all());
+            TwoFactorAuthentication::markVerified($request, $request->user());
             
             return Redirect::route('profile.edit')->with('message', 'Autenticação em 2 fatores habilitada!');
         }
@@ -129,12 +143,30 @@ class ProfileController extends Controller
 
     public function disable2fa(Request $request): RedirectResponse
     {
-        // Require password confirmation could be nice but let's just use regular request validation if needed.
-        // To keep it simple, we just disable it since they are logged in.
+        if (! TwoFactorAuthentication::enabled($request->user())) {
+            session()->forget(['google2fa_secret', 'google2fa_qr_url']);
+
+            return Redirect::route('profile.edit')->with('message', 'Configuração cancelada.');
+        }
+
+        if (TwoFactorAuthentication::required($request->user())) {
+            return Redirect::route('profile.edit')->withErrors([
+                'password' => 'O 2FA é obrigatório para o seu perfil e não pode ser desativado.',
+            ]);
+        }
+
+        $request->validate([
+            'password' => ['required', 'current_password'],
+        ]);
+
         $request->user()->forceFill([
             'google2fa_secret' => null,
             'google2fa_enabled' => false,
+            'two_factor_confirmed_at' => null,
+            'two_factor_recovery_codes' => null,
         ])->save();
+
+        TwoFactorAuthentication::forget($request);
 
         return Redirect::route('profile.edit')->with('message', 'Autenticação em 2 fatores desativada.');
     }

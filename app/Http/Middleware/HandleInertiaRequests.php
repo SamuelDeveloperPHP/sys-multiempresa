@@ -95,6 +95,15 @@ class HandleInertiaRequests extends Middleware
             }
         }
 
+        $twoFactor = null;
+        if ($user instanceof \App\Models\User) {
+            $twoFactor = [
+                'required' => \App\Support\TwoFactorAuthentication::required($user),
+                'enabled' => \App\Support\TwoFactorAuthentication::enabled($user),
+                'verified' => \App\Support\TwoFactorAuthentication::verified($request, $user),
+            ];
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -102,6 +111,7 @@ class HandleInertiaRequests extends Middleware
                 'company' => $company,
                 'menuSections' => $menuSections,
                 'biometric_status' => $biometricStatus,
+                'two_factor' => $twoFactor,
             ],
             'flash' => [
                 'message'              => fn () => $request->session()->get('message'),

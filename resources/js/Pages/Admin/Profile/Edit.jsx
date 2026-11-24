@@ -7,7 +7,7 @@ import TwoFactorAuthenticationForm from './Partials/TwoFactorAuthenticationForm'
 import GeolocationForm from './Partials/GeolocationForm';
 import BiometricsForm from './Partials/BiometricsForm';
 
-export default function Edit({ mustVerifyEmail, status, requires_2fa_setup, two_factor_secret, two_factor_qr_url }) {
+export default function Edit({ mustVerifyEmail, status, requires_2fa_setup, two_factor_secret, two_factor_qr_url, two_factor_recovery_codes }) {
     const { auth } = usePage().props;
     const [activeTab, setActiveTab] = useState('geral');
 
@@ -81,6 +81,7 @@ export default function Edit({ mustVerifyEmail, status, requires_2fa_setup, two_
                                         requiresSetup={requires_2fa_setup}
                                         qrCodeUrl={two_factor_qr_url}
                                         secret={two_factor_secret}
+                                        recoveryCodes={two_factor_recovery_codes}
                                     />
                                 </div>
                             )}

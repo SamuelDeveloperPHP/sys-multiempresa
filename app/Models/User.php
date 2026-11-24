@@ -35,6 +35,8 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
         'profile_photo_path',
         'google2fa_secret',
         'google2fa_enabled',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
         'latitude',
         'longitude',
     ];
@@ -48,6 +50,10 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'password_app',
+        'perfil_offline',
+        'google2fa_secret',
+        'two_factor_recovery_codes',
     ];
 
     protected $appends = [
@@ -67,6 +73,9 @@ class User extends Authenticatable implements WebAuthnAuthenticatable
             'last_seen_at'      => 'datetime',
             'is_active'         => 'boolean',
             'google2fa_enabled' => 'boolean',
+            'google2fa_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
             'biometria'         => 'boolean',
             'geolocalizacao'    => 'boolean',
             'password'          => 'hashed',

@@ -13,7 +13,7 @@ class Ensure2faVerified
     {
         $client = Auth::guard('client')->user();
 
-        if ($client && $client->google2fa_secret) {
+        if ($client && $client->google2fa_secret && $client->two_factor_confirmed_at) {
             // Se tem 2FA e não tá verificado na sessão, empurra pro challenge
             if (!Session::get('client_2fa_verified')) {
                 return redirect()->route('portal.2fa.challenge');
