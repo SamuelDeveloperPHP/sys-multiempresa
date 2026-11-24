@@ -134,6 +134,12 @@ class ProfileController extends Controller
             session()->forget(['google2fa_secret', 'google2fa_qr_url']);
             session()->flash('two_factor_recovery_codes', $recoveryCodes->all());
             TwoFactorAuthentication::markVerified($request, $request->user());
+            log_activity('two_factor_enabled', [
+                'module' => 'user-security',
+                'model_type' => $request->user()::class,
+                'model_id' => $request->user()->id,
+                'after' => ['enabled' => true, 'recovery_codes' => $recoveryCodes->count()],
+            ]);
             
             return Redirect::route('profile.edit')->with('message', 'Autenticação em 2 fatores habilitada!');
         }
@@ -167,6 +173,13 @@ class ProfileController extends Controller
         ])->save();
 
         TwoFactorAuthentication::forget($request);
+        log_activity('two_factor_disabled', [
+            'module' => 'user-security',
+            'model_type' => $request->user()::class,
+            'model_id' => $request->user()->id,
+            'before' => ['enabled' => true],
+            'after' => ['enabled' => false],
+        ]);
 
         return Redirect::route('profile.edit')->with('message', 'Autenticação em 2 fatores desativada.');
     }

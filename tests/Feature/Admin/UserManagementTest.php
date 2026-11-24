@@ -99,4 +99,35 @@ class UserManagementTest extends AdminFrotaTestCase
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('users', ['email' => 'global@example.test', 'type' => 'super_admin']);
     }
+
+    public function test_admin_can_reset_two_factor_and_revoke_target_sessions(): void
+    {
+        $company = $this->criarEmpresa();
+        $actor = $this->criarUsuario($company, 'super_admin');
+        $target = $this->criarUsuario($company, 'manager');
+        $target->forceFill([
+            'google2fa_secret' => 'JBSWY3DPEHPK3PXP',
+            'google2fa_enabled' => true,
+            'two_factor_confirmed_at' => now(),
+            'two_factor_recovery_codes' => [],
+        ])->save();
+        $this->concederPermissao($actor, $company, 'admin.users.index', ['edit']);
+        $this->comContexto($actor, $company);
+        \DB::table('sessions')->insert([
+            'id' => 'target-session', 'user_id' => $target->id, 'ip_address' => '127.0.0.1',
+            'user_agent' => 'test', 'payload' => '', 'last_activity' => time(),
+        ]);
+
+        $this->post(route('admin.users.two-factor.reset', $target), [
+            'password' => 'password',
+        ])->assertSessionHasNoErrors();
+
+        $target->refresh();
+        $this->assertFalse($target->google2fa_enabled);
+        $this->assertNull($target->google2fa_secret);
+        $this->assertDatabaseMissing('sessions', ['user_id' => $target->id]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'two_factor_admin_reset', 'model_type' => User::class, 'model_id' => $target->id,
+        ]);
+    }
 }

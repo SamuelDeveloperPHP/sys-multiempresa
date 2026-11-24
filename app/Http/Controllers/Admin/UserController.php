@@ -371,6 +371,41 @@ class UserController extends Controller
         return back()->with('success', $user->is_active ? 'Usuário desbloqueado.' : 'Usuário bloqueado.');
     }
 
+    public function resetTwoFactor(Request $request, User $user)
+    {
+        $request->validate([
+            'password' => ['required', 'current_password'],
+        ]);
+
+        $user = DB::transaction(function () use ($request, $user) {
+            $user = $this->managedUser($user, true);
+            abort_if($request->user()->is($user), 422, 'Use o seu próprio perfil para alterar o 2FA.');
+
+            $wasEnabled = (bool) $user->google2fa_enabled;
+            $user->forceFill([
+                'google2fa_secret' => null,
+                'google2fa_enabled' => false,
+                'two_factor_confirmed_at' => null,
+                'two_factor_recovery_codes' => null,
+            ])->save();
+
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+
+            log_activity('two_factor_admin_reset', [
+                'module' => 'user-security',
+                'model_type' => User::class,
+                'model_id' => $user->id,
+                'before' => ['enabled' => $wasEnabled],
+                'after' => ['enabled' => false, 'sessions_revoked' => true],
+                'description' => 'Segundo fator redefinido pelo administrador.',
+            ]);
+
+            return $user;
+        });
+
+        return back()->with('success', "2FA de {$user->name} redefinido. Todas as sessões foram encerradas.");
+    }
+
     public function toggleActive(User $user)
     {
         // se quiser manter esse método separado, reaproveita o toggleStatus

@@ -515,6 +515,8 @@ Route::middleware(['auth', 'company', 'lastseen'])->group(function () {
             // Ativar / bloquear usuário
             Route::post('configuracao/users/{user}/toggle-status', [AdminUserController::class, 'toggleStatus'])
                 ->name('users.toggle-status');
+            Route::post('configuracao/users/{user}/reset-two-factor', [AdminUserController::class, 'resetTwoFactor'])
+                ->moduleAbility('edit')->name('admin.users.two-factor.reset');
 
             /*
             |------------------------------------------------------------------
