@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers\Admin\Frota;
 
+use App\Helpers\CompanyContext;
 use App\Http\Controllers\Controller;
 use App\Models\Frota\Pneu;
-use App\Models\Frota\PneuInspecao;
-use App\Models\Frota\PneuMovimentacao;
 use App\Services\Frota\CalculadorCpkPneu;
+use App\Services\Frota\PneuOperationService;
+use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
@@ -33,8 +35,7 @@ class PneuController extends Controller
 
         // Posicao atual (ultima montagem/rodizio ativa) + CPK por linha da pagina.
         $pagina->getCollection()->transform(function (Pneu $p) use ($cpk) {
-            $mov = $p->movimentacoes()->whereIn('tipo', ['montagem', 'rodizio'])
-                ->orderByDesc('data')->orderByDesc('id')->with('veiculo:id,prefixo')->first();
+            $montagem = $p->montagemAtiva()->with('veiculo:id,prefixo')->first();
             $c = $cpk->calcular($p);
             return [
                 'id'            => $p->id,
@@ -44,8 +45,8 @@ class PneuController extends Controller
                 'desenho'       => $p->desenho,
                 'vida_atual'    => $p->vida_atual,
                 'situacao'      => $p->situacao,
-                'veiculo'       => $p->situacao === 'montado' ? optional($mov?->veiculo)->prefixo : null,
-                'posicao'       => $p->situacao === 'montado' ? $mov?->posicao : null,
+                'veiculo'       => optional($montagem?->veiculo)->prefixo,
+                'posicao'       => $montagem?->posicao,
                 'rodado'        => $c['rodado'],
                 'unidade'       => $c['unidade'],
                 'cpk'           => $c['cpk'],
@@ -99,7 +100,7 @@ class PneuController extends Controller
 
     public function update(Request $request, Pneu $pneu): RedirectResponse
     {
-        $data = $this->validar($request);
+        $data = $this->validar($request, $pneu);
         $data['user_edit'] = Auth::user()?->email;
         $pneu->update($data);
         return redirect()->route('admin.frota.pneus.index')->with('success', 'Pneu atualizado.');
@@ -107,81 +108,75 @@ class PneuController extends Controller
 
     public function destroy(Pneu $pneu): RedirectResponse
     {
+        if ($pneu->montagemAtiva()->exists()) {
+            return back()->with('error', 'Desmonte o pneu do veículo antes de removê-lo.');
+        }
+        if ($pneu->movimentacoes()->exists() || $pneu->inspecoes()->exists()) {
+            return back()->with('error', 'Este pneu possui histórico e não pode ser removido. Sucateie-o para preservar a rastreabilidade.');
+        }
         $pneu->delete();
         return redirect()->route('admin.frota.pneus.index')->with('success', 'Pneu removido.');
     }
 
     /** Recapagem: registra custo, incrementa a vida e devolve o pneu ao estoque. */
-    public function recapar(Request $request, Pneu $pneu): RedirectResponse
+    public function recapar(Request $request, Pneu $pneu, PneuOperationService $operacoes): RedirectResponse
     {
         $data = $request->validate([
             'data'          => 'required|date',
             'valor'         => 'nullable|numeric|min:0',
-            'fornecedor_id' => 'nullable|integer',
+            'fornecedor_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('fornecedores', 'id')->where(fn ($query) => $query->where('company_id', CompanyContext::id())),
+            ],
             'observacao'    => 'nullable|string',
         ]);
-        if ($pneu->situacao === 'sucata')  return back()->with('error', 'Pneu sucateado não pode ser recapado.');
-        if ($pneu->situacao === 'montado') return back()->with('error', 'Desmonte o pneu do veículo antes de recapar (senão o rodado do período montado é perdido no CPK).');
-
-        $novaVida = $pneu->vida_atual + 1;
-        PneuMovimentacao::create([
-            'pneu_id'         => $pneu->id,
-            'tipo'            => 'recapagem',
-            'data'            => $data['data'],
-            'valor'           => $data['valor'] ?? null,
-            'fornecedor_id'   => $data['fornecedor_id'] ?? null,
-            'vida_resultante' => $novaVida,
-            'observacao'      => $data['observacao'] ?? null,
-            'user_create'     => Auth::user()?->email,
-        ]);
-        $pneu->update(['vida_atual' => $novaVida, 'situacao' => 'estoque', 'user_edit' => Auth::user()?->email]);
+        try {
+            $novaVida = $operacoes->recapar($pneu, $data, Auth::user()?->email);
+        } catch (DomainException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
         return back()->with('success', "Recapagem registrada (agora {$novaVida}ª vida).");
     }
 
     /** Conserto: registra custo; mantém a situação. */
-    public function consertar(Request $request, Pneu $pneu): RedirectResponse
+    public function consertar(Request $request, Pneu $pneu, PneuOperationService $operacoes): RedirectResponse
     {
         $data = $request->validate([
             'data'          => 'required|date',
             'valor'         => 'nullable|numeric|min:0',
-            'fornecedor_id' => 'nullable|integer',
+            'fornecedor_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('fornecedores', 'id')->where(fn ($query) => $query->where('company_id', CompanyContext::id())),
+            ],
             'observacao'    => 'nullable|string',
         ]);
-        PneuMovimentacao::create([
-            'pneu_id'       => $pneu->id,
-            'tipo'          => 'conserto',
-            'data'          => $data['data'],
-            'valor'         => $data['valor'] ?? null,
-            'fornecedor_id' => $data['fornecedor_id'] ?? null,
-            'observacao'    => $data['observacao'] ?? null,
-            'user_create'   => Auth::user()?->email,
-        ]);
+        try {
+            $operacoes->consertar($pneu, $data, Auth::user()?->email);
+        } catch (DomainException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
         return back()->with('success', 'Conserto registrado.');
     }
 
     /** Sucateamento: fim de vida da carcaça. */
-    public function sucatear(Request $request, Pneu $pneu): RedirectResponse
+    public function sucatear(Request $request, Pneu $pneu, PneuOperationService $operacoes): RedirectResponse
     {
         $data = $request->validate([
             'data'       => 'required|date',
             'observacao' => 'nullable|string',
         ]);
-        if ($pneu->situacao === 'sucata')  return back()->with('error', 'Pneu já está sucateado.');
-        if ($pneu->situacao === 'montado') return back()->with('error', 'Desmonte o pneu do veículo antes de sucatear (senão o rodado do período montado é perdido no CPK).');
-
-        PneuMovimentacao::create([
-            'pneu_id'     => $pneu->id,
-            'tipo'        => 'sucateamento',
-            'data'        => $data['data'],
-            'observacao'  => $data['observacao'] ?? null,
-            'user_create' => Auth::user()?->email,
-        ]);
-        $pneu->update(['situacao' => 'sucata', 'user_edit' => Auth::user()?->email]);
+        try {
+            $operacoes->sucatear($pneu, $data, Auth::user()?->email);
+        } catch (DomainException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
         return back()->with('success', 'Pneu sucateado.');
     }
 
     /** Inspeção: mede sulco/pressão. */
-    public function inspecionar(Request $request, Pneu $pneu): RedirectResponse
+    public function inspecionar(Request $request, Pneu $pneu, PneuOperationService $operacoes): RedirectResponse
     {
         $data = $request->validate([
             'data'        => 'required|date',
@@ -190,17 +185,25 @@ class PneuController extends Controller
             'medicao'     => 'nullable|integer|min:0',
             'observacao'  => 'nullable|string',
         ]);
-        PneuInspecao::create($data + [
-            'pneu_id'     => $pneu->id,
-            'user_create' => Auth::user()?->email,
-        ]);
+        try {
+            $operacoes->inspecionar($pneu, $data, Auth::user()?->email);
+        } catch (DomainException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
         return back()->with('success', 'Inspeção registrada.');
     }
 
-    protected function validar(Request $request): array
+    protected function validar(Request $request, ?Pneu $pneu = null): array
     {
         return $request->validate([
-            'numero_fogo'   => 'required|string|max:60',
+            'numero_fogo'   => [
+                'required',
+                'string',
+                'max:60',
+                Rule::unique('pneus', 'numero_fogo')
+                    ->where(fn ($query) => $query->where('company_id', CompanyContext::id()))
+                    ->ignore($pneu?->id),
+            ],
             'dot'           => 'nullable|string|max:20',
             'marca'         => 'nullable|string|max:80',
             'modelo'        => 'nullable|string|max:80',
@@ -211,7 +214,11 @@ class PneuController extends Controller
             'valor_compra'  => 'nullable|numeric|min:0',
             'data_compra'   => 'nullable|date',
             'nota_fiscal'   => 'nullable|string|max:60',
-            'fornecedor_id' => 'nullable|integer',
+            'fornecedor_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('fornecedores', 'id')->where(fn ($query) => $query->where('company_id', CompanyContext::id())),
+            ],
             'sulco_novo_mm' => 'nullable|numeric|min:0|max:100',
         ]);
     }

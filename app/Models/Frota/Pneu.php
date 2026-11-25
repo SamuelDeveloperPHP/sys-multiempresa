@@ -29,6 +29,7 @@ class Pneu extends Model
 
     public function movimentacoes() { return $this->hasMany(PneuMovimentacao::class, 'pneu_id'); }
     public function inspecoes()     { return $this->hasMany(PneuInspecao::class, 'pneu_id'); }
+    public function montagemAtiva() { return $this->hasOne(PneuMontagemAtiva::class, 'pneu_id'); }
 
     /** Ultima movimentacao (evento mais recente do ledger). */
     public function ultimaMovimentacao()

@@ -31,8 +31,8 @@ export default function PneuShow({ pneu, cpk, movimentacoes, inspecoes }) {
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setModal('inspecionar')} className="px-3 py-1.5 bg-teal-600 text-white rounded text-sm hover:bg-teal-700">Inspecionar</button>
-            <button onClick={() => setModal('recapar')} disabled={sucata || montado} title={montado ? 'Desmonte o pneu do veículo antes de recapar' : undefined} className="px-3 py-1.5 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 disabled:opacity-40">Recapar</button>
-            <button onClick={() => setModal('consertar')} disabled={sucata} className="px-3 py-1.5 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-40">Consertar</button>
+            <button onClick={() => setModal('recapar')} disabled={pneu.situacao !== 'recapadora'} title={pneu.situacao !== 'recapadora' ? 'Envie o pneu para a recapadora antes de registrar a recapagem' : undefined} className="px-3 py-1.5 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 disabled:opacity-40">Recapar</button>
+            <button onClick={() => setModal('consertar')} disabled={pneu.situacao !== 'conserto'} title={pneu.situacao !== 'conserto' ? 'Envie o pneu para conserto antes de registrar o serviço' : undefined} className="px-3 py-1.5 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-40">Consertar</button>
             <button onClick={() => setModal('sucatear')} disabled={sucata || montado} title={montado ? 'Desmonte o pneu do veículo antes de sucatear' : undefined} className="px-3 py-1.5 bg-gray-700 text-white rounded text-sm hover:bg-gray-800 disabled:opacity-40">Sucatear</button>
           </div>
         </header>

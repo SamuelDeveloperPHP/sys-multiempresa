@@ -2,14 +2,16 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Company;
 use App\Models\Frota\Pneu;
-use App\Models\User;
+use App\Models\Frota\PneuInspecao;
+use App\Models\Frota\PneuMontagemAtiva;
+use App\Models\Frota\Veiculo;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * Varre os pneus MONTADOS e sinaliza os que estao com sulco abaixo do limite de
- * alerta (config frota_pneus.sulco). Envia 1 email consolidado.
+ * Varre os pneus montados por empresa e envia alertas isolados por tenant.
  *
  *   php artisan frota:alertar-pneus
  *   php artisan frota:alertar-pneus --dry-run
@@ -28,76 +30,120 @@ class AlertarPneusFrota extends Command
         $alerta = (float) config('frota_pneus.sulco.alerta', 3.0);
         $minimo = (float) config('frota_pneus.sulco.minimo_legal', 1.6);
 
-        $pneus = Pneu::withoutGlobalScopes()
-            ->where('situacao', 'montado')
-            ->whereNull('deleted_at')
-            ->with(['ultimaInspecao', 'ultimaMovimentacao.veiculo'])
-            ->get();
+        $encontrados = 0;
+        $falhou = false;
 
-        $criticos = [];
-        foreach ($pneus as $p) {
-            $sulco = optional($p->ultimaInspecao)->sulco_mm;
-            if ($sulco === null || (float) $sulco >= $alerta) continue;
+        Company::query()->where('is_active', true)->orderBy('id')->each(function (Company $company) use ($alerta, $minimo, &$encontrados, &$falhou) {
+            $criticos = $this->criticosDaEmpresa($company, $alerta, $minimo);
+            if (empty($criticos)) {
+                return;
+            }
 
-            $mov = $p->movimentacoes()->whereIn('tipo', ['montagem', 'rodizio'])
-                ->orderByDesc('data')->orderByDesc('id')->with('veiculo:id,prefixo')->first();
+            $encontrados += count($criticos);
+            usort($criticos, fn ($a, $b) => $a['sulco'] <=> $b['sulco']);
+            $linhas = array_map(
+                fn ($c) => sprintf('  • %s | %s pos. %s | sulco %.1f mm — %s',
+                    $c['numero_fogo'], $c['veiculo'], $c['posicao'], $c['sulco'], $c['nivel']),
+                $criticos
+            );
+            $corpo = "Empresa: {$company->display_name}\nPneus com sulco abaixo de {$alerta} mm (limite legal {$minimo} mm):\n\n" . implode("\n", $linhas);
 
-            $criticos[] = [
-                'numero_fogo' => $p->numero_fogo,
-                'sulco'       => (float) $sulco,
-                'nivel'       => (float) $sulco < $minimo ? 'CRÍTICO (abaixo do legal)' : 'atenção',
-                'veiculo'     => optional($mov?->veiculo)->prefixo ?? '—',
-                'posicao'     => $mov?->posicao ?? '—',
-            ];
-        }
+            $this->warn("{$company->display_name}: " . count($criticos) . ' pneu(s) crítico(s)');
+            $this->line($corpo);
 
-        if (empty($criticos)) {
+            if ($this->option('dry-run')) {
+                return;
+            }
+
+            $destinatarios = $this->destinatarios($company);
+            if (empty($destinatarios)) {
+                $this->error("{$company->display_name}: nenhum destinatário configurado.");
+                $falhou = true;
+                return;
+            }
+
+            try {
+                Mail::raw($corpo, function ($mensagem) use ($destinatarios, $company) {
+                    $mensagem->to($destinatarios)->subject("[Frota - {$company->display_name}] Pneus com sulco crítico");
+                });
+                $this->info("{$company->display_name}: email enviado para " . implode(', ', $destinatarios));
+            } catch (\Throwable $exception) {
+                $this->error("{$company->display_name}: falha ao enviar email: {$exception->getMessage()}");
+                $falhou = true;
+            }
+        });
+
+        if ($encontrados === 0) {
             $this->info('Nenhum pneu com sulco crítico. Nada a enviar.');
-            return self::SUCCESS;
-        }
-
-        usort($criticos, fn ($a, $b) => $a['sulco'] <=> $b['sulco']);
-
-        $linhas = array_map(
-            fn ($c) => sprintf('  • %s | %s pos. %s | sulco %.1f mm — %s',
-                $c['numero_fogo'], $c['veiculo'], $c['posicao'], $c['sulco'], $c['nivel']),
-            $criticos
-        );
-        $corpo = "Pneus com sulco abaixo de {$alerta} mm (limite legal {$minimo} mm):\n\n" . implode("\n", $linhas);
-
-        $this->warn(count($criticos) . ' pneu(s) crítico(s):');
-        $this->line($corpo);
-
-        if ($this->option('dry-run')) {
+        } elseif ($this->option('dry-run')) {
             $this->warn('Modo --dry-run: nenhum email enviado.');
-            return self::SUCCESS;
         }
 
-        $destinatarios = $this->destinatarios();
-        if (empty($destinatarios)) {
-            $this->error('Nenhum destinatário configurado (FROTA_ALERTAS_EMAIL ou --email=).');
-            return self::FAILURE;
-        }
-
-        try {
-            Mail::raw($corpo, function ($m) use ($destinatarios) {
-                $m->to($destinatarios)->subject('[Frota] Pneus com sulco crítico');
-            });
-            $this->info('Email enviado: ' . implode(', ', $destinatarios));
-        } catch (\Throwable $e) {
-            $this->error('Falha ao enviar email: ' . $e->getMessage());
-            return self::FAILURE;
-        }
-
-        return self::SUCCESS;
+        return $falhou ? self::FAILURE : self::SUCCESS;
     }
 
-    protected function destinatarios(): array
+    private function criticosDaEmpresa(Company $company, float $alerta, float $minimo): array
     {
-        if ($email = $this->option('email')) return [$email];
-        $cfg = config('frota.alertas_email', []);
-        if (! empty($cfg)) return $cfg;
-        $sa = User::where('type', 'super_admin')->first();
-        return $sa?->email ? [$sa->email] : [];
+        return Pneu::withoutGlobalScopes()
+            ->where('company_id', $company->id)
+            ->where('situacao', 'montado')
+            ->whereNull('deleted_at')
+            ->get()
+            ->map(function (Pneu $pneu) use ($company, $alerta, $minimo) {
+                $inspecao = PneuInspecao::withoutGlobalScopes()
+                    ->where('company_id', $company->id)
+                    ->where('pneu_id', $pneu->id)
+                    ->whereNull('deleted_at')
+                    ->orderByDesc('data')
+                    ->orderByDesc('id')
+                    ->first();
+                if ($inspecao?->sulco_mm === null || (float) $inspecao->sulco_mm >= $alerta) {
+                    return null;
+                }
+
+                $montagem = PneuMontagemAtiva::withoutGlobalScopes()
+                    ->where('company_id', $company->id)
+                    ->where('pneu_id', $pneu->id)
+                    ->first();
+                $veiculo = $montagem
+                    ? Veiculo::withoutGlobalScopes()
+                        ->where('company_id', $company->id)
+                        ->find($montagem->veiculo_id)
+                    : null;
+                $sulco = (float) $inspecao->sulco_mm;
+                return [
+                    'numero_fogo' => $pneu->numero_fogo,
+                    'sulco' => $sulco,
+                    'nivel' => $sulco < $minimo ? 'CRÍTICO (abaixo do legal)' : 'atenção',
+                    'veiculo' => $veiculo?->prefixo ?? '—',
+                    'posicao' => $montagem?->posicao ?? '—',
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    protected function destinatarios(Company $company): array
+    {
+        if ($email = $this->option('email')) {
+            return [$email];
+        }
+
+        $destinatarios = $company->users()
+            ->whereIn('users.type', ['admin', 'super_admin'])
+            ->whereNotNull('users.email')
+            ->pluck('users.email')
+            ->push($company->email)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($destinatarios) {
+            return $destinatarios;
+        }
+
+        return collect((array) config('frota.alertas_email', []))->filter()->unique()->values()->all();
     }
 }

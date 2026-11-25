@@ -70,6 +70,7 @@ class Veiculo extends Model
     public function depreciacoes()  { return $this->hasMany(VeiculoDepreciacao::class, 'veiculo_id'); }
     public function tacografos()    { return $this->hasMany(VeiculoTacografo::class, 'veiculo_id'); }
     public function pneuMovimentacoes() { return $this->hasMany(PneuMovimentacao::class, 'veiculo_id'); }
+    public function pneuMontagensAtivas() { return $this->hasMany(PneuMontagemAtiva::class, 'veiculo_id'); }
 
     public function locacaoAtual()
     {
