@@ -291,6 +291,19 @@ public function index(Request $request)
             $data['is_active']   = $request->boolean('is_active');
             $data['show_in_menu'] = $request->boolean('show_in_menu');
 
+            if ($module->isEssential()) {
+                $errors = [];
+                if (! $data['is_active']) {
+                    $errors['is_active'] = 'Este módulo é essencial ao sistema e não pode ser desativado.';
+                }
+                if (($data['route_name'] ?? null) !== $module->route_name) {
+                    $errors['route_name'] = 'A rota de um módulo essencial não pode ser alterada.';
+                }
+                if ($errors !== []) {
+                    return back()->withInput()->withErrors($errors);
+                }
+            }
+
             $module->update($data);
 
             return redirect()
@@ -319,6 +332,12 @@ public function index(Request $request)
 
     public function destroy(Module $module)
     {
+        if ($module->isEssential()) {
+            return back()->withErrors([
+                'error' => 'Este módulo é essencial ao sistema e não pode ser removido.',
+            ]);
+        }
+
         try {
             $module->delete();
 
