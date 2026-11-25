@@ -1,0 +1,136 @@
+/* Palette: navy base, steel panels, teal HUD signal, amber for alerts and CTAs. */
+.fleet-landing {
+    --hud-teal: #60dfc2;
+    --hud-teal-soft: #9de5d4;
+    --hud-amber: #ffb544;
+    --hud-line: #446071;
+    --hud-panel: #172b3dcc;
+    color: #ecf4f4;
+    background: radial-gradient(ellipse at 74% 12%, #27415a, #132336 40%, #101d2a);
+}
+.fleet-landing h1 { letter-spacing: -.055em; }
+.fleet-landing h1 + p { color: #c4d2dc; }
+
+.hud-bar { border-bottom: 1px solid #ffffff12; background: #0e1b27b3; backdrop-filter: blur(6px); position: sticky; top: 0; z-index: 10; }
+footer.hud-bar { position: static; border-bottom: 0; }
+.hud-logo { border-radius: .4rem; background: #155771; padding: .1rem .5rem; color: #fff; box-shadow: 0 0 0 1px var(--hud-teal-soft) inset; }
+
+.hud-kicker { display: inline-flex; align-items: center; gap: .5rem; font-family: monospace; font-size: .75rem; letter-spacing: .2em; text-transform: uppercase; color: var(--hud-teal-soft); }
+.hud-dot { width: .5rem; height: .5rem; border-radius: 9999px; background: var(--hud-teal); box-shadow: 0 0 10px var(--hud-teal); animation: hud-blink 1.6s steps(2) infinite; }
+.hud-label { font-family: monospace; font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; color: #7f9bab; }
+
+/* Soft HUD panel: rounded glass with a glowing edge on hover. */
+.hud-panel {
+    position: relative;
+    border-radius: 1.5rem;
+    background: linear-gradient(160deg, #1d3448e6, #132535cc);
+    border: 1px solid #ffffff14;
+    box-shadow: 0 18px 40px #07111b66, inset 0 1px 0 #ffffff12;
+    transition: border-color .25s, box-shadow .25s, transform .25s;
+}
+.hud-panel:hover { border-color: #60dfc266; box-shadow: 0 22px 50px #07111b80, 0 0 0 4px #60dfc214; transform: translateY(-3px); }
+.hud-tag { position: absolute; top: 1rem; right: 1.1rem; padding: .1rem .55rem; border-radius: 9999px; background: #ffb5441a; font-family: monospace; font-size: .65rem; letter-spacing: .15em; color: var(--hud-amber); }
+
+.hud-button { display: inline-block; padding: .8rem 1.6rem; border-radius: 9999px; font-weight: 700; color: #10202c; background: linear-gradient(135deg, #ffc76a, var(--hud-amber)); box-shadow: 0 8px 24px #ffb54433; transition: filter .2s, transform .2s; }
+.hud-button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.hud-button-ghost { font-family: monospace; font-size: .85rem; padding: .4rem 1rem; border-radius: 9999px; border: 1px solid #9de5d466; color: var(--hud-teal-soft); }
+.hud-button:focus-visible, .hud-button-ghost:focus-visible, .fleet-landing a:focus-visible { outline: 2px solid var(--hud-amber); outline-offset: 3px; }
+
+/* Isometric floor grid behind the modules, fading at the edges. */
+.hud-grid-bg { position: relative; background: #12212f; }
+.hud-grid-bg::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(30deg, transparent 48%, #1f3546 49%, transparent 51%), linear-gradient(-30deg, transparent 48%, #1f3546 49%, transparent 51%);
+    background-size: 48px 28px;
+    mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+}
+.hud-grid-bg > div { position: relative; }
+
+/* Icon standing on a round glowing platform. */
+.hud-orb { display: grid; place-items: center; width: 11rem; height: 11rem; border-radius: 9999px; background: radial-gradient(circle at 50% 60%, #60dfc226, transparent 65%); }
+
+/* Curved road linking the stages. */
+.hud-road-base { fill: none; stroke: #1f3546; stroke-width: 26; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.hud-road-line { fill: none; stroke: #9de5d455; stroke-width: 2; stroke-dasharray: 10 12; vector-effect: non-scaling-stroke; animation: hud-drive 1.4s linear infinite; }
+.hud-stop { position: relative; display: grid; place-items: center; width: 8.5rem; height: 8.5rem; border-radius: 9999px; background: radial-gradient(circle, #1d3448, #132535); border: 1px solid #60dfc240; box-shadow: 0 0 0 8px #101d2a, 0 0 30px #60dfc21f; }
+.hud-node { position: absolute; top: .2rem; right: .2rem; display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 9999px; font-family: monospace; font-weight: 700; color: #10202c; background: var(--hud-teal); box-shadow: 0 0 12px #60dfc288; }
+
+.hud-cta { border-radius: 2rem; background: radial-gradient(ellipse at 85% 50%, #ffb5442b, transparent 55%), linear-gradient(160deg, #1d3448, #132535); }
+
+/* Full-width hero stage: canvas diorama behind, HUD columns floating over its sides. */
+.yard-stage { position: relative; overflow: hidden; border-radius: 2rem; border: 1px solid #ffffff17; background: #8cc56f; box-shadow: 0 30px 80px #07111ba6; }
+.yard-diorama { position: relative; }
+.yard-diorama canvas { display: block; width: 100%; height: auto; }
+.yard-hud { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; background: #101d2a; }
+.yard-col { display: flex; flex-direction: column; gap: 1rem; }
+.yard-center { order: -1; }
+.yard-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .75rem; padding: .5rem .6rem .5rem 1rem; border-radius: 9999px; }
+.yard-bays { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+@media (min-width: 1024px) {
+    .yard-stage { min-height: 46rem; }
+    .yard-diorama { position: absolute; inset: 0; }
+    .yard-diorama canvas { height: 100%; object-fit: cover; }
+    .yard-hud { position: relative; z-index: 2; display: grid; grid-template-columns: minmax(0, 25rem) 1fr minmax(0, 19rem); gap: 1.5rem; min-height: 46rem; padding: 1.5rem; background: none; pointer-events: none; }
+    .yard-col { justify-content: space-between; pointer-events: auto; }
+    .yard-center { order: 0; display: flex; justify-content: center; align-items: flex-start; }
+    .yard-controls { pointer-events: auto; }
+    .yard-bays { grid-template-columns: 1fr; }
+}
+
+/* Frosted glass over the bright diorama. */
+.hud-glass { border-radius: 1.25rem; background: #0e1b27c7; border: 1px solid #ffffff1f; box-shadow: 0 16px 40px #07111b59; -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2); }
+.yard-signal { padding: .15rem .6rem; border-radius: 9999px; background: #7cc4ff1f; color: #a9d8ff; font-family: monospace; font-size: .7rem; }
+.yard-credential { display: flex; gap: .5rem; padding: .6rem .75rem; border-radius: .9rem; background: #ffb5441a; color: #ffd08a; font-size: .78rem; line-height: 1.35; }
+
+/* Tilt-shift depth of field. --focus is the centre of the sharp band, animated with @property. */
+@property --focus { syntax: '<percentage>'; inherits: true; initial-value: 45%; }
+.yard-diorama { transition: --focus .8s ease; }
+.yard-diorama canvas { filter: saturate(1.15) contrast(1.04); }
+.yard-diorama::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% var(--focus), transparent 55%, #0a141d66); }
+.yard-blur { position: absolute; inset: 0; pointer-events: none; }
+.yard-blur-soft {
+    -webkit-backdrop-filter: blur(1.6px); backdrop-filter: blur(1.6px);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(var(--focus) - 30%), transparent calc(var(--focus) - 12%), transparent calc(var(--focus) + 12%), #000 calc(var(--focus) + 30%));
+    mask-image: linear-gradient(to bottom, #000 calc(var(--focus) - 30%), transparent calc(var(--focus) - 12%), transparent calc(var(--focus) + 12%), #000 calc(var(--focus) + 30%));
+}
+.yard-blur-strong {
+    -webkit-backdrop-filter: blur(3.5px); backdrop-filter: blur(3.5px);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(var(--focus) - 44%), transparent calc(var(--focus) - 24%), transparent calc(var(--focus) + 24%), #000 calc(var(--focus) + 44%));
+    mask-image: linear-gradient(to bottom, #000 calc(var(--focus) - 44%), transparent calc(var(--focus) - 24%), transparent calc(var(--focus) + 24%), #000 calc(var(--focus) + 44%));
+}
+.yard-pill { padding: .35rem .9rem; border-radius: 9999px; border: 1px solid #9de5d466; font-family: monospace; font-size: .8rem; color: var(--hud-teal-soft); transition: background .2s; }
+.yard-pill:hover { background: #60dfc21a; }
+.yard-pill:focus-visible { outline: 2px solid var(--hud-amber); outline-offset: 2px; }
+.yard-live { display: inline-flex; align-items: center; gap: .4rem; padding: .15rem .6rem; border-radius: 9999px; background: #60dfc21a; font-family: monospace; font-size: .65rem; letter-spacing: .15em; text-transform: uppercase; color: var(--hud-teal); }
+.yard-live i { width: .45rem; height: .45rem; border-radius: 9999px; background: currentColor; box-shadow: 0 0 8px currentColor; animation: hud-blink 1.6s steps(2) infinite; }
+.yard-live.is-paused { background: #ffb5441a; color: var(--hud-amber); }
+.yard-live.is-paused i { animation: none; }
+
+/* Bay cards: the LED and bar use the bay colour and light up while the bay is working. */
+.yard-dock { --state: var(--tone, var(--hud-teal)); padding: .6rem .75rem .7rem; text-align: left; border-radius: 1rem; border: 1px solid #ffffff1f; background: #0e1b27c7; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-family: monospace; transition: border-color .2s, background .2s; }
+.yard-dock:not([data-state=service]) .yard-led { opacity: .35; box-shadow: none; }
+.yard-dock[aria-pressed=true] { border-color: #60dfc2aa; background: #0f2b30d9; box-shadow: 0 0 0 3px #60dfc226; }
+.yard-dock:focus-visible { outline: 2px solid var(--hud-amber); outline-offset: 2px; }
+.yard-status { color: #c4d2dc; }
+.yard-led { width: .5rem; height: .5rem; border-radius: 9999px; background: var(--state); box-shadow: 0 0 8px var(--state); }
+.yard-progress { appearance: none; display: block; width: 100%; height: .35rem; margin-top: .5rem; border: 0; border-radius: 9999px; background: #ffffff14; overflow: hidden; }
+.yard-progress::-webkit-progress-bar { background: #ffffff14; border-radius: 9999px; }
+.yard-progress::-webkit-progress-value { background: var(--state); border-radius: 9999px; }
+.yard-progress::-moz-progress-bar { background: var(--state); border-radius: 9999px; }
+
+/* Event feed in the hero's left column. */
+.yard-feed { min-height: 15rem; }
+.yard-feed-item button { --tone: var(--hud-teal); display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: .6rem; width: 100%; padding: .45rem .6rem; border-radius: .8rem; text-align: left; color: #c4d2dc; transition: background .2s; }
+.yard-feed-item button:hover, .yard-feed-item button[aria-pressed=true] { background: #ffffff0d; color: #fff; }
+.yard-feed-item button:focus-visible { outline: 2px solid var(--hud-amber); outline-offset: 1px; }
+.yard-feed-item:first-child { animation: feed-in .35s ease-out; }
+.yard-feed-tag { padding: .05rem .45rem; border-radius: 9999px; font-family: monospace; font-size: .65rem; letter-spacing: .1em; color: var(--tone); background: color-mix(in srgb, var(--tone) 15%, transparent); }
+
+@keyframes feed-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes hud-blink { 50% { opacity: .25; } }
+@keyframes hud-drive { to { stroke-dashoffset: -22; } }
+@media (prefers-reduced-motion: reduce) {
+    .hud-dot, .hud-road-line, .yard-live i, .yard-feed-item:first-child { animation: none; }
+    .hud-panel, .yard-diorama { transition: none; }
+    .hud-panel:hover { transform: none; }
+}
